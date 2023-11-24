@@ -2624,7 +2624,7 @@ gcd_poisson_disk : check "${1=8}>0 && ${3=30}>0" skip ${2=1}
     f. "P=[x,y,z]-int([w/2,h/2,d/2]);[sum(sqr(P)),dot(P,[1,w#2,w#2*h#2])]"
     r. {[whd,s,1,1,-1]} sort. +,x z. 0,1,100%,100% y. c # sort kernel by distance
     =>[1] dims =>[2] grid =>[3] samples =>[4] active =>[5] prox
-    eval ${-math_lib}"
+    eval ${-math_lib}${-dar_lib}"
       const N = "$dim";
       const radius = "$R";
       const grid_cw = "$cw";
@@ -2835,6 +2835,35 @@ gcd_inpaint_pyramid : check ${"is_image_arg $1"}
     done
     rm[0,-1] z {[$X,$Y,$X+$W-1,$Y+$H-1]},1 # restore dimensions
   done done
+
+#@cli gcd_inpaint_flat : [mask]
+#@cli : Inpaint selected images by specified mask using flat fill.
+#@cli : $ image.jpg 100%,100% circle. 50%,50%,50,1,1 gcd_inpaint_flat.. .
+gcd_inpaint_flat : check ${"is_image_arg $1"}
+  img=$! pass$1 0 lt. 1 mul[^-1] . => mask
+  +boxfilter[mask] 3 eq[mask] 0 => xmask
+  +gt[xmask] 0 => bound
+  +eq[xmask] 0 add[xmask] .
+  j. [mask] label. 0 add. 1 mul. [mask] => segs
+  repeat $img {
+    l[$>,mask,xmask,bound,segs] {
+      # buffer for inpaints
+      [0],[0],[0],{s#0+1}
+      j. [bound] j. [0],0,0,0,1 => inp
+      # inpaint edges by 1px
+      sh[inp] 1,100% boxfilter. 3 div. [xmask] rm.
+      # vector histogram
+      {segs,iM+1},1,1,[inp] => hist
+      eval[segs] "I[#6,i]+=I#5"
+      sh[hist] 1,100% sh[hist] 0
+      +eq. 0 add[-2,-1] div[-2,-1]
+      rm. channels. 1,100%
+      # set segment colours and draw
+      channels[inp] 0 j[inp] [segs] map[inp] [hist]
+      j[0] [inp],0,0,0,0,1,[mask] rm[inp,hist]
+    }
+  }
+  rm[mask,xmask,bound,segs]
 
 #@cli gcd_dither_srgb : _nb_levels>=2
 #@cli : Dither selected sRGB images.
