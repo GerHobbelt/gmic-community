@@ -51,7 +51,7 @@
 #include <stdbool.h>
 #endif
 
-#if defined(WIN32) || defined(_WIN32)
+#if (defined(WIN32) || defined(_WIN32)) && !defined(BUILD_MONOLITHIC)
 	#ifdef gmic_core
 		#define GMIC_DLLINTERFACE __declspec(dllexport)
 	#else // #ifdef gmic_core
