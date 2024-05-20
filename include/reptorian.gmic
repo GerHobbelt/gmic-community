@@ -48,6 +48,29 @@
 #
 #-------------------------------
 
+#@cli rep_extract_unique_values_and_count:
+#@cli : Extract Unique values from a image starting from 0,0,0,0, and then outputs unique values only with the count.
+rep_extract_unique_values_and_count:
+foreach {
+  current_img_ind=key_{$>}_
+  
+  {whds#-1},1,1,2
+  
+  eval[-2] >"begin(
+    key='"$current_img_ind"';
+    mi=0;
+   );
+   isnan(value=get([key,v2s(i-im#-2,16,16)]))?(
+    I[#-1,mi]=[i,1];
+    set([key,v2s(i-im#-2,16,16)],mi);
+    ++mi;
+   ):(
+    ++i(#-1,value,0,0,1);
+   );
+   end(resize(#-1,mi,1,1,2,0););"
+  
+  rm..
+}
 #@cli rep_cbsoo: eq. to 'rep_channels_overblur_overline_blur_sharpen'.
 rep_cbsoo: rep_channels_blur_sharpen_overblur_overline $*
 #@cli rep_channels_overblur_overline_blur_sharpen: method_a={ 0=blur | 1=sharpen | 2=overblur | 3=overline },0%<_effect_factor_a[%]<=100%,_multiplication_factor>0,_blending_mode,0<_blending_opacity[%]<=100%...
@@ -1898,7 +1921,7 @@ else
   }
 
 fi
-#@cli rep_lavander_binary_map: _size_of_arr_by_power_of_two>0,_mode={ -1=custom | 0=and | 1=or | 2=xor },_bin_a,_bin_b,_shift>0,custom_expression
+#@cli rep_lavander_binary_map: _size_of_arr_by_power_of_two>0,_mode={ -3=xor | -2=or | -1=and | "-"=custom | 0=and | 1=or | 2=xor },_bin_a,_bin_b,_shift>0,custom_expression
 #@cli : Create a texture that does the following steps:
 #@cli : 1) Create an array of integer that matches index with size of 2^n.
 #@cli : 2) Create another array which is the count of 'bin_a' in binary representation of the previous array.
@@ -1918,112 +1941,105 @@ skip ${1=11},${2=2},${3=01},${4=10},${5=0},${6=}
 check "$1>0&&($1==int($1))&&(isint($2)||same('-','$2'))"
 
 a6={size('$6')}
-shift,length,mode,str_code={int(abs($5))},{2^$1},{v=same('-','$2');n=isint($2)?$2:0;v?0:(n>=0?n%3+1:-((abs(n)-1)%3+1));},0
+shift,length,mode:=int(abs($5)),1<<$1,v=same('-','$2');n=isint($2)?$2:0;v?0:(n>=0?n%3+1:-((abs(n)-1)%3+1))
 size_of_arr={int(log2($length+$shift-1))+1}
-str_code_2=n=init_num()
+str_code=n=init_num()
 act_arr_sortclass={$mode>-1}
 
 if !$mode&&!$a6 error custom_formula_required fi
 
+$length,1,1,{1+$act_arr_sortclass},x
+f. "begin(
+  const shift_factor=$shift;
+  const enable_shift_option=s==2&&shift_factor;
+  const first_binary_to_search=0b$3;
+  const second_binary_to_search=0b$4;
+  const size_of_first_binary_to_search=size('$3');
+  const size_of_second_binary_to_search=size('$4');
+ );
+ count=0;
+ current_value=i;
+ if(enable_shift_option,
+  if(!c,
+   current_value+=shift_factor;
+  );
+ );
+ current_number_of_binary_digits_per_value=(current_value?int(log2(current_value)))+1;
+ bit_mask=(1<<current_number_of_binary_digits_per_value)-1;
+ c?(
+  binary_to_search=second_binary_to_search;
+  size_of_binary_to_search=size_of_second_binary_to_search;
+ ):(
+  binary_to_search=first_binary_to_search;
+  size_of_binary_to_search=size_of_first_binary_to_search;
+ );
+ while(current_number_of_binary_digits_per_value>=size_of_binary_to_search,
+  test_section=current_value>>(current_number_of_binary_digits_per_value-size_of_binary_to_search);
+  test_section==binary_to_search?(
+   ++count;
+   bit_mask>>=size_of_binary_to_search;
+   current_number_of_binary_digits_per_value-=size_of_binary_to_search;
+  ):(
+   bit_mask>>=1;
+   --current_number_of_binary_digits_per_value;
+  );
+  current_value&=bit_mask;
+ );
+ count;
+ "
+
+
 if $act_arr_sortclass
 
- $length,1,1,1,x
-
- if v='$3';max(v)>49||min(v)<48 error inv_char_arg_3 fi
-
- +f. :"begin(
-   const size_binary_arr=$size_of_arr;
-   init_bin_arr=vector(#size_binary_arr,-1);
-   bin_search_arr='$3'-47;
-   const bin_search_arr_size=size(bin_search_arr);
-   const max_pos=size_binary_arr-bin_search_arr_size+1;
-  );
-  count=p=0;
-  n=i+$shift;
-  bin_arr=init_bin_arr;
-  rf=int(log2(n))+1;
-  mk=rf-1;
-  repeat(rf,k,
-   bin_arr[mk-k]=(n>>k)&1;
-  );
-  ++bin_arr;
-  while(bin_arr[p]&&p<max_pos,
-    (bin_arr)[p,bin_search_arr_size]==bin_search_arr?(
-     ++count;
-     p+=bin_search_arr_size;
-    ):(
-     ++p;
-    );
-  );
-  count;"
-
- if $shift -. {im} fi
+ if $shift 
+  shared. 0 
+  -. {im} 
+  rm. 
+ fi
+ 
+ $length,1,1,1,x rv[-2,-1]
+ 
+ +channels. 0 # Create copy as we will preserve the the generated output as lookup table
 
  # Pixel sort integer by count sort
-
  +histogram. 100%
- f. >begin(n=0;);i?(v=n;n+=i;v;);
- f.. >v=i(#-1,i);++i(#-1,i);v;
+ f[-1] >begin(n=0;);i?(v=n;n+=i;v;);
+ f[-2] >v=i(#-1,i);++i(#-1,i);v;
  {w#-2},1,1,1
- eval... i(#-1,i)=i(#-4,x);
- rm[-4--2]
-
+ eval[-3] i(#-1,i)=i(#-5,x);
+ rm[-5,-3,-2]
+ a[-2,-1] c
+ 
 fi
 
-if $act_arr_sortclass?(v='$4';):(v='$3';);max(v)>49||min(v)<48 error inv_char_arg_4 fi
+if !$mode str_code..=ix=max_index-x;iy=max_index-y; fi
 
-if !$mode
+size_of_binary,binary_set_to_search:=$act_arr_sortclass?[size('$4'),0b$4]:[size('$3'),0b$3]
 
- str_code=ix=max_index-x;iy=max_index-y;int($6)
- str_code_2..=ix=max_index-x;iy=max_index-y;
-
- $length,$length,1,1,:"
-  begin(
-   const max_index=w-1;
-   flip(v)=xor((1<<(int(log2(v))+1))-1,v);
-   and(a,b)=a&b;
-   or(a,b)=a|b;
-   x()=i(#-1,x,0,0,0,0,2);
-   y()=i(#-1,y,0,0,0,0,2);
-   ix()=i(#-1,max_index-x,0,0,0,0,2);
-   iy()=i(#-1,max_index-y,0,0,0,0,2);
-  );
-  "$str_code";
-  "
-
- size_of_arr={int(log2(iM#-1))+1}
-
- rm.
-
-fi
-
-if $act_arr_sortclass bin_search_arr={'$4'-47}
-else bin_search_arr={'$3'-47}
-fi
-
-$length,$length,1,1,:"begin(
+$length,$length,1,1,"begin(
   const shift_factor=$shift;
+  const max_num_of_binary_digits = $size_of_arr;
   const max_index=w-1;
-  const size_binary_arr=$size_of_arr;
-  init_bin_arr=vector(#size_binary_arr,-1);
-  bin_search_arr=["$bin_search_arr"];
-  const bin_search_arr_size=size(bin_search_arr);
   const mode=$mode;
+  const binary_set_to_search=$binary_set_to_search;
+  const size_of_binary_set=$size_of_binary;
+  const reference_channel=1+$act_arr_sortclass;
+  const lookup_table_pos=$act_arr_sortclass;
   flip(v)=xor((1<<(int(log2(v))+1))-1,v);
   and(a,b)=a&b;
   or(a,b)=a|b;
-  x()=i(#-1,x,0,0,0,0,2);
-  y()=i(#-1,y,0,0,0,0,2);
-  ix()=i(#-1,max_index-x,0,0,0,0,2);
-  iy()=i(#-1,max_index-y,0,0,0,0,2);
+  x()=i(#-1,x,0,0,reference_channel,2);
+  y()=i(#-1,y,0,0,reference_channel,2);
+  ix()=i(#-1,max_index-x,0,0,reference_channel,2);
+  iy()=i(#-1,max_index-y,0,0,reference_channel,2);
   mode==3?(
-   init_num()=xor(i(#-1,x,0,0),i(#-1,y,0,0));
+   init_num()=xor(i(#-1,x,0,0,reference_channel),i(#-1,y,0,0,reference_channel));
   ):
   mode==2?(
-   init_num()=i(#-1,x,0,0)|i(#-1,y,0,0);
+   init_num()=i(#-1,x,0,0,reference_channel)|i(#-1,y,0,0,reference_channel);
   ):
   mode==1?(
-   init_num()=i(#-1,x,0,0)&i(#-1,y,0,0);
+   init_num()=i(#-1,x,0,0,reference_channel)&i(#-1,y,0,0,reference_channel);
   ):
   mode==-1?(
    shift_factor?(
@@ -2048,31 +2064,32 @@ $length,$length,1,1,:"begin(
   ):(
    init_num()=int("$6");
   );
-  const max_pos=size_binary_arr-bin_search_arr_size+1;
  );
- count=p=0;
- "$str_code_2";
- bin_arr=init_bin_arr;
- rf=int(log2(n))+1;
- mk=rf-1;
- repeat(rf,k,
-  bin_arr[mk-k]=(n>>k)&1;
- );
- ++bin_arr;
- while(bin_arr[p]&&p<max_pos,
-   (bin_arr)[p,bin_search_arr_size]==bin_search_arr?(
-    ++count;
-    p+=bin_search_arr_size;
-   ):(
-    ++p;
+ count=0;
+ "$str_code";
+  count=0;
+  n=abs(n);
+  !inrange(n,0,w,1,0)?(
+   num_of_binary_digits_of_n=n?(int(log2(n))+1);
+   bit_mask=(1<<num_of_binary_digits_of_n)-1;
+   while(num_of_binary_digits_of_n>=size_of_binary_set,
+    test_section=n>>(num_of_binary_digits_of_n-size_of_binary_set);
+    test_section==binary_set_to_search?(
+     ++count;
+     bit_mask>>=size_of_binary_set;
+     num_of_binary_digits_of_n-=size_of_binary_set;
+    ):(
+     bit_mask>>=1;
+     --num_of_binary_digits_of_n;
+    );
+    n&=bit_mask;
    );
- );
- count;"
+   count;
+  ):(i(#-1,n,0,0,lookup_table_pos));"
 
-if $act_arr_sortclass rm..
-else
- if $shift -. {im} fi
-fi
+rm..
+
+if !$act_arr_sortclass&&$shift -. {im} fi
 #@cli rep_vibrance_ych: -100[%]<vibrance<=100[%]
 #@cli : Increase/Decrease chroma of Image with minimal to no impact on high-chroma areas. Based on Darktable YCH "Vibrance" code.
 rep_vibrance_ych:
@@ -4506,53 +4523,49 @@ f "H=(i0/60)%6;C=(1-abs(2*i2-1))*i1;X=C*(1-abs(H%2-1));
  green+=white;
  blue+=white;
  [red,green,blue];"
-#@cli +rep_color_harmony_palette: -360<=ang<=360,0<=_saturation<=1,-100[%]<=shade_tint<=100[%],0<=choice<=10,ryb_mode={ 0=rgb | 1=ryb | 2=hsl+rgb | 3=hsl+ryb }
+#@cli rep_color_harmony_palette: -360<=ang<=360,0<=_saturation<=1,-100[%]<=shade_tint<=100[%],0<=choice<=10,ryb_mode={ -1=hsl_only | 0=rgb | 1=ryb | 2=hsl+rgb | 3=hsl+ryb }
 #@cli : Create a harmony palette. In other word, create a palette based on the color wheel.
 +rep_color_harmony_palette:
-ang,saturation,shade_tint,choice,ryb_mode=${1-5}
+skip ${5=1}
+check "inrange($2,0,1,1,1)&&inrange($3,-1,1,1,1)&&isint($4,0,10)&&isint($5,0,3)"
 
-{arg(1+$choice%11,6,6,6,2,3,3,4,3,4,5,6)},1,1,3,">begin(
-  fmod(a)=a-360*floor(a/360);
-  const start_ang=fmod($ang);
-  const saturation=cut($saturation,0,1);
-  const shade_tint=cut((1+$shade_tint)/2,0,1);
-  const choice=$choice%11;
+{([6,6,6,2,3,3,4,3,4,5,6])[$4]},1,1,3,">begin(
+  const start_ang=$1%360;
+  const saturation=$2;
+  const shade_tint=(1+($3))/2;
+  const mode=$4;
   ang=start_ang;
-  choice<3?( #Neutral 8-15 and Analogous 30
-   const add_ang=arg(choice+1,8,15,30);
-   new_ang()=x?(ang+=add_ang;ang=fmod(ang););
+  mode<4?(
+   const add_ang=arg(mode+1,8,15,30,180);
+   add2ang()=ang+=add_ang;
   ):
-  choice==3?( #Complementary
-   new_ang()=x?ang=fmod(ang+180);
+  mode==4?(
+   add2ang()=ang+=(x?60:150);
   ):
-  choice==4?( #Split-Complementary
-   new_ang()=x==2?(ang+=60;ang=fmod(ang);):x==1?(ang+=150;ang=fmod(ang););
-  ):
-  choice==5?( #Triadic
-   new_ang()=x?ang=fmod(ang+120);
-  ):
-  choice==6?( #Tetradic
-   new_ang()=x?ang=fmod(ang+90);
-  ):
-  choice==7?( #Clash
-   new_ang()=x?(ang=fmod(start_ang+(x%2?90:-90)));
-  ):
-  choice==8?( #Four Tones
-   new_ang()=x?(ang=fmod(ang+arg(x%2+1,120,60)););
-  ):
-  choice==9?( #Five Tones
-   new_ang()=x?(x==1?(ang=fmod(ang+120);):(ang=fmod(ang+arg(x%2+1,30,60))););
-  ):(         #Six Tones
-   new_ang()=x?(ang=fmod(ang+(x%2?30:90)););
+  mode<7?(
+   const add_ang=mode&1?120:90;
+   add2ang()=ang+=add_ang;
+  ):(
+   const ind=mode-7;
+   add_ang_a=([90,60,120,30])[ind];
+   const add_ang_b=arg(ind+1,180,120,30,90);
+   add2ang()=(
+     if(x&1
+     ,ang+=add_ang_b;
+     ,ang+=add_ang_a;
+     );
+     if(mode==9,if(!x,add_ang_a=60;););
+   );
   );
  );
- new_ang();
- [ang,saturation,shade_tint];"
+ v=[ang,saturation,shade_tint];
+ add2ang();
+ v;"
 
-if $ryb_mode>1
- if $ryb_mode%2 +rep_hsl2ryb2rgb. else +hsl2rgb. fi
+if $5>1
+ if $5&1 +rep_hsl2ryb2rgb. else +rep_hsl2ryb2rgb. fi
 else
- if $ryb_mode rep_hsl2ryb2rgb. else hsl2rgb. fi
+ if $5&1 rep_hsl2ryb2rgb. else hsl2rgb. fi
 fi
 
 round.
@@ -15867,7 +15880,7 @@ local[1] {
  if $6 rep_dupsdaxy 0,2,$1,$2,$3,$4 tai={$!} add / $tai fi
 }
 a c
-#@cli pal: 0<="palette_id"<=384 : *
+#@cli pal: 0<="palette_id"<=384 : *,_name_pals_as_id={ 0=use_full_name | 1=use_id_name }
 #@cli : Inserts pre-made user-made palette or palette that are based off older consoles or software or old paintings.
 #@cli : Note 1 : Duplicate inputs can be ignored by inserting a '-' in the very beginning of arguments.
 #@cli : Note 2 : +pal * generates every single palettes that are available for this command.
@@ -15880,7 +15893,7 @@ a c
 #@cli : +pal 3 = +pal bw_rgb -- Black & White with Red-Green-Blue
 #@cli : +pal 4 = +pal cmy -- Cyan-Magenta-Yellow
 #@cli : +pal 5 = +pal cmyk -- Cyan-Magenta-Yellow-Black
-#@cli : +pal 6 = +pal wcmyk -- White-Cyan-Magenta-Yellow-Black
+#@cli : +pal 6 = +pal w_cmyk -- White-Cyan-Magenta-Yellow-Black
 #@cli : +pal 7 = +pal rgbcmy -- Red-Green-Blue with Cyan-Magenta-Yellow
 #@cli : +pal 8 = +pal 1bitrgb -- 1-Bit RGB
 #@cli : +pal 9 = +pal aurora -- Aurora by GrafxKid
@@ -15921,9 +15934,9 @@ a c
 #@cli : +pal 44 = +pal 20pdx -- 20P-DX by GrafxKid
 #@cli : +pal 45 = +pal 24pdx -- 24P-DX by GrafxKid
 #@cli : +pal 46 = +pal cabana -- Cabana-64 by Crabby
-#@cli : +pal 47 = +pal fant16 -- Fantasy 16 by Brettybooop
-#@cli : +pal 48 = +pal fant24 -- Fantasy 24 by Gabriel C.
-#@cli : +pal 49 = +pal tf23 -- Tranquil Fantasy 23 by windfall.apples
+#@cli : +pal 47 = +pal fantasy16 -- Fantasy 16 by Brettybooop
+#@cli : +pal 48 = +pal fantasy24 -- Fantasy 24 by Gabriel C.
+#@cli : +pal 49 = +pal tranquil_fantasy_23 -- Tranquil Fantasy 23 by windfall.apples
 #@cli : +pal 50 = +pal tfp39 -- Tranquility Plus 39 by windfall.apples
 #@cli : +pal 51 = +pal faraway -- Faraway 48 by Igor Ferreira.
 #@cli : +pal 52 = +pal fleja -- Fleja Master Palette by Fleja
@@ -15937,7 +15950,7 @@ a c
 #@cli : +pal 60 = +pal atom -- Atom-8 by polyphrog
 #@cli : +pal 61 = +pal blk36 -- BLK 36 by BlackedIRL.
 #@cli : +pal 62 = +pal blkneo -- BLK-NEO by BlackedIRL.
-#@cli : +pal 63 = +pal brokefac -- Broken Facility by telepathic-melon
+#@cli : +pal 63 = +pal broken_facility -- Broken Facility by telepathic-melon
 #@cli : +pal 64 = +pal bubblegum -- Bubblegum-16 by PineTreePizza
 #@cli : +pal 65 = +pal cpcboy -- CPC BOY by Arne Niklas Jansson
 #@cli : +pal 66 = +pal cade -- Cade 15 by MonstersGoBoom
@@ -15945,15 +15958,15 @@ a c
 #@cli : +pal 68 = +pal cdbac -- CD-BAC by DimWiddy
 #@cli : +pal 69 = +pal cgarne -- CG Arne by Arne Niklas Jansson
 #@cli : +pal 70 = +pal dinoknight -- DinoKnight 16 by Retrospec
-#@cli : +pal 71 = +pal 4l -- ||||-22 by ||||
-#@cli : +pal 72 = +pal fzt -- FZT Ethereal 16 by Fusionnist
+#@cli : +pal 71 = +pal llll -- ||||-22 by ||||
+#@cli : +pal 72 = +pal fzt_ethereal -- FZT Ethereal 16 by Fusionnist
 #@cli : +pal 73 = +pal indecision -- Indecision by Nelson SMG
 #@cli : +pal 74 = +pal island -- Island Joy 16 by Kerrie Lake
 #@cli : +pal 75 = +pal journey -- Journey by PineTreePizza
 #@cli : +pal 76 = +pal shallowmarsh -- Shallowmarsh26 by archer
 #@cli : +pal 77 = +pal lago_nenufar -- Lago Nenufar (Lake Water Lily) by Popxel Art
 #@cli : +pal 78 = +pal juicy -- Juicy 17 by JerryPie
-#@cli : +pal 79 = +pal chocolateganache -- ChocolateGanache by Ladybug
+#@cli : +pal 79 = +pal chocolate -- ChocolateGanache by Ladybug
 #@cli : +pal 80 = +pal brightwinter1 -- Bright Winter 1 by Nai
 #@cli : +pal 81 = +pal brightwinter2 -- Bright Winter 2 by Nai
 #@cli : +pal 82 = +pal kawaii -- Kawaii16 by Arisuki
@@ -15965,8 +15978,8 @@ a c
 #@cli : +pal 88 = +pal material_design -- Material Design by Ruchir L. Sharma
 #@cli : +pal 89 = +pal thehamster_rainbow -- Rainbow by thehamster
 #@cli : +pal 90 = +pal boltbait_rainbow -- Rainbow by BoltBait
-#@cli : +pal 91 = +pal scrj -- SCRJ-XXXVI by StudioCRJ
-#@cli : +pal 92 = +pal pxls -- Pxls Default from pxls.space
+#@cli : +pal 91 = +pal scrj_xxxvi -- SCRJ-XXXVI by StudioCRJ
+#@cli : +pal 92 = +pal pxls_space -- Pxls Default from pxls.space
 #@cli : +pal 93 = +pal lospec -- Lospec500 by the Lospec community
 #@cli : +pal 94 = +pal moderna -- Moderna by yedamameday
 #@cli : +pal 95 = +pal oak -- Oak21 by Dan Oak
@@ -15977,19 +15990,19 @@ a c
 #@cli : +pal 100 = +pal dynamite -- Dynamite by Pixi
 #@cli : +pal 101 = +pal interstate -- Interstate 28 by maine
 #@cli : +pal 102 = +pal downgraded -- Downgraded 32 by daniel
-#@cli : +pal 103 = +pal pear -- Pear 36 by PineTreePizza
+#@cli : +pal 103 = +pal pear36 -- Pear 36 by PineTreePizza
 #@cli : +pal 104 = +pal pineapple -- Pineapple 32 by PineTreePizza
 #@cli : +pal 105 = +pal peachy -- Peachy Pop 16 by Kerrie Lake
 #@cli : +pal 106 = +pal resurrect -- Resurrect 32 by Kerrie Lake
 #@cli : +pal 107 = +pal rosy42 -- Rosy 42 by PineTreePizza
-#@cli : +pal 108 = +pal slso -- SLSO-CLR17 by Luis Miguel Maldonado
+#@cli : +pal 108 = +pal slso_clr17 -- SLSO-CLR17 by Luis Miguel Maldonado
 #@cli : +pal 109 = +pal softy -- Softy 15 by Eggy
-#@cli : +pal 110 = +pal spec -- SPEC12 by Smalls
-#@cli : +pal 111 = +pal roarin80s -- The Roarin 80's by Malo
+#@cli : +pal 110 = +pal spec12 -- SPEC12 by Smalls
+#@cli : +pal 111 = +pal the_roarin_80s -- The Roarin 80's by Malo
 #@cli : +pal 112 = +pal starmancer -- Starmancer by Ominux Games
 #@cli : +pal 113 = +pal superfuture -- SuperFuture25 by Endesga
 #@cli : +pal 114 = +pal sunshine -- SUNSHINE 35 by mysunnyrose
-#@cli : +pal 115 = +pal sweetie -- Sweetie 16 by GrafxKid
+#@cli : +pal 115 = +pal sweetie16 -- Sweetie 16 by GrafxKid
 #@cli : +pal 116 = +pal calm -- Calm 48 by Xina
 #@cli : +pal 117 = +pal optimism -- Optimism by mingapur
 #@cli : +pal 118 = +pal taffy -- Taffy 16 by PineTreePizza
@@ -16015,17 +16028,17 @@ a c
 #@cli : +pal 138 = +pal star29 -- Star 29 by Starlane
 #@cli : +pal 139 = +pal star34 -- Star 34 by Starlane
 #@cli : +pal 140 = +pal still_life -- Still-Life by cure
-#@cli : +pal 141 = +pal simjpc -- SimpleJPC-16 by Adigun A. Polack
+#@cli : +pal 141 = +pal simple_jpc_16 -- SimpleJPC-16 by Adigun A. Polack
 #@cli : +pal 142 = +pal acid -- Acid 15 by pyrometal
 #@cli : +pal 143 = +pal battery -- Battery 24 by Battery Jellyfish
-#@cli : +pal 144 = +pal clump -- Clumpy 18 by windfall.apples
+#@cli : +pal 144 = +pal clumpy -- Clumpy 18 by windfall.apples
 #@cli : +pal 145 = +pal cthul -- Cthulhu by Starlane
 #@cli : +pal 146 = +pal crimso11 -- Crimso 11 by Crimso
-#@cli : +pal 147 = +pal coptec -- Copper-Tech by Arne Niklas Jansson
-#@cli : +pal 148 = +pal drz -- DRZ15A by Drazille
+#@cli : +pal 147 = +pal copper_tech -- Copper-Tech by Arne Niklas Jansson
+#@cli : +pal 148 = +pal drz15a -- DRZ15A by Drazille
 #@cli : +pal 149 = +pal eggy -- Eggy 15 by Eggy
 #@cli : +pal 150 = +pal europa -- Europa 16 by Starlane
-#@cli : +pal 151 = +pal greyt -- GreyT-bit by Sam Keddy
+#@cli : +pal 151 = +pal greyt_bit -- GreyT-bit by Sam Keddy
 #@cli : +pal 152 = +pal jewel -- Jewel by AprilSundae
 #@cli : +pal 153 = +pal polar -- Polar 11 by Smalls
 #@cli : +pal 154 = +pal sheltzy -- Sheltzy 32 by NatTorpedia
@@ -16033,22 +16046,22 @@ a c
 #@cli : +pal 156 = +pal yume_nikki -- Yume Nikki by Space Sandwich
 #@cli : +pal 157 = +pal rube_goldberg -- Rube-Goldberg
 #@cli : +pal 158 = +pal boomboom -- BoomBoom by Salman_Shh
-#@cli : +pal 159 = +pal g8 -- Generic-8 by GrafxKid
+#@cli : +pal 159 = +pal generic_8 -- Generic-8 by GrafxKid
 #@cli : +pal 160 = +pal crayola -- Crayola Blind
 #@cli : +pal 161 = +pal funky -- FunkyFuture8 by ShamaBoy
 #@cli : +pal 162 = +pal golden_wall -- The Golden Wall Palette by Hans Hofmann
-#@cli : +pal 163 = +pal matriax -- Matriax8c by Davit Masia
+#@cli : +pal 163 = +pal matriax8c -- Matriax8c by Davit Masia
 #@cli : +pal 164 = +pal nt1h -- NT1H by NatTorpedia
 #@cli : +pal 165 = +pal jerrypie -- JerryPie 22 by JerryPie
 #@cli : +pal 166 = +pal nineties_nine -- Nineties Nine by Cubby Crazes
 #@cli : +pal 167 = +pal on70 -- On70 by By8Bits
-#@cli : +pal 168 = +pal anb -- ANB16 by Anoob
+#@cli : +pal 168 = +pal anb16 -- ANB16 by Anoob
 #@cli : +pal 169 = +pal retrocal -- Retrocal-8 by polyphrog
 #@cli : +pal 170 = +pal punolit -- Punolit by Punoli
 #@cli : +pal 171 = +pal luap -- Luap 40 by Luap
 #@cli : +pal 172 = +pal autum_villan -- Autum Villan 6 by Chase Stemel
-#@cli : +pal 173 = +pal au15 -- Autum 15 by jok
-#@cli : +pal 174 = +pal au15y -- Autum 15 [Yellow] by jok
+#@cli : +pal 173 = +pal autum_15 -- Autum 15 by jok
+#@cli : +pal 174 = +pal autum_15_yellow -- Autum 15 [Yellow] by jok
 #@cli : +pal 175 = +pal galaxy_flame -- Galaxy Flame by Rhoq
 #@cli : +pal 176 = +pal cretaceous -- Cretaceous-16 by Joao Vasconcelos
 #@cli : +pal 177 = +pal antiquity -- Antiquity16 by ILTA
@@ -16056,13 +16069,13 @@ a c
 #@cli : +pal 179 = +pal aerugo -- Aerugo by Lizalot
 #@cli : +pal 180 = +pal hotel_paintings -- Hotel Paintings 6 by Chase Stemel
 #@cli : +pal 181 = +pal nopal -- Nopal-12 by BlackedIRL.
-#@cli : +pal 182 = +pal gpy -- Brightness GPY by rickthepalette
+#@cli : +pal 182 = +pal brightness_gpy -- Brightness GPY by rickthepalette
 #@cli : +pal 183 = +pal blessing -- Blessing by Maruki
-#@cli : +pal 184 = +pal fairydust -- Fairydust 8 by Yousurname
+#@cli : +pal 184 = +pal fairy_dust -- Fairydust 8 by Yousurname
 #@cli : +pal 185 = +pal milkshake -- Vanilla MilkShake by Space Sandwich
-#@cli : +pal 186 = +pal fuzz -- Fuzzy Four by P-Tux7
+#@cli : +pal 186 = +pal fuzzy -- Fuzzy Four by P-Tux7
 #@cli : +pal 187 = +pal fairy -- Fairy Tales by lollige
-#@cli : +pal 188 = +pal naji -- Naji 16 by Naji
+#@cli : +pal 188 = +pal naji16 -- Naji 16 by Naji
 #@cli : +pal 189 = +pal easter -- Easter Island by skamocore
 #@cli : +pal 190 = +pal pastel_and_darks -- Pastel and Darks 58 Palette by Glxss
 #@cli : +pal 191 = +pal pastel_irena -- 17 Pastels by Irenaart
@@ -16073,12 +16086,12 @@ a c
 #@cli : +pal 196 = +pal kule -- KULE-16 by Cuymacu
 #@cli : +pal 197 = +pal hydrangea -- Hydrangea 11 by Dinchen's Art
 #@cli : +pal 198 = +pal fluffy -- Fluffy8 by vee
-#@cli : +pal 199 = +pal st8rb -- ST 8 R&B Remake by Skiller Thomson
+#@cli : +pal 199 = +pal st_8_red_and_blue -- ST 8 R&B Remake by Skiller Thomson
 #@cli : +pal 200 = +pal neon -- Neon Space by Jimison3
 #@cli : +pal 201 = +pal cyclope -- Cyclope6 by Royal_Naym
-#@cli : +pal 202 = +pal sy -- Sy17 by xaiue
-#@cli : +pal 203 = +pal syz -- Syz15 by Fusionnist
-#@cli : +pal 204 = +pal tui -- TUI-15 by Jeremy
+#@cli : +pal 202 = +pal sy17 -- Sy17 by xaiue
+#@cli : +pal 203 = +pal syz15 -- Syz15 by Fusionnist
+#@cli : +pal 204 = +pal tui15 -- TUI-15 by Jeremy
 #@cli : +pal 205 = +pal cave -- Cave by PineTreePizza
 #@cli : +pal 206 = +pal psygnosia -- Psygnosia by Arne Niklas Jansson
 #@cli : +pal 207 = +pal marshmellow -- MarshMellow32 by FormalPrejudice
@@ -16101,14 +16114,14 @@ a c
 #@cli : +pal 224 = +pal violet_dreams -- Violet Dreams by Solitaire
 #@cli : +pal 225 = +pal tinyfolks -- Tinyfolks by Pierr Vandermaesan
 #@cli : +pal 226 = +pal old_gold -- Old Gold 7 by Chase Stemel
-#@cli : +pal 227 = +pal rosemoss -- Rosemoss-8 by polyphrog
-#@cli : +pal 228 = +pal aaprad -- AAP-RadiantXV by Adigun A. Polack
-#@cli : +pal 229 = +pal aapmaj -- AAP-Majesty XVII by Adigun A. Polack
+#@cli : +pal 227 = +pal rose_moss_8 -- Rosemoss-8 by polyphrog
+#@cli : +pal 228 = +pal aap_radiant_xv -- AAP-RadiantXV by Adigun A. Polack
+#@cli : +pal 229 = +pal aap_majesty_xvii -- AAP-Majesty XVII by Adigun A. Polack
 #@cli : +pal 230 = +pal dead_weight -- Dead Weight-8 by polyphrog
 #@cli : +pal 231 = +pal mojave -- Mojave20 by magodellepercussioni
-#@cli : +pal 232 = +pal pet8 -- Petite-8 by Adigun A. Polack
-#@cli : +pal 233 = +pal pet8d -- Petite-8 Afterdark by Adigun A. Polack
-#@cli : +pal 234 = +pal xaiue_rad -- XAIUE-Radiant by xaiue
+#@cli : +pal 232 = +pal petite_8 -- Petite-8 by Adigun A. Polack
+#@cli : +pal 233 = +pal petite_8_afterdark -- Petite-8 Afterdark by Adigun A. Polack
+#@cli : +pal 234 = +pal xaiue_radiant -- XAIUE-Radiant by xaiue
 #@cli : +pal 235 = +pal daruda -- Daruda 22 by daruda
 #@cli : +pal 236 = +pal firestorm -- Firestorm by theartistjulian
 #@cli : +pal 237 = +pal borkfest -- Borkfest by まるき
@@ -16120,10 +16133,10 @@ a c
 #@cli : +pal 243 = +pal sandy -- Sandy 06 by green guy
 #@cli : +pal 244 = +pal illumination -- Illumination by MirruTatep
 #@cli : +pal 245 = +pal nyx -- NYX8 by Javier Guerrero
-#@cli : +pal 246 = +pal dreamhaze -- Dream Haze 8 by Klafooty
+#@cli : +pal 246 = +pal dream_haze -- Dream Haze 8 by Klafooty
 #@cli : +pal 247 = +pal oil -- OIL6 by GrafxKid
 #@cli : +pal 248 = +pal regal -- Regal10 by JRiggles
-#@cli : +pal 249 = +pal softdemon -- Soft Demon 7 by Chase Stemel
+#@cli : +pal 249 = +pal soft_demon -- Soft Demon 7 by Chase Stemel
 #@cli : +pal 250 = +pal sgm -- SGM-Palette 2 by s.g.m
 #@cli : +pal 251 = +pal midnight_ablaze -- Midnight ablaze by Inkpendude
 #@cli : +pal 252 = +pal black_cherry -- Black Cherry by MirruTatep
@@ -16133,11 +16146,11 @@ a c
 #@cli : +pal 256 = +pal pink_neon_sign -- Pink Neon Sign 6 by Chase Stemel
 #@cli : +pal 257 = +pal enchanted_purple -- Enchanted Purple by Kaiburn
 #@cli : +pal 258 = +pal arch -- Arch by Poltergasm
-#@cli : +pal 259 = +pal spaceyeaster -- Spacey Easter by Spark Norris
-#@cli : +pal 260 = +pal fornaxvoid1 -- Fornax Void I by Fornax Void
-#@cli : +pal 261 = +pal fornaxvoid2 -- Fornax Void II by Fornax Void
+#@cli : +pal 259 = +pal spacey_easter -- Spacey Easter by Spark Norris
+#@cli : +pal 260 = +pal fornax_void_1 -- Fornax Void I by Fornax Void
+#@cli : +pal 261 = +pal fornax_void_2 -- Fornax Void II by Fornax Void
 #@cli : +pal 262 = +pal pixelwave -- Pixelwave by Reptorian
-#@cli : +pal 263 = +pal s1 -- S1-6 by Blyzz
+#@cli : +pal 263 = +pal s1_6 -- S1-6 by Blyzz
 #@cli : +pal 264 = +pal berry_nebula -- Berry Nebula by LostInIndigo
 #@cli : +pal 265 = +pal abyss -- ABYSS-9 by Jusiv
 #@cli : +pal 266 = +pal moonlight -- Moonlight 15 by Tofu
@@ -16153,9 +16166,9 @@ a c
 #@cli : +pal 276 = +pal cryptic_ocean -- Cryptic Ocean by Klafooty
 #@cli : +pal 277 = +pal marsh_madness -- Marsh Madness by MirruTatep
 #@cli : +pal 278 = +pal oxyd -- OXYD by ItzFred
-#@cli : +pal 279 = +pal pinkgreen -- Pink&Green by q1
+#@cli : +pal 279 = +pal pink_green -- Pink&Green by q1
 #@cli : +pal 280 = +pal woodwalk -- Walking in the Woods 8 by Chase Stemel
-#@cli : +pal 281 = +pal paper -- Paper 8 by Frosty Rabbid
+#@cli : +pal 281 = +pal paper8 -- Paper 8 by Frosty Rabbid
 #@cli : +pal 282 = +pal sahara_pastell -- Sahara Pastell by wermz
 #@cli : +pal 283 = +pal sunflower -- Sunflower Painting 7 by Chase Stemel
 #@cli : +pal 284 = +pal arthoe -- Art Hoe Aesthetic 7 by Chase Stemel
@@ -16172,11 +16185,11 @@ a c
 #@cli : +pal 295 = +pal sea_of_fire -- Sea of Fire by TATA-PIXEL
 #@cli : +pal 296 = +pal autochrome3 -- Autochrome 3 by Reptorian
 #@cli : +pal 297 = +pal autochrome5 -- Autochrome 5 by Reptorian
-#@cli : +pal 298 = +pal gb_d_1 -- GB Default 1
-#@cli : +pal 299 = +pal gb_d_2 -- GB Default 2
+#@cli : +pal 298 = +pal gb_default_1 -- GB Default 1
+#@cli : +pal 299 = +pal gb_default_2 -- GB Default 2
 #@cli : +pal 300 = +pal gb_andrade -- GB Andrade by Andrade
 #@cli : +pal 301 = +pal gb_blue -- GB Blue Seni by WildLeoKnight
-#@cli : +pal 302 = +pal gb_bz -- GB Blackzone
+#@cli : +pal 302 = +pal gb_blackzone -- GB Blackzone
 #@cli : +pal 303 = +pal gb_suburb -- GB Suburb by Poppysalmon
 #@cli : +pal 304 = +pal gb_crimson -- GB Crimson by WildLeoKnight
 #@cli : +pal 305 = +pal gb_didi -- GB Didi by DidiGameboy
@@ -16184,8 +16197,8 @@ a c
 #@cli : +pal 307 = +pal gb_arne -- GB Arne by Arne
 #@cli : +pal 308 = +pal gb_easy -- GB Easy by GrafxKid
 #@cli : +pal 309 = +pal gb_forest -- GB Forest
-#@cli : +pal 310 = +pal gb_hg -- GB Harsh Green by WildLeoKnight
-#@cli : +pal 311 = +pal gb_lg -- GB Light Green by WildLeoKnight
+#@cli : +pal 310 = +pal gb_harsh_green -- GB Harsh Green by WildLeoKnight
+#@cli : +pal 311 = +pal gb_light_green -- GB Light Green by WildLeoKnight
 #@cli : +pal 312 = +pal gb_nostalgia -- GB Nostalgia by WildLeoKnight
 #@cli : +pal 313 = +pal gb_platinum -- GB Platinum by WildLeoKnight
 #@cli : +pal 314 = +pal gb_kirokaze -- GB Kirokaze by Kirokaze
@@ -16193,12 +16206,12 @@ a c
 #@cli : +pal 316 = +pal gb_wish -- GB Wish by Kerrie Lake
 #@cli : +pal 317 = +pal gb_grapefruit -- GB Grapefruit by GrafxKid
 #@cli : +pal 318 = +pal gb_ice_cream -- GB Ice Cream by Kerrie Lake
-#@cli : +pal 319 = +pal gb_rb -- GB Red_Blue
+#@cli : +pal 319 = +pal gb_red_blue -- GB Red_Blue
 #@cli : +pal 320 = +pal gb_gold -- Gold GB by Isa
 #@cli : +pal 321 = +pal gb_choco -- GB Chocolate by GrafxKid
 #@cli : +pal 322 = +pal gb_gray -- GB Gray by GrafxKid
 #@cli : +pal 323 = +pal gb_space -- GB Spacehaze by WildLeoKnight
-#@cli : +pal 324 = +pal gb_purpdawn -- GB Purple Dawn by WildLeoKnight
+#@cli : +pal 324 = +pal gb_purple_dawn -- GB Purple Dawn by WildLeoKnight
 #@cli : +pal 325 = +pal moon_crystal -- Moon Crystal by Doph
 #@cli : +pal 326 = +pal arne -- ARNE4 by Arne
 #@cli : +pal 327 = +pal autumn_chill -- Autumn Chill by Doph
@@ -16210,10 +16223,10 @@ a c
 #@cli : +pal 333 = +pal voltage_warning -- Voltage Warning by Wuchta
 #@cli : +pal 334 = +pal tritanopia -- Tritanopia by Allappini
 #@cli : +pal 335 = +pal rabbit -- Rabbit 7 by GrafxKid
-#@cli : +pal 336 = +pal amiga2600ntsc -- Amiga 2600 NTSC
-#@cli : +pal 337 = +pal amiga2600pal -- Amiga 2600 PAL
-#@cli : +pal 338 = +pal amiga2600secam -- Amiga 2600 SECAM
-#@cli : +pal 339 = +pal amiga7800mess -- Amiga 7800 M.E.S.S by Nabuko78
+#@cli : +pal 336 = +pal amiga2600_ntsc -- Amiga 2600 NTSC
+#@cli : +pal 337 = +pal amiga2600_pal -- Amiga 2600 PAL
+#@cli : +pal 338 = +pal amiga2600_secam -- Amiga 2600 SECAM
+#@cli : +pal 339 = +pal amiga7800_mess -- Amiga 7800 M.E.S.S by Nabuko78
 #@cli : +pal 340 = +pal amiga7800 -- Amiga 7800
 #@cli : +pal 341 = +pal amstrad_cpc -- Amstrad CPC
 #@cli : +pal 342 = +pal apple -- Apple II
@@ -16231,12 +16244,12 @@ a c
 #@cli : +pal 354 = +pal colecovision -- Colecovision
 #@cli : +pal 355 = +pal jmp -- Japanese Machine Palette by Arne Niklas Jansson
 #@cli : +pal 356 = +pal mac2 -- Macintosh II
-#@cli : +pal 357 = +pal mac8 -- Macintosh 8-Bit System Palette
+#@cli : +pal 357 = +pal mac_8_bit -- Macintosh 8-Bit System Palette
 #@cli : +pal 358 = +pal msx -- MSX
 #@cli : +pal 359 = +pal nes -- NES
 #@cli : +pal 360 = +pal pico -- PICO-8 by Lexaloffle Games
 #@cli : +pal 361 = +pal risc -- RISC OS
-#@cli : +pal 362 = +pal samcoupe -- SAM Coupe
+#@cli : +pal 362 = +pal sam_coupe -- SAM Coupe
 #@cli : +pal 363 = +pal mo5 -- Thomson MO5
 #@cli : +pal 364 = +pal trs80 -- TRS-80 Color Computer Palette
 #@cli : +pal 365 = +pal virtualboy -- Virtual Boy interpreted by Bruno Weinberger
@@ -16244,429 +16257,434 @@ a c
 #@cli : +pal 367 = +pal win95 -- Win 95
 #@cli : +pal 368 = +pal zx -- ZX Spectrum
 #@cli : +pal 369 = +pal gnome -- GNOME 32
-#@cli : +pal 370 = +pal elc -- Electronic Crayon 22
+#@cli : +pal 370 = +pal electronic_crayon -- Electronic Crayon 22
 #@cli : +pal 371 = +pal chip16 -- Chip16
-#@cli : +pal 372 = +pal deluxepaint -- Deluxe Paint
-#@cli : +pal 373 = +pal flat -- FlatUI from flat ui colors website
-#@cli : +pal 374 = +pal makecode -- MakeCode Arcade Palette
+#@cli : +pal 372 = +pal deluxe_paint -- Deluxe Paint
+#@cli : +pal 373 = +pal flat_ui -- FlatUI from flat ui colors website
+#@cli : +pal 374 = +pal makecode_arcade -- MakeCode Arcade Palette
 #@cli : +pal 375 = +pal oekaki -- Oekaki from Oekaki.nl
-#@cli : +pal 376 = +pal lms -- Legacy Paint
-#@cli : +pal 377 = +pal msxp -- XP Paint
+#@cli : +pal 376 = +pal ms_legacy_paint -- Legacy Paint
+#@cli : +pal 377 = +pal ms_xp -- XP Paint
 #@cli : +pal 378 = +pal vista -- Vista Paint
 #@cli : +pal 379 = +pal piet -- Piet Palette by Piet Mondrain
-#@cli : +pal 380 = +pal japwood -- Japanese Woodblock Palette by Polyducks
-#@cli : +pal 381 = +pal humanfaces -- Human Faces by Romney57
-#@cli : +pal 382 = +pal hues -- HSV Palette by MadJik
+#@cli : +pal 380 = +pal japanese_woodblock -- Japanese Woodblock Palette by Polyducks
+#@cli : +pal 381 = +pal human_faces -- Human Faces by Romney57
+#@cli : +pal 382 = +pal hsv -- HSV Palette by MadJik
 #@cli : +pal 383 = +pal christmas -- ST24 Christmas by Skiller Thomson
-#@cli : +pal 384 = +pal ladybugreds -- Reds by Ladybug
+#@cli : +pal 384 = +pal ladybug_reds -- Reds by Ladybug
 #@cli :
 #@cli : Author: Reptorian.
+#@cli : Default values: '_name_pals_as_id=0'
 +pal:
+check "same('$1','*')?($#==2?isnum($-1):1):1"
 v - _gmic_s=$? v +
 _$0 $*
 +_pal:
 
 if same('$1','*')
- if $#>1 error ambiguous_args fi
+ ni=$!
  _pal_385_pals
- v + e[^-1] "Create palette(s) '"${}"'." v -
+ if isnum($-1)?$-1 echo pass name[$ni--1] ${-__pal_ids} fi
+ v + e[^-1] "Create palette(s) '"${-__pal_ids}"'." v -
  return
 fi
 
 $=var
-
-d0,d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19,d20,d21,d22,d23,d24,d25,d26,d27,d28,d29,d30,d31,d32,d33,d34,d35,d36,d37,d38,d39,d40,d41,d42,d43,d44,d45,d46,d47,d48,d49,d50,d51,d52,d53,d54,d55,d56,d57,d58,d59,d60,d61,d62,d63,d64,d65,d66,d67,d68,d69,d70,d71,d72,d73,d74,d75,d76,d77,d78,d79,d80,d81,d82,d83,d84,d85,d86,d87,d88,d89,d90,d91,d92,d93,d94,d95,d96,d97,d98,d99,d100,d101,d102,d103,d104,d105,d106,d107,d108,d109,d110,d111,d112,d113,d114,d115,d116,d117,d118,d119,d120,d121,d122,d123,d124,d125,d126,d127,d128,d129,d130,d131,d132,d133,d134,d135,d136,d137,d138,d139,d140,d141,d142,d143,d144,d145,d146,d147,d148,d149,d150,d151,d152,d153,d154,d155,d156,d157,d158,d159,d160,d161,d162,d163,d164,d165,d166,d167,d168,d169,d170,d171,d172,d173,d174,d175,d176,d177,d178,d179,d180,d181,d182,d183,d184,d185,d186,d187,d188,d189,d190,d191,d192,d193,d194,d195,d196,d197,d198,d199,d200,d201,d202,d203,d204,d205,d206,d207,d208,d209,d210,d211,d212,d213,d214,d215,d216,d217,d218,d219,d220,d221,d222,d223,d224,d225,d226,d227,d228,d229,d230,d231,d232,d233,d234,d235,d236,d237,d238,d239,d240,d241,d242,d243,d244,d245,d246,d247,d248,d249,d250,d251,d252,d253,d254,d255,d256,d257,d258,d259,d260,d261,d262,d263,d264,d265,d266,d267,d268,d269,d270,d271,d272,d273,d274,d275,d276,d277,d278,d279,d280,d281,d282,d283,d284,d285,d286,d287,d288,d289,d290,d291,d292,d293,d294,d295,d296,d297,d298,d299,d300,d301,d302,d303,d304,d305,d306,d307,d308,d309,d310,d311,d312,d313,d314,d315,d316,d317,d318,d319,d320,d321,d322,d323,d324,d325,d326,d327,d328,d329,d330,d331,d332,d333,d334,d335,d336,d337,d338,d339,d340,d341,d342,d343,d344,d345,d346,d347,d348,d349,d350,d351,d352,d353,d354,d355,d356,d357,d358,d359,d360,d361,d362,d363,d364,d365,d366,d367,d368,d369,d370,d371,d372,d373,d374,d375,d376,d377,d378,d379,d380,d381,d382,d383,d384=bw,rgb,b_rgb,bw_rgb,cmy,cmyk,wcmyk,rgbcmy,1bitrgb,aurora,zenit,gbg,duel,hocuspocus,playpal,srb2,uzebox,kens16,kens32,kens54,aap12,aap16,aap64,aap96,aap128,aap_dga16,cheerful,db8,db16,db32,db_iso22,dimwid17,dimwid23,edg4,edg8,edg16,edg32,edg36,edg64,famicube,juicy32,juicy56,xaiue,15pdx,20pdx,24pdx,cabana,fant16,fant24,tf23,tfp39,faraway,fleja,koni,linearbasic,legowiki,lego2021,vinelinear,arcade,arq,atom,blk36,blkneo,brokefac,bubblegum,cpcboy,cade,calder,cdbac,cgarne,dinoknight,4l,fzt,indecision,island,journey,shallowmarsh,lago_nenufar,juicy,chocolateganache,brightwinter1,brightwinter2,kawaii,xdb,gzxp,chromatic,piet_code,boltbait_matrix,material_design,thehamster_rainbow,boltbait_rainbow,scrj,pxls,lospec,moderna,oak,nature,rbypgo,new_worlds,nauris,dynamite,interstate,downgraded,pear,pineapple,peachy,resurrect,rosy42,slso,softy,spec,roarin80s,starmancer,superfuture,sunshine,sweetie,calm,optimism,taffy,todayland,trirampo,reddit_place_2022,tropical,vivid,shido,intacto,itatsi,enos,grixel,superb,undertones,tango,cheese,equpix15,zughy,voodo,franzston,night,star29,star34,still_life,simjpc,acid,battery,clump,cthul,crimso11,coptec,drz,eggy,europa,greyt,jewel,polar,sheltzy,wyrm,yume_nikki,rube_goldberg,boomboom,g8,crayola,funky,golden_wall,matriax,nt1h,jerrypie,nineties_nine,on70,anb,retrocal,punolit,luap,autum_villan,au15,au15y,galaxy_flame,cretaceous,antiquity,mushroom,aerugo,hotel_paintings,nopal,gpy,blessing,fairydust,milkshake,fuzz,fairy,naji,easter,pastel_and_darks,pastel_irena,nostalgia,ocaso,pastel_starlitsunset,pollen,kule,hydrangea,fluffy,st8rb,neon,cyclope,sy,syz,tui,cave,psygnosia,marshmellow,lost_century,finlal,industrial,murder_mystery,fate_and_destiny,vinik,ykb,halloween,graveyard,steamlords,frostical,deuterospill,cool_bone,muted_ally,ephemera,ink,violet_dreams,tinyfolks,old_gold,rosemoss,aaprad,aapmaj,dead_weight,mojave,pet8,pet8d,xaiue_rad,daruda,firestorm,borkfest,spicy,rust,apricot,supernova,pastry,sandy,illumination,nyx,dreamhaze,oil,regal,softdemon,sgm,midnight_ablaze,black_cherry,sunset_red,inkpink,brash_pink,pink_neon_sign,enchanted_purple,arch,spaceyeaster,fornaxvoid1,fornaxvoid2,pixelwave,s1,berry_nebula,abyss,moonlight,moon39,h2o,magic_waters,bluemold,moss,deep_maze,toxic_slime,lush_green,tsunami,cryptic_ocean,marsh_madness,oxyd,pinkgreen,woodwalk,paper,sahara_pastell,sunflower,arthoe,sky,ocean_glass,royal,eulbink,winter_wonderland,moon_squid,stratus,arctic_dust,clouds_sunset,lilac_skies,sea_of_fire,autochrome3,autochrome5,gb_d_1,gb_d_2,gb_andrade,gb_blue,gb_bz,gb_suburb,gb_crimson,gb_didi,gb_dirty,gb_arne,gb_easy,gb_forest,gb_hg,gb_lg,gb_nostalgia,gb_platinum,gb_kirokaze,gb_cyber,gb_wish,gb_grapefruit,gb_ice_cream,gb_rb,gb_gold,gb_choco,gb_gray,gb_space,gb_purpdawn,moon_crystal,arne,autumn_chill,cherrymelon,hal4,hollow,lavender,maw,voltage_warning,tritanopia,rabbit,amiga2600ntsc,amiga2600pal,amiga2600secam,amiga7800mess,amiga7800,amstrad_cpc,apple,atari,cga,cga00,cga01,cga10,cga11,cga20,cga21,c64_pepto,c64_colodore,com_vic_20,colecovision,jmp,mac2,mac8,msx,nes,pico,risc,samcoupe,mo5,trs80,virtualboy,vga,win95,zx,gnome,elc,chip16,deluxepaint,flat,makecode,oekaki,lms,msxp,vista,piet,japwood,humanfaces,hues,christmas,ladybugreds
 
 if ('$1')[0]==_'-'
  rd,var1=1,{`str='$1';(str)[1,size(str)-1]`}
 else rd=0
 fi
 
-n_bw,p_bw,\
-n_rgb,p_rgb,\
-n_b_rgb,p_b_rgb,\
-n_bw_rgb,p_bw_rgb,\
-n_cmy,p_cmy,\
-n_cmyk,p_cmyk,\
-n_wcmyk,p_wcmyk,\
-n_rgbcmy,p_rgbcmy,\
-n_1bitrgb,p_1bitrgb,\
-n_aurora,p_aurora,\
-n_zenit,p_zenit,\
-n_gbg,p_gbg,\
-n_duel,p_duel,\
-n_hocuspocus,p_hocuspocus,\
-n_playpal,p_playpal,\
-n_srb2,p_srb2,\
-n_uzebox,p_uzebox,\
-n_kens16,p_kens16,\
-n_kens32,p_kens32,\
-n_kens54,p_kens54,\
-n_aap12,p_aap12,\
-n_aap16,p_aap16,\
-n_aap64,p_aap64,\
-n_aap96,p_aap96,\
-n_aap128,p_aap128,\
-n_aap_dga16,p_aap_dga16,\
-n_cheerful,p_cheerful,\
-n_db8,p_db8,\
-n_db16,p_db16,\
-n_db32,p_db32,\
-n_db_iso22,p_db_iso22,\
-n_dimwid17,p_dimwid17,\
-n_dimwid23,p_dimwid23,\
-n_edg4,p_edg4,\
-n_edg8,p_edg8,\
-n_edg16,p_edg16,\
-n_edg32,p_edg32,\
-n_edg36,p_edg36,\
-n_edg64,p_edg64,\
-n_famicube,p_famicube,\
-n_juicy32,p_juicy32,\
-n_juicy56,p_juicy56,\
-n_xaiue,p_xaiue,\
-n_15pdx,p_15pdx,\
-n_20pdx,p_20pdx,\
-n_24pdx,p_24pdx,\
-n_cabana,p_cabana,\
-n_fant16,p_fant16,\
-n_fant24,p_fant24,\
-n_tf23,p_tf23,\
-n_tfp39,p_tfp39,\
-n_faraway,p_faraway,\
-n_fleja,p_fleja,\
-n_koni,p_koni,\
-n_linearbasic,p_linearbasic,\
-n_legowiki,p_legowiki,\
-n_lego2021,p_lego2021,\
-n_vinelinear,p_vinelinear,\
-n_arcade,p_arcade,\
-n_arq,p_arq,\
-n_atom,p_atom,\
-n_blk36,p_blk36,\
-n_blkneo,p_blkneo,\
-n_brokefac,p_brokefac,\
-n_bubblegum,p_bubblegum,\
-n_cpcboy,p_cpcboy,\
-n_cade,p_cade,\
-n_calder,p_calder,\
-n_cdbac,p_cdbac,\
-n_cgarne,p_cgarne,\
-n_dinoknight,p_dinoknight,\
-n_4l,p_4l,\
-n_fzt,p_fzt,\
-n_indecision,p_indecision,\
-n_island,p_island,\
-n_journey,p_journey,\
-n_shallowmarsh,p_shallowmarsh,\
-n_lago_nenufar,p_lago_nenufar,\
-n_juicy,p_juicy,\
-n_chocolateganache,p_chocolateganache,\
-n_brightwinter1,p_brightwinter1,\
-n_brightwinter2,p_brightwinter2,\
-n_kawaii,p_kawaii,\
-n_xdb,p_xdb,\
-n_gzxp,p_gzxp,\
-n_chromatic,p_chromatic,\
-n_piet_code,p_piet_code,\
-n_boltbait_matrix,p_boltbait_matrix,\
-n_material_design,p_material_design,\
-n_thehamster_rainbow,p_thehamster_rainbow,\
-n_boltbait_rainbow,p_boltbait_rainbow,\
-n_scrj,p_scrj,\
-n_pxls,p_pxls,\
-n_lospec,p_lospec,\
-n_moderna,p_moderna,\
-n_oak,p_oak,\
-n_nature,p_nature,\
-n_rbypgo,p_rbypgo,\
-n_new_worlds,p_new_worlds,\
-n_nauris,p_nauris,\
-n_dynamite,p_dynamite,\
-n_interstate,p_interstate,\
-n_downgraded,p_downgraded,\
-n_pear,p_pear,\
-n_pineapple,p_pineapple,\
-n_peachy,p_peachy,\
-n_resurrect,p_resurrect,\
-n_rosy42,p_rosy42,\
-n_slso,p_slso,\
-n_softy,p_softy,\
-n_spec,p_spec,\
-n_roarin80s,p_roarin80s,\
-n_starmancer,p_starmancer,\
-n_superfuture,p_superfuture,\
-n_sunshine,p_sunshine,\
-n_sweetie,p_sweetie,\
-n_calm,p_calm,\
-n_optimism,p_optimism,\
-n_taffy,p_taffy,\
-n_todayland,p_todayland,\
-n_trirampo,p_trirampo,\
-n_reddit_place_2022,p_reddit_place_2022,\
-n_tropical,p_tropical,\
-n_vivid,p_vivid,\
-n_shido,p_shido,\
-n_intacto,p_intacto,\
-n_itatsi,p_itatsi,\
-n_enos,p_enos,\
-n_grixel,p_grixel,\
-n_superb,p_superb,\
-n_undertones,p_undertones,\
-n_tango,p_tango,\
-n_cheese,p_cheese,\
-n_equpix15,p_equpix15,\
-n_zughy,p_zughy,\
-n_voodo,p_voodo,\
-n_franzston,p_franzston,\
-n_night,p_night,\
-n_star29,p_star29,\
-n_star34,p_star34,\
-n_still_life,p_still_life,\
-n_simjpc,p_simjpc,\
-n_acid,p_acid,\
-n_battery,p_battery,\
-n_clump,p_clump,\
-n_cthul,p_cthul,\
-n_crimso11,p_crimso11,\
-n_coptec,p_coptec,\
-n_drz,p_drz,\
-n_eggy,p_eggy,\
-n_europa,p_europa,\
-n_greyt,p_greyt,\
-n_jewel,p_jewel,\
-n_polar,p_polar,\
-n_sheltzy,p_sheltzy,\
-n_wyrm,p_wyrm,\
-n_yume_nikki,p_yume_nikki,\
-n_rube_goldberg,p_rube_goldberg,\
-n_boomboom,p_boomboom,\
-n_g8,p_g8,\
-n_crayola,p_crayola,\
-n_funky,p_funky,\
-n_golden_wall,p_golden_wall,\
-n_matriax,p_matriax,\
-n_nt1h,p_nt1h,\
-n_jerrypie,p_jerrypie,\
-n_nineties_nine,p_nineties_nine,\
-n_on70,p_on70,\
-n_anb,p_anb,\
-n_retrocal,p_retrocal,\
-n_punolit,p_punolit,\
-n_luap,p_luap,\
-n_autum_villan,p_autum_villan,\
-n_au15,p_au15,\
-n_au15y,p_au15y,\
-n_galaxy_flame,p_galaxy_flame,\
-n_cretaceous,p_cretaceous,\
-n_antiquity,p_antiquity,\
-n_mushroom,p_mushroom,\
-n_aerugo,p_aerugo,\
-n_hotel_paintings,p_hotel_paintings,\
-n_nopal,p_nopal,\
-n_gpy,p_gpy,\
-n_blessing,p_blessing,\
-n_fairydust,p_fairydust,\
-n_milkshake,p_milkshake,\
-n_fuzz,p_fuzz,\
-n_fairy,p_fairy,\
-n_naji,p_naji,\
-n_easter,p_easter,\
-n_pastel_and_darks,p_pastel_and_darks,\
-n_pastel_irena,p_pastel_irena,\
-n_nostalgia,p_nostalgia,\
-n_ocaso,p_ocaso,\
-n_pastel_starlitsunset,p_pastel_starlitsunset,\
-n_pollen,p_pollen,\
-n_kule,p_kule,\
-n_hydrangea,p_hydrangea,\
-n_fluffy,p_fluffy,\
-n_st8rb,p_st8rb,\
-n_neon,p_neon,\
-n_cyclope,p_cyclope,\
-n_sy,p_sy,\
-n_syz,p_syz,\
-n_tui,p_tui,\
-n_cave,p_cave,\
-n_psygnosia,p_psygnosia,\
-n_marshmellow,p_marshmellow,\
-n_lost_century,p_lost_century,\
-n_finlal,p_finlal,\
-n_industrial,p_industrial,\
-n_murder_mystery,p_murder_mystery,\
-n_fate_and_destiny,p_fate_and_destiny,\
-n_vinik,p_vinik,\
-n_ykb,p_ykb,\
-n_halloween,p_halloween,\
-n_graveyard,p_graveyard,\
-n_steamlords,p_steamlords,\
-n_frostical,p_frostical,\
-n_deuterospill,p_deuterospill,\
-n_cool_bone,p_cool_bone,\
-n_muted_ally,p_muted_ally,\
-n_ephemera,p_ephemera,\
-n_ink,p_ink,\
-n_violet_dreams,p_violet_dreams,\
-n_tinyfolks,p_tinyfolks,\
-n_old_gold,p_old_gold,\
-n_rosemoss,p_rosemoss,\
-n_aaprad,p_aaprad,\
-n_aapmaj,p_aapmaj,\
-n_dead_weight,p_dead_weight,\
-n_mojave,p_mojave,\
-n_pet8,p_pet8,\
-n_pet8d,p_pet8d,\
-n_xaiue_rad,p_xaiue_rad,\
-n_daruda,p_daruda,\
-n_firestorm,p_firestorm,\
-n_borkfest,p_borkfest,\
-n_spicy,p_spicy,\
-n_rust,p_rust,\
-n_apricot,p_apricot,\
-n_supernova,p_supernova,\
-n_pastry,p_pastry,\
-n_sandy,p_sandy,\
-n_illumination,p_illumination,\
-n_nyx,p_nyx,\
-n_dreamhaze,p_dreamhaze,\
-n_oil,p_oil,\
-n_regal,p_regal,\
-n_softdemon,p_softdemon,\
-n_sgm,p_sgm,\
-n_midnight_ablaze,p_midnight_ablaze,\
-n_black_cherry,p_black_cherry,\
-n_sunset_red,p_sunset_red,\
-n_inkpink,p_inkpink,\
-n_brash_pink,p_brash_pink,\
-n_pink_neon_sign,p_pink_neon_sign,\
-n_enchanted_purple,p_enchanted_purple,\
-n_arch,p_arch,\
-n_spaceyeaster,p_spaceyeaster,\
-n_fornaxvoid1,p_fornaxvoid1,\
-n_fornaxvoid2,p_fornaxvoid2,\
-n_pixelwave,p_pixelwave,\
-n_s1,p_s1,\
-n_berry_nebula,p_berry_nebula,\
-n_abyss,p_abyss,\
-n_moonlight,p_moonlight,\
-n_moon39,p_moon39,\
-n_h2o,p_h2o,\
-n_magic_waters,p_magic_waters,\
-n_bluemold,p_bluemold,\
-n_moss,p_moss,\
-n_deep_maze,p_deep_maze,\
-n_toxic_slime,p_toxic_slime,\
-n_lush_green,p_lush_green,\
-n_tsunami,p_tsunami,\
-n_cryptic_ocean,p_cryptic_ocean,\
-n_marsh_madness,p_marsh_madness,\
-n_oxyd,p_oxyd,\
-n_pinkgreen,p_pinkgreen,\
-n_woodwalk,p_woodwalk,\
-n_paper,p_paper,\
-n_sahara_pastell,p_sahara_pastell,\
-n_sunflower,p_sunflower,\
-n_arthoe,p_arthoe,\
-n_sky,p_sky,\
-n_ocean_glass,p_ocean_glass,\
-n_royal,p_royal,\
-n_eulbink,p_eulbink,\
-n_winter_wonderland,p_winter_wonderland,\
-n_moon_squid,p_moon_squid,\
-n_stratus,p_stratus,\
-n_arctic_dust,p_arctic_dust,\
-n_clouds_sunset,p_clouds_sunset,\
-n_lilac_skies,p_lilac_skies,\
-n_sea_of_fire,p_sea_of_fire,\
-n_autochrome3,p_autochrome3,\
-n_autochrome5,p_autochrome5,\
-n_gb_d_1,p_gb_d_1,\
-n_gb_d_2,p_gb_d_2,\
-n_gb_andrade,p_gb_andrade,\
-n_gb_blue,p_gb_blue,\
-n_gb_bz,p_gb_bz,\
-n_gb_suburb,p_gb_suburb,\
-n_gb_crimson,p_gb_crimson,\
-n_gb_didi,p_gb_didi,\
-n_gb_dirty,p_gb_dirty,\
-n_gb_arne,p_gb_arne,\
-n_gb_easy,p_gb_easy,\
-n_gb_forest,p_gb_forest,\
-n_gb_hg,p_gb_hg,\
-n_gb_lg,p_gb_lg,\
-n_gb_nostalgia,p_gb_nostalgia,\
-n_gb_platinum,p_gb_platinum,\
-n_gb_kirokaze,p_gb_kirokaze,\
-n_gb_cyber,p_gb_cyber,\
-n_gb_wish,p_gb_wish,\
-n_gb_grapefruit,p_gb_grapefruit,\
-n_gb_ice_cream,p_gb_ice_cream,\
-n_gb_rb,p_gb_rb,\
-n_gb_gold,p_gb_gold,\
-n_gb_choco,p_gb_choco,\
-n_gb_gray,p_gb_gray,\
-n_gb_space,p_gb_space,\
-n_gb_purpdawn,p_gb_purpdawn,\
-n_moon_crystal,p_moon_crystal,\
-n_arne,p_arne,\
-n_autumn_chill,p_autumn_chill,\
-n_cherrymelon,p_cherrymelon,\
-n_hal4,p_hal4,\
-n_hollow,p_hollow,\
-n_lavender,p_lavender,\
-n_maw,p_maw,\
-n_voltage_warning,p_voltage_warning,\
-n_tritanopia,p_tritanopia,\
-n_rabbit,p_rabbit,\
-n_amiga2600ntsc,p_amiga2600ntsc,\
-n_amiga2600pal,p_amiga2600pal,\
-n_amiga2600secam,p_amiga2600secam,\
-n_amiga7800mess,p_amiga7800mess,\
-n_amiga7800,p_amiga7800,\
-n_amstrad_cpc,p_amstrad_cpc,\
-n_apple,p_apple,\
-n_atari,p_atari,\
-n_cga,p_cga,\
-n_cga00,p_cga00,\
-n_cga01,p_cga01,\
-n_cga10,p_cga10,\
-n_cga11,p_cga11,\
-n_cga20,p_cga20,\
-n_cga21,p_cga21,\
-n_c64_pepto,p_c64_pepto,\
-n_c64_colodore,p_c64_colodore,\
-n_com_vic_20,p_com_vic_20,\
-n_colecovision,p_colecovision,\
-n_jmp,p_jmp,\
-n_mac2,p_mac2,\
-n_mac8,p_mac8,\
-n_msx,p_msx,\
-n_nes,p_nes,\
-n_pico,p_pico,\
-n_risc,p_risc,\
-n_samcoupe,p_samcoupe,\
-n_mo5,p_mo5,\
-n_trs80,p_trs80,\
-n_virtualboy,p_virtualboy,\
-n_vga,p_vga,\
-n_win95,p_win95,\
-n_zx,p_zx,\
-n_gnome,p_gnome,\
-n_elc,p_elc,\
-n_chip16,p_chip16,\
-n_deluxepaint,p_deluxepaint,\
-n_flat,p_flat,\
-n_makecode,p_makecode,\
-n_oekaki,p_oekaki,\
-n_lms,p_lms,\
-n_msxp,p_msxp,\
-n_vista,p_vista,\
-n_piet,p_piet,\
-n_japwood,p_japwood,\
-n_humanfaces,p_humanfaces,\
-n_hues,p_hues,\
-n_christmas,p_christmas,\
-n_ladybugreds,p_ladybugreds\
+m _$0_dict:"n_ids=$""# $""=d"
+_$0_dict ${-__pal_ids}
+um _$0_dict
+
+n_$d1,p_$d1,\
+n_$d2,p_$d2,\
+n_$d3,p_$d3,\
+n_$d4,p_$d4,\
+n_$d5,p_$d5,\
+n_$d6,p_$d6,\
+n_$d7,p_$d7,\
+n_$d8,p_$d8,\
+n_$d9,p_$d9,\
+n_$d10,p_$d10,\
+n_$d11,p_$d11,\
+n_$d12,p_$d12,\
+n_$d13,p_$d13,\
+n_$d14,p_$d14,\
+n_$d15,p_$d15,\
+n_$d16,p_$d16,\
+n_$d17,p_$d17,\
+n_$d18,p_$d18,\
+n_$d19,p_$d19,\
+n_$d20,p_$d20,\
+n_$d21,p_$d21,\
+n_$d22,p_$d22,\
+n_$d23,p_$d23,\
+n_$d24,p_$d24,\
+n_$d25,p_$d25,\
+n_$d26,p_$d26,\
+n_$d27,p_$d27,\
+n_$d28,p_$d28,\
+n_$d29,p_$d29,\
+n_$d30,p_$d30,\
+n_$d31,p_$d31,\
+n_$d32,p_$d32,\
+n_$d33,p_$d33,\
+n_$d34,p_$d34,\
+n_$d35,p_$d35,\
+n_$d36,p_$d36,\
+n_$d37,p_$d37,\
+n_$d38,p_$d38,\
+n_$d39,p_$d39,\
+n_$d40,p_$d40,\
+n_$d41,p_$d41,\
+n_$d42,p_$d42,\
+n_$d43,p_$d43,\
+n_$d44,p_$d44,\
+n_$d45,p_$d45,\
+n_$d46,p_$d46,\
+n_$d47,p_$d47,\
+n_$d48,p_$d48,\
+n_$d49,p_$d49,\
+n_$d50,p_$d50,\
+n_$d51,p_$d51,\
+n_$d52,p_$d52,\
+n_$d53,p_$d53,\
+n_$d54,p_$d54,\
+n_$d55,p_$d55,\
+n_$d56,p_$d56,\
+n_$d57,p_$d57,\
+n_$d58,p_$d58,\
+n_$d59,p_$d59,\
+n_$d60,p_$d60,\
+n_$d61,p_$d61,\
+n_$d62,p_$d62,\
+n_$d63,p_$d63,\
+n_$d64,p_$d64,\
+n_$d65,p_$d65,\
+n_$d66,p_$d66,\
+n_$d67,p_$d67,\
+n_$d68,p_$d68,\
+n_$d69,p_$d69,\
+n_$d70,p_$d70,\
+n_$d71,p_$d71,\
+n_$d72,p_$d72,\
+n_$d73,p_$d73,\
+n_$d74,p_$d74,\
+n_$d75,p_$d75,\
+n_$d76,p_$d76,\
+n_$d77,p_$d77,\
+n_$d78,p_$d78,\
+n_$d79,p_$d79,\
+n_$d80,p_$d80,\
+n_$d81,p_$d81,\
+n_$d82,p_$d82,\
+n_$d83,p_$d83,\
+n_$d84,p_$d84,\
+n_$d85,p_$d85,\
+n_$d86,p_$d86,\
+n_$d87,p_$d87,\
+n_$d88,p_$d88,\
+n_$d89,p_$d89,\
+n_$d90,p_$d90,\
+n_$d91,p_$d91,\
+n_$d92,p_$d92,\
+n_$d93,p_$d93,\
+n_$d94,p_$d94,\
+n_$d95,p_$d95,\
+n_$d96,p_$d96,\
+n_$d97,p_$d97,\
+n_$d98,p_$d98,\
+n_$d99,p_$d99,\
+n_$d100,p_$d100,\
+n_$d101,p_$d101,\
+n_$d102,p_$d102,\
+n_$d103,p_$d103,\
+n_$d104,p_$d104,\
+n_$d105,p_$d105,\
+n_$d106,p_$d106,\
+n_$d107,p_$d107,\
+n_$d108,p_$d108,\
+n_$d109,p_$d109,\
+n_$d110,p_$d110,\
+n_$d111,p_$d111,\
+n_$d112,p_$d112,\
+n_$d113,p_$d113,\
+n_$d114,p_$d114,\
+n_$d115,p_$d115,\
+n_$d116,p_$d116,\
+n_$d117,p_$d117,\
+n_$d118,p_$d118,\
+n_$d119,p_$d119,\
+n_$d120,p_$d120,\
+n_$d121,p_$d121,\
+n_$d122,p_$d122,\
+n_$d123,p_$d123,\
+n_$d124,p_$d124,\
+n_$d125,p_$d125,\
+n_$d126,p_$d126,\
+n_$d127,p_$d127,\
+n_$d128,p_$d128,\
+n_$d129,p_$d129,\
+n_$d130,p_$d130,\
+n_$d131,p_$d131,\
+n_$d132,p_$d132,\
+n_$d133,p_$d133,\
+n_$d134,p_$d134,\
+n_$d135,p_$d135,\
+n_$d136,p_$d136,\
+n_$d137,p_$d137,\
+n_$d138,p_$d138,\
+n_$d139,p_$d139,\
+n_$d140,p_$d140,\
+n_$d141,p_$d141,\
+n_$d142,p_$d142,\
+n_$d143,p_$d143,\
+n_$d144,p_$d144,\
+n_$d145,p_$d145,\
+n_$d146,p_$d146,\
+n_$d147,p_$d147,\
+n_$d148,p_$d148,\
+n_$d149,p_$d149,\
+n_$d150,p_$d150,\
+n_$d151,p_$d151,\
+n_$d152,p_$d152,\
+n_$d153,p_$d153,\
+n_$d154,p_$d154,\
+n_$d155,p_$d155,\
+n_$d156,p_$d156,\
+n_$d157,p_$d157,\
+n_$d158,p_$d158,\
+n_$d159,p_$d159,\
+n_$d160,p_$d160,\
+n_$d161,p_$d161,\
+n_$d162,p_$d162,\
+n_$d163,p_$d163,\
+n_$d164,p_$d164,\
+n_$d165,p_$d165,\
+n_$d166,p_$d166,\
+n_$d167,p_$d167,\
+n_$d168,p_$d168,\
+n_$d169,p_$d169,\
+n_$d170,p_$d170,\
+n_$d171,p_$d171,\
+n_$d172,p_$d172,\
+n_$d173,p_$d173,\
+n_$d174,p_$d174,\
+n_$d175,p_$d175,\
+n_$d176,p_$d176,\
+n_$d177,p_$d177,\
+n_$d178,p_$d178,\
+n_$d179,p_$d179,\
+n_$d180,p_$d180,\
+n_$d181,p_$d181,\
+n_$d182,p_$d182,\
+n_$d183,p_$d183,\
+n_$d184,p_$d184,\
+n_$d185,p_$d185,\
+n_$d186,p_$d186,\
+n_$d187,p_$d187,\
+n_$d188,p_$d188,\
+n_$d189,p_$d189,\
+n_$d190,p_$d190,\
+n_$d191,p_$d191,\
+n_$d192,p_$d192,\
+n_$d193,p_$d193,\
+n_$d194,p_$d194,\
+n_$d195,p_$d195,\
+n_$d196,p_$d196,\
+n_$d197,p_$d197,\
+n_$d198,p_$d198,\
+n_$d199,p_$d199,\
+n_$d200,p_$d200,\
+n_$d201,p_$d201,\
+n_$d202,p_$d202,\
+n_$d203,p_$d203,\
+n_$d204,p_$d204,\
+n_$d205,p_$d205,\
+n_$d206,p_$d206,\
+n_$d207,p_$d207,\
+n_$d208,p_$d208,\
+n_$d209,p_$d209,\
+n_$d210,p_$d210,\
+n_$d211,p_$d211,\
+n_$d212,p_$d212,\
+n_$d213,p_$d213,\
+n_$d214,p_$d214,\
+n_$d215,p_$d215,\
+n_$d216,p_$d216,\
+n_$d217,p_$d217,\
+n_$d218,p_$d218,\
+n_$d219,p_$d219,\
+n_$d220,p_$d220,\
+n_$d221,p_$d221,\
+n_$d222,p_$d222,\
+n_$d223,p_$d223,\
+n_$d224,p_$d224,\
+n_$d225,p_$d225,\
+n_$d226,p_$d226,\
+n_$d227,p_$d227,\
+n_$d228,p_$d228,\
+n_$d229,p_$d229,\
+n_$d230,p_$d230,\
+n_$d231,p_$d231,\
+n_$d232,p_$d232,\
+n_$d233,p_$d233,\
+n_$d234,p_$d234,\
+n_$d235,p_$d235,\
+n_$d236,p_$d236,\
+n_$d237,p_$d237,\
+n_$d238,p_$d238,\
+n_$d239,p_$d239,\
+n_$d240,p_$d240,\
+n_$d241,p_$d241,\
+n_$d242,p_$d242,\
+n_$d243,p_$d243,\
+n_$d244,p_$d244,\
+n_$d245,p_$d245,\
+n_$d246,p_$d246,\
+n_$d247,p_$d247,\
+n_$d248,p_$d248,\
+n_$d249,p_$d249,\
+n_$d250,p_$d250,\
+n_$d251,p_$d251,\
+n_$d252,p_$d252,\
+n_$d253,p_$d253,\
+n_$d254,p_$d254,\
+n_$d255,p_$d255,\
+n_$d256,p_$d256,\
+n_$d257,p_$d257,\
+n_$d258,p_$d258,\
+n_$d259,p_$d259,\
+n_$d260,p_$d260,\
+n_$d261,p_$d261,\
+n_$d262,p_$d262,\
+n_$d263,p_$d263,\
+n_$d264,p_$d264,\
+n_$d265,p_$d265,\
+n_$d266,p_$d266,\
+n_$d267,p_$d267,\
+n_$d268,p_$d268,\
+n_$d269,p_$d269,\
+n_$d270,p_$d270,\
+n_$d271,p_$d271,\
+n_$d272,p_$d272,\
+n_$d273,p_$d273,\
+n_$d274,p_$d274,\
+n_$d275,p_$d275,\
+n_$d276,p_$d276,\
+n_$d277,p_$d277,\
+n_$d278,p_$d278,\
+n_$d279,p_$d279,\
+n_$d280,p_$d280,\
+n_$d281,p_$d281,\
+n_$d282,p_$d282,\
+n_$d283,p_$d283,\
+n_$d284,p_$d284,\
+n_$d285,p_$d285,\
+n_$d286,p_$d286,\
+n_$d287,p_$d287,\
+n_$d288,p_$d288,\
+n_$d289,p_$d289,\
+n_$d290,p_$d290,\
+n_$d291,p_$d291,\
+n_$d292,p_$d292,\
+n_$d293,p_$d293,\
+n_$d294,p_$d294,\
+n_$d295,p_$d295,\
+n_$d296,p_$d296,\
+n_$d297,p_$d297,\
+n_$d298,p_$d298,\
+n_$d299,p_$d299,\
+n_$d300,p_$d300,\
+n_$d301,p_$d301,\
+n_$d302,p_$d302,\
+n_$d303,p_$d303,\
+n_$d304,p_$d304,\
+n_$d305,p_$d305,\
+n_$d306,p_$d306,\
+n_$d307,p_$d307,\
+n_$d308,p_$d308,\
+n_$d309,p_$d309,\
+n_$d310,p_$d310,\
+n_$d311,p_$d311,\
+n_$d312,p_$d312,\
+n_$d313,p_$d313,\
+n_$d314,p_$d314,\
+n_$d315,p_$d315,\
+n_$d316,p_$d316,\
+n_$d317,p_$d317,\
+n_$d318,p_$d318,\
+n_$d319,p_$d319,\
+n_$d320,p_$d320,\
+n_$d321,p_$d321,\
+n_$d322,p_$d322,\
+n_$d323,p_$d323,\
+n_$d324,p_$d324,\
+n_$d325,p_$d325,\
+n_$d326,p_$d326,\
+n_$d327,p_$d327,\
+n_$d328,p_$d328,\
+n_$d329,p_$d329,\
+n_$d330,p_$d330,\
+n_$d331,p_$d331,\
+n_$d332,p_$d332,\
+n_$d333,p_$d333,\
+n_$d334,p_$d334,\
+n_$d335,p_$d335,\
+n_$d336,p_$d336,\
+n_$d337,p_$d337,\
+n_$d338,p_$d338,\
+n_$d339,p_$d339,\
+n_$d340,p_$d340,\
+n_$d341,p_$d341,\
+n_$d342,p_$d342,\
+n_$d343,p_$d343,\
+n_$d344,p_$d344,\
+n_$d345,p_$d345,\
+n_$d346,p_$d346,\
+n_$d347,p_$d347,\
+n_$d348,p_$d348,\
+n_$d349,p_$d349,\
+n_$d350,p_$d350,\
+n_$d351,p_$d351,\
+n_$d352,p_$d352,\
+n_$d353,p_$d353,\
+n_$d354,p_$d354,\
+n_$d355,p_$d355,\
+n_$d356,p_$d356,\
+n_$d357,p_$d357,\
+n_$d358,p_$d358,\
+n_$d359,p_$d359,\
+n_$d360,p_$d360,\
+n_$d361,p_$d361,\
+n_$d362,p_$d362,\
+n_$d363,p_$d363,\
+n_$d364,p_$d364,\
+n_$d365,p_$d365,\
+n_$d366,p_$d366,\
+n_$d367,p_$d367,\
+n_$d368,p_$d368,\
+n_$d369,p_$d369,\
+n_$d370,p_$d370,\
+n_$d371,p_$d371,\
+n_$d372,p_$d372,\
+n_$d373,p_$d373,\
+n_$d374,p_$d374,\
+n_$d375,p_$d375,\
+n_$d376,p_$d376,\
+n_$d377,p_$d377,\
+n_$d378,p_$d378,\
+n_$d379,p_$d379,\
+n_$d380,p_$d380,\
+n_$d381,p_$d381,\
+n_$d382,p_$d382,\
+n_$d383,p_$d383,\
+n_$d384,p_$d384,\
+n_$d385,p_$d385\
 =\
 "Black & White","(0,255^0,255^0,255)",\
 "Red-Green-Blue","(255,0,0^0,255,0^0,0,255)",\
@@ -17059,8 +17077,7 @@ repeat $# {
 
  if isnum($m)
   if isint($m)
-   m%=385
-   m=${d$m}
+   m=${d{$m%$n_ids+1}}
   fi
  fi
 
@@ -17075,6 +17092,7 @@ repeat $# {
 
 v + e[^-1] "Create palette(s) '"$out"'." v -
 status $out
+__pal_ids:u bw,rgb,b_rgb,bw_rgb,cmy,cmyk,w_cmyk,rgbcmy,1bitrgb,aurora,zenit,gbg,duel,hocuspocus,playpal,srb2,uzebox,kens16,kens32,kens54,aap12,aap16,aap64,aap96,aap128,aap_dga16,cheerful,db8,db16,db32,db_iso22,dimwid17,dimwid23,edg4,edg8,edg16,edg32,edg36,edg64,famicube,juicy32,juicy56,xaiue,15pdx,20pdx,24pdx,cabana,fantasy16,fantasy24,tranquil_fantasy_23,tfp39,faraway,fleja,koni,linearbasic,legowiki,lego2021,vinelinear,arcade,arq,atom,blk36,blkneo,broken_facility,bubblegum,cpcboy,cade,calder,cdbac,cgarne,dinoknight,llll,fzt_ethereal,indecision,island,journey,shallowmarsh,lago_nenufar,juicy,chocolate,brightwinter1,brightwinter2,kawaii,xdb,gzxp,chromatic,piet_code,boltbait_matrix,material_design,thehamster_rainbow,boltbait_rainbow,scrj_xxxvi,pxls_space,lospec,moderna,oak,nature,rbypgo,new_worlds,nauris,dynamite,interstate,downgraded,pear36,pineapple,peachy,resurrect,rosy42,slso_clr17,softy,spec12,the_roarin_80s,starmancer,superfuture,sunshine,sweetie16,calm,optimism,taffy,todayland,trirampo,reddit_place_2022,tropical,vivid,shido,intacto,itatsi,enos,grixel,superb,undertones,tango,cheese,equpix15,zughy,voodo,franzston,night,star29,star34,still_life,simple_jpc_16,acid,battery,clumpy,cthul,crimso11,copper_tech,drz15a,eggy,europa,greyt_bit,jewel,polar,sheltzy,wyrm,yume_nikki,rube_goldberg,boomboom,generic_8,crayola,funky,golden_wall,matriax8c,nt1h,jerrypie,nineties_nine,on70,anb16,retrocal,punolit,luap,autum_villan,autum_15,autum_15_yellow,galaxy_flame,cretaceous,antiquity,mushroom,aerugo,hotel_paintings,nopal,brightness_gpy,blessing,fairy_dust,milkshake,fuzzy,fairy,naji16,easter,pastel_and_darks,pastel_irena,nostalgia,ocaso,pastel_starlitsunset,pollen,kule,hydrangea,fluffy,st_8_red_and_blue,neon,cyclope,sy17,syz15,tui15,cave,psygnosia,marshmellow,lost_century,finlal,industrial,murder_mystery,fate_and_destiny,vinik,ykb,halloween,graveyard,steamlords,frostical,deuterospill,cool_bone,muted_ally,ephemera,ink,violet_dreams,tinyfolks,old_gold,rose_moss_8,aap_radiant_xv,aap_majesty_xvii,dead_weight,mojave,petite_8,petite_8_afterdark,xaiue_radiant,daruda,firestorm,borkfest,spicy,rust,apricot,supernova,pastry,sandy,illumination,nyx,dream_haze,oil,regal,soft_demon,sgm,midnight_ablaze,black_cherry,sunset_red,inkpink,brash_pink,pink_neon_sign,enchanted_purple,arch,spacey_easter,fornax_void_1,fornax_void_2,pixelwave,s1_6,berry_nebula,abyss,moonlight,moon39,h2o,magic_waters,bluemold,moss,deep_maze,toxic_slime,lush_green,tsunami,cryptic_ocean,marsh_madness,oxyd,pink_green,woodwalk,paper8,sahara_pastell,sunflower,arthoe,sky,ocean_glass,royal,eulbink,winter_wonderland,moon_squid,stratus,arctic_dust,clouds_sunset,lilac_skies,sea_of_fire,autochrome3,autochrome5,gb_default_1,gb_default_2,gb_andrade,gb_blue,gb_blackzone,gb_suburb,gb_crimson,gb_didi,gb_dirty,gb_arne,gb_easy,gb_forest,gb_harsh_green,gb_light_green,gb_nostalgia,gb_platinum,gb_kirokaze,gb_cyber,gb_wish,gb_grapefruit,gb_ice_cream,gb_red_blue,gb_gold,gb_choco,gb_gray,gb_space,gb_purple_dawn,moon_crystal,arne,autumn_chill,cherrymelon,hal4,hollow,lavender,maw,voltage_warning,tritanopia,rabbit,amiga2600_ntsc,amiga2600_pal,amiga2600_secam,amiga7800_mess,amiga7800,amstrad_cpc,apple,atari,cga,cga00,cga01,cga10,cga11,cga20,cga21,c64_pepto,c64_colodore,com_vic_20,colecovision,jmp,mac2,mac_8_bit,msx,nes,pico,risc,sam_coupe,mo5,trs80,virtualboy,vga,win95,zx,gnome,electronic_crayon,chip16,deluxe_paint,flat_ui,makecode_arcade,oekaki,ms_legacy_paint,ms_xp,vista,piet,japanese_woodblock,human_faces,hsv,christmas,ladybug_reds
 #@cli rep_transfer_color_reduced: [palette],0<=_dither<=1,_pixel_ratio_w>=0,_pixel_ratio_h>=0,_windows_width>=0,_window_height>=0,_color_restriction_per_window>=0,_color_restriction_per_whole>=0,_number_of_alpha>=0,_alpha_dithering>=0,_alpha_mode={ 0=index | 1=window-index | 2=ordered },_alpha_restrict>=0 : { bit_depth | bit_a:...:bit_z | :[palette] },0<=_dither<=1,_pixel_ratio_w>=0,_pixel_ratio_h>=0,_color_restriction_per_whole>=0,_number_of_alpha>=0,_alpha_dithering>=0,_alpha_mode={ 0=index | 1=ordered }
 #@cli : Change images to look as if it was reduced. Can be used to emulate old hardware.
 rep_transfer_color_reduced:
@@ -21305,7 +21323,7 @@ else
  all_args_same=1
  previous_args=n/a
  sep=
-
+ 
  if $_gui_analysis_gray
   if $37
    previous_args=$gray_method,$gray_effect,$gray_multiplication,$gray_blend,$gray_opacity%
@@ -21318,6 +21336,8 @@ else
   gray_args=$previous_args
   filter_args=$previous_args
   sep=,
+  
+  current_args=$previous_args
 
   if $use_section?same('$section_space','gray'):1
    gray_effect_visibility:=1+$37
@@ -21504,7 +21524,7 @@ if $_gui_analysis_color?$cmyk_mode?$include_k filter_args.=,cmyk fi
 
 if same('$_host','cli')
 
- if $_gui_analysis_color
+ if $cs_choice?$_gui_analysis_color
   if $cmyk_mode&&$include_k
    foreach[$list_of_color_images] {
      s c,-3
@@ -21515,10 +21535,10 @@ if same('$_host','cli')
    $convert_colors_fwd[$list_of_color_images]
   fi
  fi
+
+ rep_channels_blur_sharpen_overblur_overline $filter_args
  
- rep_channels_blur_sharpen_overblur_overline[$num_of_imgs--1] $filter_args
- 
- if $_gui_analysis_color
+ if $cs_choice?$_gui_analysis_color
   if $cmyk_mode&&$include_k
    foreach[$list_of_color_images] {
      s c,-4
@@ -22053,7 +22073,7 @@ fx_emboss_relief_preview: gui_split_preview "fx_emboss_relief ${1-7}",${-3--1}
 #@gui:Message=_text("Available for Export!")
 #@gui:Export=button()
 #@gui:Palette=choice(0,"Black & White-{2}","Red-Green-Blue-{3}","Black with Red-Green-Blue-{4}","Black & White with Red-Green-Blue-{5}","Cyan-Magenta-Yellow-{3}","Cyan-Magenta-Yellow-Black-{4}","White-Cyan-Magenta-Yellow-Black-{5}","Red-Green-Blue with Cyan-Magenta-Yellow-{6}","1-Bit RGB-{8}","Aurora-{256}","Zenit-241","Game Builder Garage: Texture-Sprite Editor Palette-{117}","Duel-{256}","Hocus Pocus Palette-{256}","PLAYPAL-{249}","Sonic Robo Blast 2-{256}","Uzebox-{256}","Andrew Kensler - 16","Andrew Kensler - 32","Andrew Kensler - 54","AAP-Micro 12","AAP-16","AAP-64","AAP-RadiantPLUS-{96}","AAP-SPLENDOR128","AAP-DGA16","Cheerful-32","DB8","DB16","DB32","DB-ISO22","DimWiddy 17","DimWiddy 23","Endesga-4","Endesga-8","Endesga-16","Endesga-32","Endesga-36","Endesga-64","Famicube-{64}","Juicy-32","Juicy-56","XAIUE-22","15P-DX","20P-DX","24P-DX","Cabana-64","Fantasy 16","Fantasy 24","Tranquil Fantasy 23","Tranquility Plus 39","Faraway 48","Fleja Master Palette-{33}","Koni32","Linear Color Palette Basic-{31}","LEGO colors-{43}","Lego Colours 2021-{40}","Vines Flexible Linear Ramps-{38}","Arcade Standard 29","ARQ16","Atom-8","BLK 36","BLK-NEO-{46}","Broken Facility-{40}","Bubblegum-16","CPC BOY-{32}","Cade 15","Calder 8-{11}","CD-BAC-{16}","CG Arne-{16}","DinoKnight 16","||||-22","FZT Ethereal 16","Indecision-{17}","Island Joy 16","Journey-{64}","Shallowmarsh26","Lago Nenufar &#40;Lake Water Lily&#41;-{19}","Juicy 17","ChocolateGanache-{96}","Bright Winter 1-{74}","Bright Winter 2-{83}","Kawaii16","0xdb-01-{17}","GZXP-{11}","Chromatic16","Piet Coding Language-{20}","Matrix-{96}","Material Design-{96}","Rainbow-{88}","Rainbow-{96}","SCRJ-XXXVI-{36}","Pxls Default-{32}","Lospec500-{42}","Moderna-{24}","Oak21","Nature's Embrace 55","RBYPGO-{94}","New Worlds 46","Nauris-16","Dynamite-{40}","Interstate 28","Downgraded 32","Pear 36","Pineapple 32","Peachy Pop 16","Resurrect 32","Rosy 42","SLSO-CLR17","Softy 15","SPEC12","The Roarin 80's","Starmancer-{52}","SuperFuture25","SUNSHINE 35","Sweetie 16","Calm 48","Optimism-{32}","Taffy 16","Todayland Palette V2-{25}","TriRampo-{12}","r|place 2022-{32}","Tropical Cone 24","Vivid-17","SHIDO50+-{72}","Intacto14","Itatsi-{23}","ENOS16","Grixel Grotto-{16}","Superb 8","Undertones-17","Tango-{28}","Cheese Palette-{28}","Equpix 15","Zughy 32","Voodo34","Franzston 30","Night 16","Star 29","Star 34","Still-Life-{14}","SimpleJPC-16","Acid 15","Battery 24","Clumpy 18","Cthulhu-{16}","Crimso 11-{16}","Copper-Tech-{16}","DRZ15A","Eggy 15","Europa 16","GreyT-bit-{8}","Jewel-{15}","Polar 11","Sheltzy 32","Wyrm 24","Yume Nikki-{24}","Rube-Goldberg-{9}","BoomBoom-{7}","Generic-8","Crayola Blind-{9}","FunkyFuture8","The Golden Wall Palette-{7}","Matriax8c","NT1H-{26}","JerryPie 22","Nineties Nine-{9}","On70-{35}","ANB16","Retrocal-8","Punolit-{21}","Luap 40","Autum Villan 6","Autum 15","Autum 15 [Yellow]","Galaxy Flame-{16}","Cretaceous-16","Antiquity16","Mushroom-{14}","Aerugo-{32}","Hotel Paintings 6","Nopal-12","Brightness GPY-{3}","Blessing-{5}","Fairydust 8","Vanilla MilkShake-{16}","Fuzzy Four-{4}","Fairy Tales-{8}","Naji 16","Easter Island-{16}","Pastel and Darks 58 Palette","17 Pastels","NOSTALGIA15","Ocaso-{17}","Oh Hell&#44; Pastel-{15}","Pollen-8","KULE-16","Hydrangea 11","Fluffy8","ST 8 R&B Remake","Neon Space-{10}","Cyclope6","Sy17","Syz15","TUI-15","Cave-{8}","Psygnosia-{16}","MarshMellow32","Lost Century 24","Finlal 11","Industrial Factory 16","Murder Mystery 16","Fate & Destiny 12","Vinik 24","YKB-22","Halloween-{7}","Graveyard-21","Steam Lords-{16}","Frostical-{18}","DeuteroSpill-{9}","Cool Bone 7","Muted Ally 6","EPHEMERA-{12}","Ink-{5}","Violet Dreams-{8}","Tinyfolks-{5}","Old Gold 7","Rosemoss-8","AAP-RadiantXV-{15}","AAP-Majesty XVII-{17}","Dead Weight-8","Mojave20","Petite-8","Petite-8 Afterdark","XAIUE-Radiant-{22}","Daruda 22","Firestorm-{9}","Borkfest-{8}","Spicy 07","Rust-6","Apricot-{6}","SuperNova 7","Pastry-{5}","Sandy 06","Illumination-{5}","NYX8","Dream Haze 8","OIL6","Regal10","Soft Demon 7","SGM-Palette 2-{17}","Midnight ablaze-{7}","Black Cherry-{5}","Sunset Red-{5}","INKPINK-{6}","Brash Pink-{5}","Pink Neon Sign 6","Enchanted Purple-{12}","Arch-{11}","Spacey Easter-{17}","Fornax Void I-{256}","Fornax Void II-{128}","Pixelwave-{12}","S1-6","Berry Nebula-{8}","ABYSS-9","Moonlight 15","Moonlit-39","H2O-{10}","Magic Waters 9","Bluem0ld-{4}","Moss-{5}","DEEP MAZE-{7}","Toxic Slime-{5}","Lush Green-{6}","Tsunami-{5}","Cryptic Ocean-{6}","Marsh Madness-{5}","OXYD-{8}","Pink&Green-{8}","Walking in the Woods 8","Paper 8","Sahara Pastell-{7}","Sunflower Painting 7","Art Hoe Aesthetic 7","Sky5-{7}","Ocean Glass-{8}","RoyalGuard-{6}","Eulbink-{7}","Winter Wonderland-{8}","Moon Squid 7","Stratus-{5}","Arctic Dust-{5}","CL8UDS","Lilac Skies 5","Sea of Fire-{6}","Autochrome 3","Autochrome 5","GB Default 1-{4}","GB Default 2-{4}","GB Andrade-{4}","GB Blue Seni-{4}","GB Blackzone-{4}","GB Suburb-{4}","GB Crimson-{4}","GB Didi-{4}","GB Dirty-{4}","GB Arne-{4}","GB Easy-{4}","GB Forest-{4}","GB Harsh Green-{4}","GB Light Green-{4}","GB Nostalgia-{4}","GB Platinum-{4}","GB Kirokaze-{4}","GB Cyber-{4}","GB Wish-{4}","GB Grapefruit-{4}","GB Ice Cream-{4}","GB Red_Blue-{4}","Gold GB-{4}","GB Chocolate-{4}","GB Gray-{4}","GB Spacehaze-{4}","GB Purple Dawn-{4}","Moon Crystal-{4}","ARNE4","Autumn Chill-{4}","CherryMelon-{4}","HallowPumpkin-{4}","Hollow-{4}","Lavender4","MAW-{4}","Voltage Warning-{4}","Tritanopia-{5}","Rabbit 7","Amiga 2600 NTSC-{128}","Amiga 2600 PAL-{104}","Amiga 2600 SECAM-{8}","Amiga 7800 M.E.S.S-{256}","Amiga 7800-{256}","Amstrad CPC-{27}","Apple II-{15}","Atari 8-Bit Series - GTIA-{256}","CGA-{16}","CGA Mode 0 [Low]-{4}","CGA Mode 0 [High]-{4}","CGA Mode 1 [Low]-{4}","CGA Mode 1 [High]-{4}","CGA Mode 2 [Low]-{4}","CGA Mode 2 [High]-{4}","Commodore 64 - Pepto-{16}","Commodore 64 - Colodore-{16}","Commodore VIC-20-{16}","Colecovision-{15}","Japanese Machine Palette-{16}","Macintosh II-{16}","Macintosh 8-Bit System Palette-{256}","MSX-{15}","NES-{55}","PICO-8-{16}","RISC OS-{16}","SAM Coupe-{128}","Thomson MO5-{16}","TRS-80 Color Computer Palette-{4}","Virtual Boy interpreted-{4}","VGA-{244}","Win 95-{256}","ZX Spectrum-{15}","GNOME 32","Electronic Crayon 22","Chip16","Deluxe Paint-{222}","FlatUI-{20}","MakeCode Arcade Palette-{15}","Oekaki-{20}","Legacy Paint-{16}","XP Paint-{28}","Vista Paint-{28}","Piet Palette-{5}","Japanese Woodblock Palette-{12}","Human Faces-{94}","HSV Palette-{96}","ST24 Christmas","Reds-{24}")_0
-#@gui:_=separator(),_=note("<b>Palette CLI Information</b>\n\n <i>Main Source of Palettes - </i><a href=\"https://lospec.com/palette-list\"> LoSpec Palette List</a>\n\nPalette Number -- pal number_id = pal name_id -- Full Palette Name by Author[if mentioned]\n\n1 -- +pal 0 = +pal bw -- Black & White\n2 -- +pal 1 = +pal rgb -- Red-Green-Blue\n3 -- +pal 2 = +pal b_rgb -- Black with Red-Green-Blue\n4 -- +pal 3 = +pal bw_rgb -- Black & White with Red-Green-Blue\n5 -- +pal 4 = +pal cmy -- Cyan-Magenta-Yellow\n6 -- +pal 5 = +pal cmyk -- Cyan-Magenta-Yellow-Black\n7 -- +pal 6 = +pal wcmyk -- White-Cyan-Magenta-Yellow-Black\n8 -- +pal 7 = +pal rgbcmy -- Red-Green-Blue with Cyan-Magenta-Yellow\n9 -- +pal 8 = +pal 1bitrgb -- 1-Bit RGB\n10 -- +pal 9 = +pal aurora -- Aurora by GrafxKid\n11 -- +pal 10 = +pal zenit -- Zenit-241 by Zenit40\n12 -- +pal 11 = +pal gbg -- Game Builder Garage: Texture-Sprite Editor Palette\n13 -- +pal 12 = +pal duel -- Duel by Arilyn\n14 -- +pal 13 = +pal hocuspocus -- Hocus Pocus Palette by Apogee Software,Ltd.\n15 -- +pal 14 = +pal playpal -- PLAYPAL by id Tech 1 | DOOM Engine\n16 -- +pal 15 = +pal srb2 -- Sonic Robo Blast 2\n17 -- +pal 16 = +pal uzebox -- Uzebox from Uzebox console\n18 -- +pal 17 = +pal kens16 -- Andrew Kensler - 16 by Andrew Kensler\n19 -- +pal 18 = +pal kens32 -- Andrew Kensler - 32 by Andrew Kensler\n20 -- +pal 19 = +pal kens54 -- Andrew Kensler - 54 by Andrew Kensler\n21 -- +pal 20 = +pal aap12 -- AAP-Micro 12 by Adigun A. Polack\n22 -- +pal 21 = +pal aap16 -- AAP-16 by Adigun A. Polack\n23 -- +pal 22 = +pal aap64 -- AAP-64 by Adigun A. Polack\n24 -- +pal 23 = +pal aap96 -- AAP-RadiantPLUS by Adigun A. Polack\n25 -- +pal 24 = +pal aap128 -- AAP-SPLENDOR128 by Adigun A. Polack\n26 -- +pal 25 = +pal aap_dga16 -- AAP-DGA16 by Adigun A. Polack\n27 -- +pal 26 = +pal cheerful -- Cheerful-32 by SoundsDotZip\n28 -- +pal 27 = +pal db8 -- DB8 by DawnBringer\n29 -- +pal 28 = +pal db16 -- DB16 by DawnBringer\n30 -- +pal 29 = +pal db32 -- DB32 by DawnBringer\n31 -- +pal 30 = +pal db_iso22 -- DB-ISO22 by DawnBringer\n32 -- +pal 31 = +pal dimwid17 -- DimWiddy 17 by DimWiddy\n33 -- +pal 32 = +pal dimwid23 -- DimWiddy 23 by DimWiddy\n34 -- +pal 33 = +pal edg4 -- Endesga-4 by Endesga\n35 -- +pal 34 = +pal edg8 -- Endesga-8 by Endesga\n36 -- +pal 35 = +pal edg16 -- Endesga-16 by Endesga\n37 -- +pal 36 = +pal edg32 -- Endesga-32 by Endesga\n38 -- +pal 37 = +pal edg36 -- Endesga-36 by Endesga\n39 -- +pal 38 = +pal edg64 -- Endesga-64 by Endesga\n40 -- +pal 39 = +pal famicube -- Famicube by Arne\n41 -- +pal 40 = +pal juicy32 -- Juicy-32 by Real Juice\n42 -- +pal 41 = +pal juicy56 -- Juicy-56 by Real Juice\n43 -- +pal 42 = +pal xaiue -- XAIUE-22 by xaiue\n44 -- +pal 43 = +pal 15pdx -- 15P-DX by GrafxKid\n45 -- +pal 44 = +pal 20pdx -- 20P-DX by GrafxKid\n46 -- +pal 45 = +pal 24pdx -- 24P-DX by GrafxKid\n47 -- +pal 46 = +pal cabana -- Cabana-64 by Crabby\n48 -- +pal 47 = +pal fant16 -- Fantasy 16 by Brettybooop\n49 -- +pal 48 = +pal fant24 -- Fantasy 24 by Gabriel C.\n50 -- +pal 49 = +pal tf23 -- Tranquil Fantasy 23 by windfall.apples\n51 -- +pal 50 = +pal tfp39 -- Tranquility Plus 39 by windfall.apples\n52 -- +pal 51 = +pal faraway -- Faraway 48 by Igor Ferreira.\n53 -- +pal 52 = +pal fleja -- Fleja Master Palette by Fleja\n54 -- +pal 53 = +pal koni -- Koni32 by Konic\n55 -- +pal 54 = +pal linearbasic -- Linear Color Palette Basic by GrafxKid\n56 -- +pal 55 = +pal legowiki -- LEGO colors from LEGO wiki\n57 -- +pal 56 = +pal lego2021 -- Lego Colours 2021 by Six Pies\n58 -- +pal 57 = +pal vinelinear -- Vines Flexible Linear Ramps by Vine 2D\n59 -- +pal 58 = +pal arcade -- Arcade Standard 29 by GrafxKid\n60 -- +pal 59 = +pal arq -- ARQ16 by Endesga\n61 -- +pal 60 = +pal atom -- Atom-8 by polyphrog\n62 -- +pal 61 = +pal blk36 -- BLK 36 by BlackedIRL.\n63 -- +pal 62 = +pal blkneo -- BLK-NEO by BlackedIRL.\n64 -- +pal 63 = +pal brokefac -- Broken Facility by telepathic-melon\n65 -- +pal 64 = +pal bubblegum -- Bubblegum-16 by PineTreePizza\n66 -- +pal 65 = +pal cpcboy -- CPC BOY by Arne Niklas Jansson\n67 -- +pal 66 = +pal cade -- Cade 15 by MonstersGoBoom\n68 -- +pal 67 = +pal calder -- Calder 8 by Philip Dodderige\n69 -- +pal 68 = +pal cdbac -- CD-BAC by DimWiddy\n70 -- +pal 69 = +pal cgarne -- CG Arne by Arne Niklas Jansson\n71 -- +pal 70 = +pal dinoknight -- DinoKnight 16 by Retrospec\n72 -- +pal 71 = +pal 4l -- ||||-22 by ||||\n73 -- +pal 72 = +pal fzt -- FZT Ethereal 16 by Fusionnist\n74 -- +pal 73 = +pal indecision -- Indecision by Nelson SMG\n75 -- +pal 74 = +pal island -- Island Joy 16 by Kerrie Lake\n76 -- +pal 75 = +pal journey -- Journey by PineTreePizza\n77 -- +pal 76 = +pal shallowmarsh -- Shallowmarsh26 by archer\n78 -- +pal 77 = +pal lago_nenufar -- Lago Nenufar &#40;Lake Water Lily&#41; by Popxel Art\n79 -- +pal 78 = +pal juicy -- Juicy 17 by JerryPie\n80 -- +pal 79 = +pal chocolateganache -- ChocolateGanache by Ladybug\n81 -- +pal 80 = +pal brightwinter1 -- Bright Winter 1 by Nai\n82 -- +pal 81 = +pal brightwinter2 -- Bright Winter 2 by Nai\n83 -- +pal 82 = +pal kawaii -- Kawaii16 by Arisuki\n84 -- +pal 83 = +pal xdb -- 0xdb-01 by 0xDB\n85 -- +pal 84 = +pal gzxp -- GZXP by GrafxKid\n86 -- +pal 85 = +pal chromatic -- Chromatic16 by DragonDePlatino\n87 -- +pal 86 = +pal piet_code -- Piet Coding Language\n88 -- +pal 87 = +pal boltbait_matrix -- Matrix by BoltBait\n89 -- +pal 88 = +pal material_design -- Material Design by Ruchir L. Sharma\n90 -- +pal 89 = +pal thehamster_rainbow -- Rainbow by thehamster\n91 -- +pal 90 = +pal boltbait_rainbow -- Rainbow by BoltBait\n92 -- +pal 91 = +pal scrj -- SCRJ-XXXVI by StudioCRJ\n93 -- +pal 92 = +pal pxls -- Pxls Default from pxls.space\n94 -- +pal 93 = +pal lospec -- Lospec500 by the Lospec community\n95 -- +pal 94 = +pal moderna -- Moderna by yedamameday\n96 -- +pal 95 = +pal oak -- Oak21 by Dan Oak\n97 -- +pal 96 = +pal nature -- Nature's Embrace 55 by GrafxKid\n98 -- +pal 97 = +pal rbypgo -- RBYPGO by Marilynx\n99 -- +pal 98 = +pal new_worlds -- New Worlds 46 by Count Moriarty\n100 -- +pal 99 = +pal nauris -- Nauris-16 by Nauris\n101 -- +pal 100 = +pal dynamite -- Dynamite by Pixi\n102 -- +pal 101 = +pal interstate -- Interstate 28 by maine\n103 -- +pal 102 = +pal downgraded -- Downgraded 32 by daniel\n104 -- +pal 103 = +pal pear -- Pear 36 by PineTreePizza\n105 -- +pal 104 = +pal pineapple -- Pineapple 32 by PineTreePizza\n106 -- +pal 105 = +pal peachy -- Peachy Pop 16 by Kerrie Lake\n107 -- +pal 106 = +pal resurrect -- Resurrect 32 by Kerrie Lake\n108 -- +pal 107 = +pal rosy42 -- Rosy 42 by PineTreePizza\n109 -- +pal 108 = +pal slso -- SLSO-CLR17 by Luis Miguel Maldonado\n110 -- +pal 109 = +pal softy -- Softy 15 by Eggy\n111 -- +pal 110 = +pal spec -- SPEC12 by Smalls\n112 -- +pal 111 = +pal roarin80s -- The Roarin 80's by Malo\n113 -- +pal 112 = +pal starmancer -- Starmancer by Ominux Games\n114 -- +pal 113 = +pal superfuture -- SuperFuture25 by Endesga\n115 -- +pal 114 = +pal sunshine -- SUNSHINE 35 by mysunnyrose\n116 -- +pal 115 = +pal sweetie -- Sweetie 16 by GrafxKid\n117 -- +pal 116 = +pal calm -- Calm 48 by Xina\n118 -- +pal 117 = +pal optimism -- Optimism by mingapur\n119 -- +pal 118 = +pal taffy -- Taffy 16 by PineTreePizza\n120 -- +pal 119 = +pal todayland -- Todayland Palette V2 by GrafxKid\n121 -- +pal 120 = +pal trirampo -- TriRampo by ANoob\n122 -- +pal 121 = +pal reddit_place_2022 -- r|place 2022\n123 -- +pal 122 = +pal tropical -- Tropical Cone 24 by yedamameday\n124 -- +pal 123 = +pal vivid -- Vivid-17 by Irenaart\n125 -- +pal 124 = +pal shido -- SHIDO50+ by Shidoengie\n126 -- +pal 125 = +pal intacto -- Intacto14 by Anoob\n127 -- +pal 126 = +pal itatsi -- Itatsi by SoundsDotZip\n128 -- +pal 127 = +pal enos -- ENOS16 by Endesga\n129 -- +pal 128 = +pal grixel -- Grixel Grotto by Northernite\n130 -- +pal 129 = +pal superb -- Superb 8 by BigPotato\n131 -- +pal 130 = +pal undertones -- Undertones-17 by Irenaart\n132 -- +pal 131 = +pal tango -- Tango by Duck\n133 -- +pal 132 = +pal cheese -- Cheese Palette by Gors\n134 -- +pal 133 = +pal equpix15 -- Equpix 15 by Night\n135 -- +pal 134 = +pal zughy -- Zughy 32 by Zughy\n136 -- +pal 135 = +pal voodo -- Voodo34 by Shamaboy\n137 -- +pal 136 = +pal franzston -- Franzston 30 by Virus610\n138 -- +pal 137 = +pal night -- Night 16 by Night\n139 -- +pal 138 = +pal star29 -- Star 29 by Starlane\n140 -- +pal 139 = +pal star34 -- Star 34 by Starlane\n141 -- +pal 140 = +pal still_life -- Still-Life by cure\n142 -- +pal 141 = +pal simjpc -- SimpleJPC-16 by Adigun A. Polack\n143 -- +pal 142 = +pal acid -- Acid 15 by pyrometal\n144 -- +pal 143 = +pal battery -- Battery 24 by Battery Jellyfish\n145 -- +pal 144 = +pal clump -- Clumpy 18 by windfall.apples\n146 -- +pal 145 = +pal cthul -- Cthulhu by Starlane\n147 -- +pal 146 = +pal crimso11 -- Crimso 11 by Crimso\n148 -- +pal 147 = +pal coptec -- Copper-Tech by Arne Niklas Jansson\n149 -- +pal 148 = +pal drz -- DRZ15A by Drazille\n150 -- +pal 149 = +pal eggy -- Eggy 15 by Eggy\n151 -- +pal 150 = +pal europa -- Europa 16 by Starlane\n152 -- +pal 151 = +pal greyt -- GreyT-bit by Sam Keddy\n153 -- +pal 152 = +pal jewel -- Jewel by AprilSundae\n154 -- +pal 153 = +pal polar -- Polar 11 by Smalls\n155 -- +pal 154 = +pal sheltzy -- Sheltzy 32 by NatTorpedia\n156 -- +pal 155 = +pal wyrm -- Wyrm 24 by FrogWyrm\n157 -- +pal 156 = +pal yume_nikki -- Yume Nikki by Space Sandwich\n158 -- +pal 157 = +pal rube_goldberg -- Rube-Goldberg\n159 -- +pal 158 = +pal boomboom -- BoomBoom by Salman_Shh\n160 -- +pal 159 = +pal g8 -- Generic-8 by GrafxKid\n161 -- +pal 160 = +pal crayola -- Crayola Blind\n162 -- +pal 161 = +pal funky -- FunkyFuture8 by ShamaBoy\n163 -- +pal 162 = +pal golden_wall -- The Golden Wall Palette by Hans Hofmann\n164 -- +pal 163 = +pal matriax -- Matriax8c by Davit Masia\n165 -- +pal 164 = +pal nt1h -- NT1H by NatTorpedia\n166 -- +pal 165 = +pal jerrypie -- JerryPie 22 by JerryPie\n167 -- +pal 166 = +pal nineties_nine -- Nineties Nine by Cubby Crazes\n168 -- +pal 167 = +pal on70 -- On70 by By8Bits\n169 -- +pal 168 = +pal anb -- ANB16 by Anoob\n170 -- +pal 169 = +pal retrocal -- Retrocal-8 by polyphrog\n171 -- +pal 170 = +pal punolit -- Punolit by Punoli\n172 -- +pal 171 = +pal luap -- Luap 40 by Luap\n173 -- +pal 172 = +pal autum_villan -- Autum Villan 6 by Chase Stemel\n174 -- +pal 173 = +pal au15 -- Autum 15 by jok\n175 -- +pal 174 = +pal au15y -- Autum 15 [Yellow] by jok\n176 -- +pal 175 = +pal galaxy_flame -- Galaxy Flame by Rhoq\n177 -- +pal 176 = +pal cretaceous -- Cretaceous-16 by Joao Vasconcelos\n178 -- +pal 177 = +pal antiquity -- Antiquity16 by ILTA\n179 -- +pal 178 = +pal mushroom -- Mushroom by Jimison3\n180 -- +pal 179 = +pal aerugo -- Aerugo by Lizalot\n181 -- +pal 180 = +pal hotel_paintings -- Hotel Paintings 6 by Chase Stemel\n182 -- +pal 181 = +pal nopal -- Nopal-12 by BlackedIRL.\n183 -- +pal 182 = +pal gpy -- Brightness GPY by rickthepalette\n184 -- +pal 183 = +pal blessing -- Blessing by Maruki\n185 -- +pal 184 = +pal fairydust -- Fairydust 8 by Yousurname\n186 -- +pal 185 = +pal milkshake -- Vanilla MilkShake by Space Sandwich\n187 -- +pal 186 = +pal fuzz -- Fuzzy Four by P-Tux7\n188 -- +pal 187 = +pal fairy -- Fairy Tales by lollige\n189 -- +pal 188 = +pal naji -- Naji 16 by Naji\n190 -- +pal 189 = +pal easter -- Easter Island by skamocore\n191 -- +pal 190 = +pal pastel_and_darks -- Pastel and Darks 58 Palette by Glxss\n192 -- +pal 191 = +pal pastel_irena -- 17 Pastels by Irenaart\n193 -- +pal 192 = +pal nostalgia -- NOSTALGIA15 by Arisuki\n194 -- +pal 193 = +pal ocaso -- Ocaso by Minord\n195 -- +pal 194 = +pal pastel_starlitsunset -- Oh Hell, Pastel by StarlitSunset\n196 -- +pal 195 = +pal pollen -- Pollen-8 by Conker\n197 -- +pal 196 = +pal kule -- KULE-16 by Cuymacu\n198 -- +pal 197 = +pal hydrangea -- Hydrangea 11 by Dinchen's Art\n199 -- +pal 198 = +pal fluffy -- Fluffy8 by vee\n200 -- +pal 199 = +pal st8rb -- ST 8 R&B Remake by Skiller Thomson\n201 -- +pal 200 = +pal neon -- Neon Space by Jimison3\n202 -- +pal 201 = +pal cyclope -- Cyclope6 by Royal_Naym\n203 -- +pal 202 = +pal sy -- Sy17 by xaiue\n204 -- +pal 203 = +pal syz -- Syz15 by Fusionnist\n205 -- +pal 204 = +pal tui -- TUI-15 by Jeremy\n206 -- +pal 205 = +pal cave -- Cave by PineTreePizza\n207 -- +pal 206 = +pal psygnosia -- Psygnosia by Arne Niklas Jansson\n208 -- +pal 207 = +pal marshmellow -- MarshMellow32 by FormalPrejudice\n209 -- +pal 208 = +pal lost_century -- Lost Century 24 by CalmRadish\n210 -- +pal 209 = +pal finlal -- Finlal 11 by Finlal\n211 -- +pal 210 = +pal industrial -- Industrial Factory 16 by Toby_Yasha\n212 -- +pal 211 = +pal murder_mystery -- Murder Mystery 16 by Toby_Yasha\n213 -- +pal 212 = +pal fate_and_destiny -- Fate & Destiny 12 by Toby_Yasha\n214 -- +pal 213 = +pal vinik -- Vinik 24 by Vinik\n215 -- +pal 214 = +pal ykb -- YKB-22 by yahkehbu\n216 -- +pal 215 = +pal halloween -- Halloween by Mememellow\n217 -- +pal 216 = +pal graveyard -- Graveyard-21 by AprilSundae\n218 -- +pal 217 = +pal steamlords -- Steam Lords by Slynyrd\n219 -- +pal 218 = +pal frostical -- Frostical by yedamameday\n220 -- +pal 219 = +pal deuterospill -- DeuteroSpill by Royal_Naym\n221 -- +pal 220 = +pal cool_bone -- Cool Bone 7 by Chase Stemel\n222 -- +pal 221 = +pal muted_ally -- Muted Ally 6 by Chase Stemel\n223 -- +pal 222 = +pal ephemera -- EPHEMERA by K C\n224 -- +pal 223 = +pal ink -- Ink by AprilSundae\n225 -- +pal 224 = +pal violet_dreams -- Violet Dreams by Solitaire\n226 -- +pal 225 = +pal tinyfolks -- Tinyfolks by Pierr Vandermaesan\n227 -- +pal 226 = +pal old_gold -- Old Gold 7 by Chase Stemel\n228 -- +pal 227 = +pal rosemoss -- Rosemoss-8 by polyphrog\n229 -- +pal 228 = +pal aaprad -- AAP-RadiantXV by Adigun A. Polack\n230 -- +pal 229 = +pal aapmaj -- AAP-Majesty XVII by Adigun A. Polack\n231 -- +pal 230 = +pal dead_weight -- Dead Weight-8 by polyphrog\n232 -- +pal 231 = +pal mojave -- Mojave20 by magodellepercussioni\n233 -- +pal 232 = +pal pet8 -- Petite-8 by Adigun A. Polack\n234 -- +pal 233 = +pal pet8d -- Petite-8 Afterdark by Adigun A. Polack\n235 -- +pal 234 = +pal xaiue_rad -- XAIUE-Radiant by xaiue\n236 -- +pal 235 = +pal daruda -- Daruda 22 by daruda\n237 -- +pal 236 = +pal firestorm -- Firestorm by theartistjulian\n238 -- +pal 237 = +pal borkfest -- Borkfest by まるき\n239 -- +pal 238 = +pal spicy -- Spicy 07 by green guy\n240 -- +pal 239 = +pal rust -- Rust-6 by Blue Phoenix\n241 -- +pal 240 = +pal apricot -- Apricot by Chase Stemel\n242 -- +pal 241 = +pal supernova -- SuperNova 7 by Blue Phoenix\n243 -- +pal 242 = +pal pastry -- Pastry by MirruTatep\n244 -- +pal 243 = +pal sandy -- Sandy 06 by green guy\n245 -- +pal 244 = +pal illumination -- Illumination by MirruTatep\n246 -- +pal 245 = +pal nyx -- NYX8 by Javier Guerrero\n247 -- +pal 246 = +pal dreamhaze -- Dream Haze 8 by Klafooty\n248 -- +pal 247 = +pal oil -- OIL6 by GrafxKid\n249 -- +pal 248 = +pal regal -- Regal10 by JRiggles\n250 -- +pal 249 = +pal softdemon -- Soft Demon 7 by Chase Stemel\n251 -- +pal 250 = +pal sgm -- SGM-Palette 2 by s.g.m\n252 -- +pal 251 = +pal midnight_ablaze -- Midnight ablaze by Inkpendude\n253 -- +pal 252 = +pal black_cherry -- Black Cherry by MirruTatep\n254 -- +pal 253 = +pal sunset_red -- Sunset Red by Cabezinu\n255 -- +pal 254 = +pal inkpink -- INKPINK by Inkpendude\n256 -- +pal 255 = +pal brash_pink -- Brash Pink by ItzFred\n257 -- +pal 256 = +pal pink_neon_sign -- Pink Neon Sign 6 by Chase Stemel\n258 -- +pal 257 = +pal enchanted_purple -- Enchanted Purple by Kaiburn\n259 -- +pal 258 = +pal arch -- Arch by Poltergasm\n260 -- +pal 259 = +pal spaceyeaster -- Spacey Easter by Spark Norris\n261 -- +pal 260 = +pal fornaxvoid1 -- Fornax Void I by Fornax Void\n262 -- +pal 261 = +pal fornaxvoid2 -- Fornax Void II by Fornax Void\n263 -- +pal 262 = +pal pixelwave -- Pixelwave by Reptorian\n264 -- +pal 263 = +pal s1 -- S1-6 by Blyzz\n265 -- +pal 264 = +pal berry_nebula -- Berry Nebula by LostInIndigo\n266 -- +pal 265 = +pal abyss -- ABYSS-9 by Jusiv\n267 -- +pal 266 = +pal moonlight -- Moonlight 15 by Tofu\n268 -- +pal 267 = +pal moon39 -- Moonlit-39 by theartistjulian\n269 -- +pal 268 = +pal h2o -- H2O by maine\n270 -- +pal 269 = +pal magic_waters -- Magic Waters 9 by Chase Stemel\n271 -- +pal 270 = +pal bluemold -- Bluem0ld by warpixel\n272 -- +pal 271 = +pal moss -- Moss by Zetomis\n273 -- +pal 272 = +pal deep_maze -- DEEP MAZE by Ryosuke\n274 -- +pal 273 = +pal toxic_slime -- Toxic Slime by MirruTatep\n275 -- +pal 274 = +pal lush_green -- Lush Green by EerieJam\n276 -- +pal 275 = +pal tsunami -- Tsunami by MirruTatep\n277 -- +pal 276 = +pal cryptic_ocean -- Cryptic Ocean by Klafooty\n278 -- +pal 277 = +pal marsh_madness -- Marsh Madness by MirruTatep\n279 -- +pal 278 = +pal oxyd -- OXYD by ItzFred\n280 -- +pal 279 = +pal pinkgreen -- Pink&Green by q1\n281 -- +pal 280 = +pal woodwalk -- Walking in the Woods 8 by Chase Stemel\n282 -- +pal 281 = +pal paper -- Paper 8 by Frosty Rabbid\n283 -- +pal 282 = +pal sahara_pastell -- Sahara Pastell by wermz\n284 -- +pal 283 = +pal sunflower -- Sunflower Painting 7 by Chase Stemel\n285 -- +pal 284 = +pal arthoe -- Art Hoe Aesthetic 7 by Chase Stemel\n286 -- +pal 285 = +pal sky -- Sky5 by MiniTe\n287 -- +pal 286 = +pal ocean_glass -- Ocean Glass by Solitaire\n288 -- +pal 287 = +pal royal -- RoyalGuard by Royal_Naym\n289 -- +pal 288 = +pal eulbink -- Eulbink by Inkpendude\n290 -- +pal 289 = +pal winter_wonderland -- Winter Wonderland by Jimison3\n291 -- +pal 290 = +pal moon_squid -- Moon Squid 7 by Chase Stemel\n292 -- +pal 291 = +pal stratus -- Stratus by MirruTatep\n293 -- +pal 292 = +pal arctic_dust -- Arctic Dust by MirruTatep\n294 -- +pal 293 = +pal clouds_sunset -- CL8UDS by _Nicola \n295 -- +pal 294 = +pal lilac_skies -- Lilac Skies 5 by Chase Stemel\n296 -- +pal 295 = +pal sea_of_fire -- Sea of Fire by TATA-PIXEL\n297 -- +pal 296 = +pal autochrome3 -- Autochrome 3 by Reptorian\n298 -- +pal 297 = +pal autochrome5 -- Autochrome 5 by Reptorian\n299 -- +pal 298 = +pal gb_d_1 -- GB Default 1\n300 -- +pal 299 = +pal gb_d_2 -- GB Default 2\n301 -- +pal 300 = +pal gb_andrade -- GB Andrade by Andrade\n302 -- +pal 301 = +pal gb_blue -- GB Blue Seni by WildLeoKnight\n303 -- +pal 302 = +pal gb_bz -- GB Blackzone\n304 -- +pal 303 = +pal gb_suburb -- GB Suburb by Poppysalmon\n305 -- +pal 304 = +pal gb_crimson -- GB Crimson by WildLeoKnight\n306 -- +pal 305 = +pal gb_didi -- GB Didi by DidiGameboy\n307 -- +pal 306 = +pal gb_dirty -- GB Dirty by WildLeoKnight\n308 -- +pal 307 = +pal gb_arne -- GB Arne by Arne\n309 -- +pal 308 = +pal gb_easy -- GB Easy by GrafxKid\n310 -- +pal 309 = +pal gb_forest -- GB Forest\n311 -- +pal 310 = +pal gb_hg -- GB Harsh Green by WildLeoKnight\n312 -- +pal 311 = +pal gb_lg -- GB Light Green by WildLeoKnight\n313 -- +pal 312 = +pal gb_nostalgia -- GB Nostalgia by WildLeoKnight\n314 -- +pal 313 = +pal gb_platinum -- GB Platinum by WildLeoKnight\n315 -- +pal 314 = +pal gb_kirokaze -- GB Kirokaze by Kirokaze\n316 -- +pal 315 = +pal gb_cyber -- GB Cyber\n317 -- +pal 316 = +pal gb_wish -- GB Wish by Kerrie Lake\n318 -- +pal 317 = +pal gb_grapefruit -- GB Grapefruit by GrafxKid\n319 -- +pal 318 = +pal gb_ice_cream -- GB Ice Cream by Kerrie Lake\n320 -- +pal 319 = +pal gb_rb -- GB Red_Blue\n321 -- +pal 320 = +pal gb_gold -- Gold GB by Isa\n322 -- +pal 321 = +pal gb_choco -- GB Chocolate by GrafxKid\n323 -- +pal 322 = +pal gb_gray -- GB Gray by GrafxKid\n324 -- +pal 323 = +pal gb_space -- GB Spacehaze by WildLeoKnight\n325 -- +pal 324 = +pal gb_purpdawn -- GB Purple Dawn by WildLeoKnight\n326 -- +pal 325 = +pal moon_crystal -- Moon Crystal by Doph\n327 -- +pal 326 = +pal arne -- ARNE4 by Arne\n328 -- +pal 327 = +pal autumn_chill -- Autumn Chill by Doph\n329 -- +pal 328 = +pal cherrymelon -- CherryMelon by WildLeoKnight\n330 -- +pal 329 = +pal hal4 -- HallowPumpkin by WildLeoKnight\n331 -- +pal 330 = +pal hollow -- Hollow by Poltergasm\n332 -- +pal 331 = +pal lavender -- Lavender4 by Solitaire\n333 -- +pal 332 = +pal maw -- MAW by bloo\n334 -- +pal 333 = +pal voltage_warning -- Voltage Warning by Wuchta\n335 -- +pal 334 = +pal tritanopia -- Tritanopia by Allappini\n336 -- +pal 335 = +pal rabbit -- Rabbit 7 by GrafxKid\n337 -- +pal 336 = +pal amiga2600ntsc -- Amiga 2600 NTSC\n338 -- +pal 337 = +pal amiga2600pal -- Amiga 2600 PAL\n339 -- +pal 338 = +pal amiga2600secam -- Amiga 2600 SECAM\n340 -- +pal 339 = +pal amiga7800mess -- Amiga 7800 M.E.S.S by Nabuko78\n341 -- +pal 340 = +pal amiga7800 -- Amiga 7800\n342 -- +pal 341 = +pal amstrad_cpc -- Amstrad CPC\n343 -- +pal 342 = +pal apple -- Apple II\n344 -- +pal 343 = +pal atari -- Atari 8-Bit Series - GTIA by PixelCrunch\n345 -- +pal 344 = +pal cga -- CGA\n346 -- +pal 345 = +pal cga00 -- CGA Mode 0 [Low]\n347 -- +pal 346 = +pal cga01 -- CGA Mode 0 [High]\n348 -- +pal 347 = +pal cga10 -- CGA Mode 1 [Low]\n349 -- +pal 348 = +pal cga11 -- CGA Mode 1 [High]\n350 -- +pal 349 = +pal cga20 -- CGA Mode 2 [Low]\n351 -- +pal 350 = +pal cga21 -- CGA Mode 2 [High]\n352 -- +pal 351 = +pal c64_pepto -- Commodore 64 - Pepto\n353 -- +pal 352 = +pal c64_colodore -- Commodore 64 - Colodore\n354 -- +pal 353 = +pal com_vic_20 -- Commodore VIC-20\n355 -- +pal 354 = +pal colecovision -- Colecovision\n356 -- +pal 355 = +pal jmp -- Japanese Machine Palette by Arne Niklas Jansson\n357 -- +pal 356 = +pal mac2 -- Macintosh II\n358 -- +pal 357 = +pal mac8 -- Macintosh 8-Bit System Palette\n359 -- +pal 358 = +pal msx -- MSX\n360 -- +pal 359 = +pal nes -- NES\n361 -- +pal 360 = +pal pico -- PICO-8 by Lexaloffle Games\n362 -- +pal 361 = +pal risc -- RISC OS\n363 -- +pal 362 = +pal samcoupe -- SAM Coupe\n364 -- +pal 363 = +pal mo5 -- Thomson MO5\n365 -- +pal 364 = +pal trs80 -- TRS-80 Color Computer Palette\n366 -- +pal 365 = +pal virtualboy -- Virtual Boy interpreted by Bruno Weinberger\n367 -- +pal 366 = +pal vga -- VGA\n368 -- +pal 367 = +pal win95 -- Win 95\n369 -- +pal 368 = +pal zx -- ZX Spectrum\n370 -- +pal 369 = +pal gnome -- GNOME 32\n371 -- +pal 370 = +pal elc -- Electronic Crayon 22\n372 -- +pal 371 = +pal chip16 -- Chip16\n373 -- +pal 372 = +pal deluxepaint -- Deluxe Paint\n374 -- +pal 373 = +pal flat -- FlatUI from flat ui colors website\n375 -- +pal 374 = +pal makecode -- MakeCode Arcade Palette\n376 -- +pal 375 = +pal oekaki -- Oekaki from Oekaki.nl\n377 -- +pal 376 = +pal lms -- Legacy Paint\n378 -- +pal 377 = +pal msxp -- XP Paint\n379 -- +pal 378 = +pal vista -- Vista Paint\n380 -- +pal 379 = +pal piet -- Piet Palette by Piet Mondrain\n381 -- +pal 380 = +pal japwood -- Japanese Woodblock Palette by Polyducks\n382 -- +pal 381 = +pal humanfaces -- Human Faces by Romney57\n383 -- +pal 382 = +pal hues -- HSV Palette by MadJik\n384 -- +pal 383 = +pal christmas -- ST24 Christmas by Skiller Thomson\n385 -- +pal 384 = +pal ladybugreds -- Reds by Ladybug")
+#@gui:_=separator(),_=note("<b>Palette CLI Information</b>\n\n <i>Main Source of Palettes - </i><a href=\"https://lospec.com/palette-list\"> LoSpec Palette List</a>\n\nPalette Number -- pal number_id = pal name_id -- Full Palette Name by Author[if mentioned]\n\n1 -- +pal 0 = +pal bw -- Black & White\n2 -- +pal 1 = +pal rgb -- Red-Green-Blue\n3 -- +pal 2 = +pal b_rgb -- Black with Red-Green-Blue\n4 -- +pal 3 = +pal bw_rgb -- Black & White with Red-Green-Blue\n5 -- +pal 4 = +pal cmy -- Cyan-Magenta-Yellow\n6 -- +pal 5 = +pal cmyk -- Cyan-Magenta-Yellow-Black\n7 -- +pal 6 = +pal w_cmyk -- White-Cyan-Magenta-Yellow-Black\n8 -- +pal 7 = +pal rgbcmy -- Red-Green-Blue with Cyan-Magenta-Yellow\n9 -- +pal 8 = +pal 1bitrgb -- 1-Bit RGB\n10 -- +pal 9 = +pal aurora -- Aurora by GrafxKid\n11 -- +pal 10 = +pal zenit -- Zenit-241 by Zenit40\n12 -- +pal 11 = +pal gbg -- Game Builder Garage: Texture-Sprite Editor Palette\n13 -- +pal 12 = +pal duel -- Duel by Arilyn\n14 -- +pal 13 = +pal hocuspocus -- Hocus Pocus Palette by Apogee Software,Ltd.\n15 -- +pal 14 = +pal playpal -- PLAYPAL by id Tech 1 | DOOM Engine\n16 -- +pal 15 = +pal srb2 -- Sonic Robo Blast 2\n17 -- +pal 16 = +pal uzebox -- Uzebox from Uzebox console\n18 -- +pal 17 = +pal kens16 -- Andrew Kensler - 16 by Andrew Kensler\n19 -- +pal 18 = +pal kens32 -- Andrew Kensler - 32 by Andrew Kensler\n20 -- +pal 19 = +pal kens54 -- Andrew Kensler - 54 by Andrew Kensler\n21 -- +pal 20 = +pal aap12 -- AAP-Micro 12 by Adigun A. Polack\n22 -- +pal 21 = +pal aap16 -- AAP-16 by Adigun A. Polack\n23 -- +pal 22 = +pal aap64 -- AAP-64 by Adigun A. Polack\n24 -- +pal 23 = +pal aap96 -- AAP-RadiantPLUS by Adigun A. Polack\n25 -- +pal 24 = +pal aap128 -- AAP-SPLENDOR128 by Adigun A. Polack\n26 -- +pal 25 = +pal aap_dga16 -- AAP-DGA16 by Adigun A. Polack\n27 -- +pal 26 = +pal cheerful -- Cheerful-32 by SoundsDotZip\n28 -- +pal 27 = +pal db8 -- DB8 by DawnBringer\n29 -- +pal 28 = +pal db16 -- DB16 by DawnBringer\n30 -- +pal 29 = +pal db32 -- DB32 by DawnBringer\n31 -- +pal 30 = +pal db_iso22 -- DB-ISO22 by DawnBringer\n32 -- +pal 31 = +pal dimwid17 -- DimWiddy 17 by DimWiddy\n33 -- +pal 32 = +pal dimwid23 -- DimWiddy 23 by DimWiddy\n34 -- +pal 33 = +pal edg4 -- Endesga-4 by Endesga\n35 -- +pal 34 = +pal edg8 -- Endesga-8 by Endesga\n36 -- +pal 35 = +pal edg16 -- Endesga-16 by Endesga\n37 -- +pal 36 = +pal edg32 -- Endesga-32 by Endesga\n38 -- +pal 37 = +pal edg36 -- Endesga-36 by Endesga\n39 -- +pal 38 = +pal edg64 -- Endesga-64 by Endesga\n40 -- +pal 39 = +pal famicube -- Famicube by Arne\n41 -- +pal 40 = +pal juicy32 -- Juicy-32 by Real Juice\n42 -- +pal 41 = +pal juicy56 -- Juicy-56 by Real Juice\n43 -- +pal 42 = +pal xaiue -- XAIUE-22 by xaiue\n44 -- +pal 43 = +pal 15pdx -- 15P-DX by GrafxKid\n45 -- +pal 44 = +pal 20pdx -- 20P-DX by GrafxKid\n46 -- +pal 45 = +pal 24pdx -- 24P-DX by GrafxKid\n47 -- +pal 46 = +pal cabana -- Cabana-64 by Crabby\n48 -- +pal 47 = +pal fantasy16 -- Fantasy 16 by Brettybooop\n49 -- +pal 48 = +pal fantasy24 -- Fantasy 24 by Gabriel C.\n50 -- +pal 49 = +pal tranquil_fantasy_23 -- Tranquil Fantasy 23 by windfall.apples\n51 -- +pal 50 = +pal tfp39 -- Tranquility Plus 39 by windfall.apples\n52 -- +pal 51 = +pal faraway -- Faraway 48 by Igor Ferreira.\n53 -- +pal 52 = +pal fleja -- Fleja Master Palette by Fleja\n54 -- +pal 53 = +pal koni -- Koni32 by Konic\n55 -- +pal 54 = +pal linearbasic -- Linear Color Palette Basic by GrafxKid\n56 -- +pal 55 = +pal legowiki -- LEGO colors from LEGO wiki\n57 -- +pal 56 = +pal lego2021 -- Lego Colours 2021 by Six Pies\n58 -- +pal 57 = +pal vinelinear -- Vines Flexible Linear Ramps by Vine 2D\n59 -- +pal 58 = +pal arcade -- Arcade Standard 29 by GrafxKid\n60 -- +pal 59 = +pal arq -- ARQ16 by Endesga\n61 -- +pal 60 = +pal atom -- Atom-8 by polyphrog\n62 -- +pal 61 = +pal blk36 -- BLK 36 by BlackedIRL.\n63 -- +pal 62 = +pal blkneo -- BLK-NEO by BlackedIRL.\n64 -- +pal 63 = +pal broken_facility -- Broken Facility by telepathic-melon\n65 -- +pal 64 = +pal bubblegum -- Bubblegum-16 by PineTreePizza\n66 -- +pal 65 = +pal cpcboy -- CPC BOY by Arne Niklas Jansson\n67 -- +pal 66 = +pal cade -- Cade 15 by MonstersGoBoom\n68 -- +pal 67 = +pal calder -- Calder 8 by Philip Dodderige\n69 -- +pal 68 = +pal cdbac -- CD-BAC by DimWiddy\n70 -- +pal 69 = +pal cgarne -- CG Arne by Arne Niklas Jansson\n71 -- +pal 70 = +pal dinoknight -- DinoKnight 16 by Retrospec\n72 -- +pal 71 = +pal llll -- ||||-22 by ||||\n73 -- +pal 72 = +pal fzt_ethereal -- FZT Ethereal 16 by Fusionnist\n74 -- +pal 73 = +pal indecision -- Indecision by Nelson SMG\n75 -- +pal 74 = +pal island -- Island Joy 16 by Kerrie Lake\n76 -- +pal 75 = +pal journey -- Journey by PineTreePizza\n77 -- +pal 76 = +pal shallowmarsh -- Shallowmarsh26 by archer\n78 -- +pal 77 = +pal lago_nenufar -- Lago Nenufar &#40;Lake Water Lily&#41; by Popxel Art\n79 -- +pal 78 = +pal juicy -- Juicy 17 by JerryPie\n80 -- +pal 79 = +pal chocolate -- ChocolateGanache by Ladybug\n81 -- +pal 80 = +pal brightwinter1 -- Bright Winter 1 by Nai\n82 -- +pal 81 = +pal brightwinter2 -- Bright Winter 2 by Nai\n83 -- +pal 82 = +pal kawaii -- Kawaii16 by Arisuki\n84 -- +pal 83 = +pal xdb -- 0xdb-01 by 0xDB\n85 -- +pal 84 = +pal gzxp -- GZXP by GrafxKid\n86 -- +pal 85 = +pal chromatic -- Chromatic16 by DragonDePlatino\n87 -- +pal 86 = +pal piet_code -- Piet Coding Language\n88 -- +pal 87 = +pal boltbait_matrix -- Matrix by BoltBait\n89 -- +pal 88 = +pal material_design -- Material Design by Ruchir L. Sharma\n90 -- +pal 89 = +pal thehamster_rainbow -- Rainbow by thehamster\n91 -- +pal 90 = +pal boltbait_rainbow -- Rainbow by BoltBait\n92 -- +pal 91 = +pal scrj_xxxvi -- SCRJ-XXXVI by StudioCRJ\n93 -- +pal 92 = +pal pxls_space -- Pxls Default from pxls.space\n94 -- +pal 93 = +pal lospec -- Lospec500 by the Lospec community\n95 -- +pal 94 = +pal moderna -- Moderna by yedamameday\n96 -- +pal 95 = +pal oak -- Oak21 by Dan Oak\n97 -- +pal 96 = +pal nature -- Nature's Embrace 55 by GrafxKid\n98 -- +pal 97 = +pal rbypgo -- RBYPGO by Marilynx\n99 -- +pal 98 = +pal new_worlds -- New Worlds 46 by Count Moriarty\n100 -- +pal 99 = +pal nauris -- Nauris-16 by Nauris\n101 -- +pal 100 = +pal dynamite -- Dynamite by Pixi\n102 -- +pal 101 = +pal interstate -- Interstate 28 by maine\n103 -- +pal 102 = +pal downgraded -- Downgraded 32 by daniel\n104 -- +pal 103 = +pal pear36 -- Pear 36 by PineTreePizza\n105 -- +pal 104 = +pal pineapple -- Pineapple 32 by PineTreePizza\n106 -- +pal 105 = +pal peachy -- Peachy Pop 16 by Kerrie Lake\n107 -- +pal 106 = +pal resurrect -- Resurrect 32 by Kerrie Lake\n108 -- +pal 107 = +pal rosy42 -- Rosy 42 by PineTreePizza\n109 -- +pal 108 = +pal slso_clr17 -- SLSO-CLR17 by Luis Miguel Maldonado\n110 -- +pal 109 = +pal softy -- Softy 15 by Eggy\n111 -- +pal 110 = +pal spec12 -- SPEC12 by Smalls\n112 -- +pal 111 = +pal the_roarin_80s -- The Roarin 80's by Malo\n113 -- +pal 112 = +pal starmancer -- Starmancer by Ominux Games\n114 -- +pal 113 = +pal superfuture -- SuperFuture25 by Endesga\n115 -- +pal 114 = +pal sunshine -- SUNSHINE 35 by mysunnyrose\n116 -- +pal 115 = +pal sweetie16 -- Sweetie 16 by GrafxKid\n117 -- +pal 116 = +pal calm -- Calm 48 by Xina\n118 -- +pal 117 = +pal optimism -- Optimism by mingapur\n119 -- +pal 118 = +pal taffy -- Taffy 16 by PineTreePizza\n120 -- +pal 119 = +pal todayland -- Todayland Palette V2 by GrafxKid\n121 -- +pal 120 = +pal trirampo -- TriRampo by ANoob\n122 -- +pal 121 = +pal reddit_place_2022 -- r|place 2022\n123 -- +pal 122 = +pal tropical -- Tropical Cone 24 by yedamameday\n124 -- +pal 123 = +pal vivid -- Vivid-17 by Irenaart\n125 -- +pal 124 = +pal shido -- SHIDO50+ by Shidoengie\n126 -- +pal 125 = +pal intacto -- Intacto14 by Anoob\n127 -- +pal 126 = +pal itatsi -- Itatsi by SoundsDotZip\n128 -- +pal 127 = +pal enos -- ENOS16 by Endesga\n129 -- +pal 128 = +pal grixel -- Grixel Grotto by Northernite\n130 -- +pal 129 = +pal superb -- Superb 8 by BigPotato\n131 -- +pal 130 = +pal undertones -- Undertones-17 by Irenaart\n132 -- +pal 131 = +pal tango -- Tango by Duck\n133 -- +pal 132 = +pal cheese -- Cheese Palette by Gors\n134 -- +pal 133 = +pal equpix15 -- Equpix 15 by Night\n135 -- +pal 134 = +pal zughy -- Zughy 32 by Zughy\n136 -- +pal 135 = +pal voodo -- Voodo34 by Shamaboy\n137 -- +pal 136 = +pal franzston -- Franzston 30 by Virus610\n138 -- +pal 137 = +pal night -- Night 16 by Night\n139 -- +pal 138 = +pal star29 -- Star 29 by Starlane\n140 -- +pal 139 = +pal star34 -- Star 34 by Starlane\n141 -- +pal 140 = +pal still_life -- Still-Life by cure\n142 -- +pal 141 = +pal simple_jpc_16 -- SimpleJPC-16 by Adigun A. Polack\n143 -- +pal 142 = +pal acid -- Acid 15 by pyrometal\n144 -- +pal 143 = +pal battery -- Battery 24 by Battery Jellyfish\n145 -- +pal 144 = +pal clumpy -- Clumpy 18 by windfall.apples\n146 -- +pal 145 = +pal cthul -- Cthulhu by Starlane\n147 -- +pal 146 = +pal crimso11 -- Crimso 11 by Crimso\n148 -- +pal 147 = +pal copper_tech -- Copper-Tech by Arne Niklas Jansson\n149 -- +pal 148 = +pal drz15a -- DRZ15A by Drazille\n150 -- +pal 149 = +pal eggy -- Eggy 15 by Eggy\n151 -- +pal 150 = +pal europa -- Europa 16 by Starlane\n152 -- +pal 151 = +pal greyt_bit -- GreyT-bit by Sam Keddy\n153 -- +pal 152 = +pal jewel -- Jewel by AprilSundae\n154 -- +pal 153 = +pal polar -- Polar 11 by Smalls\n155 -- +pal 154 = +pal sheltzy -- Sheltzy 32 by NatTorpedia\n156 -- +pal 155 = +pal wyrm -- Wyrm 24 by FrogWyrm\n157 -- +pal 156 = +pal yume_nikki -- Yume Nikki by Space Sandwich\n158 -- +pal 157 = +pal rube_goldberg -- Rube-Goldberg\n159 -- +pal 158 = +pal boomboom -- BoomBoom by Salman_Shh\n160 -- +pal 159 = +pal generic_8 -- Generic-8 by GrafxKid\n161 -- +pal 160 = +pal crayola -- Crayola Blind\n162 -- +pal 161 = +pal funky -- FunkyFuture8 by ShamaBoy\n163 -- +pal 162 = +pal golden_wall -- The Golden Wall Palette by Hans Hofmann\n164 -- +pal 163 = +pal matriax8c -- Matriax8c by Davit Masia\n165 -- +pal 164 = +pal nt1h -- NT1H by NatTorpedia\n166 -- +pal 165 = +pal jerrypie -- JerryPie 22 by JerryPie\n167 -- +pal 166 = +pal nineties_nine -- Nineties Nine by Cubby Crazes\n168 -- +pal 167 = +pal on70 -- On70 by By8Bits\n169 -- +pal 168 = +pal anb16 -- ANB16 by Anoob\n170 -- +pal 169 = +pal retrocal -- Retrocal-8 by polyphrog\n171 -- +pal 170 = +pal punolit -- Punolit by Punoli\n172 -- +pal 171 = +pal luap -- Luap 40 by Luap\n173 -- +pal 172 = +pal autum_villan -- Autum Villan 6 by Chase Stemel\n174 -- +pal 173 = +pal autum_15 -- Autum 15 by jok\n175 -- +pal 174 = +pal autum_15_yellow -- Autum 15 [Yellow] by jok\n176 -- +pal 175 = +pal galaxy_flame -- Galaxy Flame by Rhoq\n177 -- +pal 176 = +pal cretaceous -- Cretaceous-16 by Joao Vasconcelos\n178 -- +pal 177 = +pal antiquity -- Antiquity16 by ILTA\n179 -- +pal 178 = +pal mushroom -- Mushroom by Jimison3\n180 -- +pal 179 = +pal aerugo -- Aerugo by Lizalot\n181 -- +pal 180 = +pal hotel_paintings -- Hotel Paintings 6 by Chase Stemel\n182 -- +pal 181 = +pal nopal -- Nopal-12 by BlackedIRL.\n183 -- +pal 182 = +pal brightness_gpy -- Brightness GPY by rickthepalette\n184 -- +pal 183 = +pal blessing -- Blessing by Maruki\n185 -- +pal 184 = +pal fairy_dust -- Fairydust 8 by Yousurname\n186 -- +pal 185 = +pal milkshake -- Vanilla MilkShake by Space Sandwich\n187 -- +pal 186 = +pal fuzzy -- Fuzzy Four by P-Tux7\n188 -- +pal 187 = +pal fairy -- Fairy Tales by lollige\n189 -- +pal 188 = +pal naji16 -- Naji 16 by Naji\n190 -- +pal 189 = +pal easter -- Easter Island by skamocore\n191 -- +pal 190 = +pal pastel_and_darks -- Pastel and Darks 58 Palette by Glxss\n192 -- +pal 191 = +pal pastel_irena -- 17 Pastels by Irenaart\n193 -- +pal 192 = +pal nostalgia -- NOSTALGIA15 by Arisuki\n194 -- +pal 193 = +pal ocaso -- Ocaso by Minord\n195 -- +pal 194 = +pal pastel_starlitsunset -- Oh Hell, Pastel by StarlitSunset\n196 -- +pal 195 = +pal pollen -- Pollen-8 by Conker\n197 -- +pal 196 = +pal kule -- KULE-16 by Cuymacu\n198 -- +pal 197 = +pal hydrangea -- Hydrangea 11 by Dinchen's Art\n199 -- +pal 198 = +pal fluffy -- Fluffy8 by vee\n200 -- +pal 199 = +pal st_8_red_and_blue -- ST 8 R&B Remake by Skiller Thomson\n201 -- +pal 200 = +pal neon -- Neon Space by Jimison3\n202 -- +pal 201 = +pal cyclope -- Cyclope6 by Royal_Naym\n203 -- +pal 202 = +pal sy17 -- Sy17 by xaiue\n204 -- +pal 203 = +pal syz15 -- Syz15 by Fusionnist\n205 -- +pal 204 = +pal tui15 -- TUI-15 by Jeremy\n206 -- +pal 205 = +pal cave -- Cave by PineTreePizza\n207 -- +pal 206 = +pal psygnosia -- Psygnosia by Arne Niklas Jansson\n208 -- +pal 207 = +pal marshmellow -- MarshMellow32 by FormalPrejudice\n209 -- +pal 208 = +pal lost_century -- Lost Century 24 by CalmRadish\n210 -- +pal 209 = +pal finlal -- Finlal 11 by Finlal\n211 -- +pal 210 = +pal industrial -- Industrial Factory 16 by Toby_Yasha\n212 -- +pal 211 = +pal murder_mystery -- Murder Mystery 16 by Toby_Yasha\n213 -- +pal 212 = +pal fate_and_destiny -- Fate & Destiny 12 by Toby_Yasha\n214 -- +pal 213 = +pal vinik -- Vinik 24 by Vinik\n215 -- +pal 214 = +pal ykb -- YKB-22 by yahkehbu\n216 -- +pal 215 = +pal halloween -- Halloween by Mememellow\n217 -- +pal 216 = +pal graveyard -- Graveyard-21 by AprilSundae\n218 -- +pal 217 = +pal steamlords -- Steam Lords by Slynyrd\n219 -- +pal 218 = +pal frostical -- Frostical by yedamameday\n220 -- +pal 219 = +pal deuterospill -- DeuteroSpill by Royal_Naym\n221 -- +pal 220 = +pal cool_bone -- Cool Bone 7 by Chase Stemel\n222 -- +pal 221 = +pal muted_ally -- Muted Ally 6 by Chase Stemel\n223 -- +pal 222 = +pal ephemera -- EPHEMERA by K C\n224 -- +pal 223 = +pal ink -- Ink by AprilSundae\n225 -- +pal 224 = +pal violet_dreams -- Violet Dreams by Solitaire\n226 -- +pal 225 = +pal tinyfolks -- Tinyfolks by Pierr Vandermaesan\n227 -- +pal 226 = +pal old_gold -- Old Gold 7 by Chase Stemel\n228 -- +pal 227 = +pal rose_moss_8 -- Rosemoss-8 by polyphrog\n229 -- +pal 228 = +pal aap_radiant_xv -- AAP-RadiantXV by Adigun A. Polack\n230 -- +pal 229 = +pal aap_majesty_xvii -- AAP-Majesty XVII by Adigun A. Polack\n231 -- +pal 230 = +pal dead_weight -- Dead Weight-8 by polyphrog\n232 -- +pal 231 = +pal mojave -- Mojave20 by magodellepercussioni\n233 -- +pal 232 = +pal petite-8 -- Petite-8 by Adigun A. Polack\n234 -- +pal 233 = +pal petite-8-afterdark -- Petite-8 Afterdark by Adigun A. Polack\n235 -- +pal 234 = +pal xaiue_radiant -- XAIUE-Radiant by xaiue\n236 -- +pal 235 = +pal daruda -- Daruda 22 by daruda\n237 -- +pal 236 = +pal firestorm -- Firestorm by theartistjulian\n238 -- +pal 237 = +pal borkfest -- Borkfest by まるき\n239 -- +pal 238 = +pal spicy -- Spicy 07 by green guy\n240 -- +pal 239 = +pal rust -- Rust-6 by Blue Phoenix\n241 -- +pal 240 = +pal apricot -- Apricot by Chase Stemel\n242 -- +pal 241 = +pal supernova -- SuperNova 7 by Blue Phoenix\n243 -- +pal 242 = +pal pastry -- Pastry by MirruTatep\n244 -- +pal 243 = +pal sandy -- Sandy 06 by green guy\n245 -- +pal 244 = +pal illumination -- Illumination by MirruTatep\n246 -- +pal 245 = +pal nyx -- NYX8 by Javier Guerrero\n247 -- +pal 246 = +pal dream_haze -- Dream Haze 8 by Klafooty\n248 -- +pal 247 = +pal oil -- OIL6 by GrafxKid\n249 -- +pal 248 = +pal regal -- Regal10 by JRiggles\n250 -- +pal 249 = +pal soft_demon -- Soft Demon 7 by Chase Stemel\n251 -- +pal 250 = +pal sgm -- SGM-Palette 2 by s.g.m\n252 -- +pal 251 = +pal midnight_ablaze -- Midnight ablaze by Inkpendude\n253 -- +pal 252 = +pal black_cherry -- Black Cherry by MirruTatep\n254 -- +pal 253 = +pal sunset_red -- Sunset Red by Cabezinu\n255 -- +pal 254 = +pal inkpink -- INKPINK by Inkpendude\n256 -- +pal 255 = +pal brash_pink -- Brash Pink by ItzFred\n257 -- +pal 256 = +pal pink_neon_sign -- Pink Neon Sign 6 by Chase Stemel\n258 -- +pal 257 = +pal enchanted_purple -- Enchanted Purple by Kaiburn\n259 -- +pal 258 = +pal arch -- Arch by Poltergasm\n260 -- +pal 259 = +pal spacey_easter -- Spacey Easter by Spark Norris\n261 -- +pal 260 = +pal fornax_void_1 -- Fornax Void I by Fornax Void\n262 -- +pal 261 = +pal fornax_void_2 -- Fornax Void II by Fornax Void\n263 -- +pal 262 = +pal pixelwave -- Pixelwave by Reptorian\n264 -- +pal 263 = +pal s1_6 -- S1-6 by Blyzz\n265 -- +pal 264 = +pal berry_nebula -- Berry Nebula by LostInIndigo\n266 -- +pal 265 = +pal abyss -- ABYSS-9 by Jusiv\n267 -- +pal 266 = +pal moonlight -- Moonlight 15 by Tofu\n268 -- +pal 267 = +pal moon39 -- Moonlit-39 by theartistjulian\n269 -- +pal 268 = +pal h2o -- H2O by maine\n270 -- +pal 269 = +pal magic_waters -- Magic Waters 9 by Chase Stemel\n271 -- +pal 270 = +pal bluemold -- Bluem0ld by warpixel\n272 -- +pal 271 = +pal moss -- Moss by Zetomis\n273 -- +pal 272 = +pal deep_maze -- DEEP MAZE by Ryosuke\n274 -- +pal 273 = +pal toxic_slime -- Toxic Slime by MirruTatep\n275 -- +pal 274 = +pal lush_green -- Lush Green by EerieJam\n276 -- +pal 275 = +pal tsunami -- Tsunami by MirruTatep\n277 -- +pal 276 = +pal cryptic_ocean -- Cryptic Ocean by Klafooty\n278 -- +pal 277 = +pal marsh_madness -- Marsh Madness by MirruTatep\n279 -- +pal 278 = +pal oxyd -- OXYD by ItzFred\n280 -- +pal 279 = +pal pink_green -- Pink&Green by q1\n281 -- +pal 280 = +pal woodwalk -- Walking in the Woods 8 by Chase Stemel\n282 -- +pal 281 = +pal paper8 -- Paper 8 by Frosty Rabbid\n283 -- +pal 282 = +pal sahara_pastell -- Sahara Pastell by wermz\n284 -- +pal 283 = +pal sunflower -- Sunflower Painting 7 by Chase Stemel\n285 -- +pal 284 = +pal arthoe -- Art Hoe Aesthetic 7 by Chase Stemel\n286 -- +pal 285 = +pal sky -- Sky5 by MiniTe\n287 -- +pal 286 = +pal ocean_glass -- Ocean Glass by Solitaire\n288 -- +pal 287 = +pal royal -- RoyalGuard by Royal_Naym\n289 -- +pal 288 = +pal eulbink -- Eulbink by Inkpendude\n290 -- +pal 289 = +pal winter_wonderland -- Winter Wonderland by Jimison3\n291 -- +pal 290 = +pal moon_squid -- Moon Squid 7 by Chase Stemel\n292 -- +pal 291 = +pal stratus -- Stratus by MirruTatep\n293 -- +pal 292 = +pal arctic_dust -- Arctic Dust by MirruTatep\n294 -- +pal 293 = +pal clouds_sunset -- CL8UDS by _Nicola\n295 -- +pal 294 = +pal lilac_skies -- Lilac Skies 5 by Chase Stemel\n296 -- +pal 295 = +pal sea_of_fire -- Sea of Fire by TATA-PIXEL\n297 -- +pal 296 = +pal autochrome3 -- Autochrome 3 by Reptorian\n298 -- +pal 297 = +pal autochrome5 -- Autochrome 5 by Reptorian\n299 -- +pal 298 = +pal gb_default_1 -- GB Default 1\n300 -- +pal 299 = +pal gb_default_2 -- GB Default 2\n301 -- +pal 300 = +pal gb_andrade -- GB Andrade by Andrade\n302 -- +pal 301 = +pal gb_blue -- GB Blue Seni by WildLeoKnight\n303 -- +pal 302 = +pal gb_blackzone -- GB Blackzone\n304 -- +pal 303 = +pal gb_suburb -- GB Suburb by Poppysalmon\n305 -- +pal 304 = +pal gb_crimson -- GB Crimson by WildLeoKnight\n306 -- +pal 305 = +pal gb_didi -- GB Didi by DidiGameboy\n307 -- +pal 306 = +pal gb_dirty -- GB Dirty by WildLeoKnight\n308 -- +pal 307 = +pal gb_arne -- GB Arne by Arne\n309 -- +pal 308 = +pal gb_easy -- GB Easy by GrafxKid\n310 -- +pal 309 = +pal gb_forest -- GB Forest\n311 -- +pal 310 = +pal gb_harsh_green -- GB Harsh Green by WildLeoKnight\n312 -- +pal 311 = +pal gb_light_green -- GB Light Green by WildLeoKnight\n313 -- +pal 312 = +pal gb_nostalgia -- GB Nostalgia by WildLeoKnight\n314 -- +pal 313 = +pal gb_platinum -- GB Platinum by WildLeoKnight\n315 -- +pal 314 = +pal gb_kirokaze -- GB Kirokaze by Kirokaze\n316 -- +pal 315 = +pal gb_cyber -- GB Cyber\n317 -- +pal 316 = +pal gb_wish -- GB Wish by Kerrie Lake\n318 -- +pal 317 = +pal gb_grapefruit -- GB Grapefruit by GrafxKid\n319 -- +pal 318 = +pal gb_ice_cream -- GB Ice Cream by Kerrie Lake\n320 -- +pal 319 = +pal gb_red_blue -- GB Red_Blue\n321 -- +pal 320 = +pal gb_gold -- Gold GB by Isa\n322 -- +pal 321 = +pal gb_choco -- GB Chocolate by GrafxKid\n323 -- +pal 322 = +pal gb_gray -- GB Gray by GrafxKid\n324 -- +pal 323 = +pal gb_space -- GB Spacehaze by WildLeoKnight\n325 -- +pal 324 = +pal gb_purple_dawn -- GB Purple Dawn by WildLeoKnight\n326 -- +pal 325 = +pal moon_crystal -- Moon Crystal by Doph\n327 -- +pal 326 = +pal arne -- ARNE4 by Arne\n328 -- +pal 327 = +pal autumn_chill -- Autumn Chill by Doph\n329 -- +pal 328 = +pal cherrymelon -- CherryMelon by WildLeoKnight\n330 -- +pal 329 = +pal hal4 -- HallowPumpkin by WildLeoKnight\n331 -- +pal 330 = +pal hollow -- Hollow by Poltergasm\n332 -- +pal 331 = +pal lavender -- Lavender4 by Solitaire\n333 -- +pal 332 = +pal maw -- MAW by bloo\n334 -- +pal 333 = +pal voltage_warning -- Voltage Warning by Wuchta\n335 -- +pal 334 = +pal tritanopia -- Tritanopia by Allappini\n336 -- +pal 335 = +pal rabbit -- Rabbit 7 by GrafxKid\n337 -- +pal 336 = +pal amiga2600_ntsc -- Amiga 2600 NTSC\n338 -- +pal 337 = +pal amiga2600_pal -- Amiga 2600 PAL\n339 -- +pal 338 = +pal amiga2600_secam -- Amiga 2600 SECAM\n340 -- +pal 339 = +pal amiga7800_mess -- Amiga 7800 M.E.S.S by Nabuko78\n341 -- +pal 340 = +pal amiga7800 -- Amiga 7800\n342 -- +pal 341 = +pal amstrad_cpc -- Amstrad CPC\n343 -- +pal 342 = +pal apple -- Apple II\n344 -- +pal 343 = +pal atari -- Atari 8-Bit Series - GTIA by PixelCrunch\n345 -- +pal 344 = +pal cga -- CGA\n346 -- +pal 345 = +pal cga00 -- CGA Mode 0 [Low]\n347 -- +pal 346 = +pal cga01 -- CGA Mode 0 [High]\n348 -- +pal 347 = +pal cga10 -- CGA Mode 1 [Low]\n349 -- +pal 348 = +pal cga11 -- CGA Mode 1 [High]\n350 -- +pal 349 = +pal cga20 -- CGA Mode 2 [Low]\n351 -- +pal 350 = +pal cga21 -- CGA Mode 2 [High]\n352 -- +pal 351 = +pal c64_pepto -- Commodore 64 - Pepto\n353 -- +pal 352 = +pal c64_colodore -- Commodore 64 - Colodore\n354 -- +pal 353 = +pal com_vic_20 -- Commodore VIC-20\n355 -- +pal 354 = +pal colecovision -- Colecovision\n356 -- +pal 355 = +pal jmp -- Japanese Machine Palette by Arne Niklas Jansson\n357 -- +pal 356 = +pal mac2 -- Macintosh II\n358 -- +pal 357 = +pal mac_8_bit -- Macintosh 8-Bit System Palette\n359 -- +pal 358 = +pal msx -- MSX\n360 -- +pal 359 = +pal nes -- NES\n361 -- +pal 360 = +pal pico -- PICO-8 by Lexaloffle Games\n362 -- +pal 361 = +pal risc -- RISC OS\n363 -- +pal 362 = +pal sam_coupe -- SAM Coupe\n364 -- +pal 363 = +pal mo5 -- Thomson MO5\n365 -- +pal 364 = +pal trs80 -- TRS-80 Color Computer Palette\n366 -- +pal 365 = +pal virtualboy -- Virtual Boy interpreted by Bruno Weinberger\n367 -- +pal 366 = +pal vga -- VGA\n368 -- +pal 367 = +pal win95 -- Win 95\n369 -- +pal 368 = +pal zx -- ZX Spectrum\n370 -- +pal 369 = +pal gnome -- GNOME 32\n371 -- +pal 370 = +pal electronic_crayon -- Electronic Crayon 22\n372 -- +pal 371 = +pal chip16 -- Chip16\n373 -- +pal 372 = +pal deluxe_paint -- Deluxe Paint\n374 -- +pal 373 = +pal flat_ui -- FlatUI from flat ui colors website\n375 -- +pal 374 = +pal makecode_arcade -- MakeCode Arcade Palette\n376 -- +pal 375 = +pal oekaki -- Oekaki from Oekaki.nl\n377 -- +pal 376 = +pal ms_legacy_paint -- Legacy Paint\n378 -- +pal 377 = +pal ms_xp -- XP Paint\n379 -- +pal 378 = +pal vista -- Vista Paint\n380 -- +pal 379 = +pal piet -- Piet Palette by Piet Mondrain\n381 -- +pal 380 = +pal japanese_woodblock -- Japanese Woodblock Palette by Polyducks\n382 -- +pal 381 = +pal human_faces -- Human Faces by Romney57\n383 -- +pal 382 = +pal hsv -- HSV Palette by MadJik\n384 -- +pal 383 = +pal christmas -- ST24 Christmas by Skiller Thomson\n385 -- +pal 384 = +pal ladybug_reds -- Reds by Ladybug")
 #@gui:_=separator(),_=note("<small>Author: <i>Reptorian</i> Latest update: <i>2023/9/11</i>.</small>")
 fx_rep_premade_palette:
 
@@ -29129,7 +29149,7 @@ if $16
 
  rm.
 else
- ppc=${arg\ $19+1,bw_rgb,wcmyk,rgbcmy,1bitrgb,aurora,zenit,gbg,duel,hocuspocus,playpal,srb2,uzebox,kens16,kens32,kens54,aap12,aap16,aap64,aap96,aap128,aap_dga16,cheerful,db8,db16,db32,db_iso22,dimwid17,dimwid23,edg8,edg16,edg32,edg36,edg64,famicube,juicy32,juicy56,xaiue,15pdx,20pdx,24pdx,cabana,fant16,fant24,tf23,tfp39,faraway,fleja,koni,linearbasic,legowiki,lego2021,vinelinear,arcade,arq,atom,blk36,blkneo,brokefac,bubblegum,cpcboy,cade,calder,cdbac,cgarne,dinoknight,4l,fzt,indecision,island,journey,shallowmarsh,lago_nenufar,juicy,chocolateganache,brightwinter1,brightwinter2,kawaii,xdb,gzxp,chromatic,piet_code,boltbait_matrix,material_design,thehamster_rainbow,boltbait_rainbow,scrj,pxls,lospec,moderna,oak,nature,rbypgo,new_worlds,nauris,dynamite,interstate,downgraded,pear,pineapple,peachy,resurrect,rosy42,slso,softy,spec,roarin80s,starmancer,superfuture,sunshine,sweetie,calm,optimism,taffy,todayland,trirampo,reddit_place_2022,tropical,vivid,shido,intacto,itatsi,enos,grixel,superb,undertones,tango,cheese,equpix15,zughy,voodo,franzston,night,star29,star34,still_life,simjpc,acid,battery,clump,cthul,crimso11,coptec,drz,eggy,europa,greyt,jewel,polar,sheltzy,wyrm,yume_nikki,rube_goldberg,boomboom,g8,crayola,funky,golden_wall,matriax,nt1h,jerrypie,nineties_nine,on70,anb,retrocal,punolit,luap,autum_villan,au15,au15y,galaxy_flame,cretaceous,antiquity,mushroom,aerugo,hotel_paintings,nopal,blessing,fairydust,milkshake,fairy,naji,easter,pastel_and_darks,pastel_irena,nostalgia,ocaso,pastel_starlitsunset,pollen,kule,hydrangea,fluffy,st8rb,neon,cyclope,sy,syz,tui,cave,psygnosia,marshmellow,lost_century,finlal,industrial,murder_mystery,fate_and_destiny,vinik,ykb,halloween,graveyard,steamlords,frostical,deuterospill,cool_bone,muted_ally,ephemera,ink,violet_dreams,tinyfolks,old_gold,rosemoss,aaprad,aapmaj,dead_weight,mojave,pet8,pet8d,xaiue_rad,daruda,firestorm,borkfest,spicy,rust,apricot,supernova,pastry,sandy,illumination,nyx,dreamhaze,oil,regal,softdemon,sgm,midnight_ablaze,black_cherry,sunset_red,inkpink,brash_pink,pink_neon_sign,enchanted_purple,arch,spaceyeaster,fornaxvoid1,fornaxvoid2,pixelwave,s1,berry_nebula,abyss,moonlight,moon39,h2o,magic_waters,moss,deep_maze,toxic_slime,lush_green,tsunami,cryptic_ocean,marsh_madness,oxyd,pinkgreen,woodwalk,paper,sahara_pastell,sunflower,arthoe,sky,ocean_glass,royal,eulbink,winter_wonderland,moon_squid,stratus,arctic_dust,clouds_sunset,lilac_skies,sea_of_fire,autochrome5,tritanopia,rabbit,amiga2600ntsc,amiga2600pal,amiga2600secam,amiga7800mess,amiga7800,amstrad_cpc,apple,atari,cga,c64_pepto,c64_colodore,com_vic_20,colecovision,jmp,mac2,mac8,msx,nes,pico,risc,samcoupe,mo5,vga,win95,zx,gnome,elc,chip16,deluxepaint,flat,makecode,oekaki,lms,msxp,vista,piet,japwood,humanfaces,hues,christmas,ladybugreds}
+ ppc=${arg\ $19+1,bw_rgb,wcmyk,rgbcmy,1bitrgb,aurora,zenit,gbg,duel,hocuspocus,playpal,srb2,uzebox,kens16,kens32,kens54,aap12,aap16,aap64,aap96,aap128,aap_dga16,cheerful,db8,db16,db32,db_iso22,dimwid17,dimwid23,edg8,edg16,edg32,edg36,edg64,famicube,juicy32,juicy56,xaiue,15pdx,20pdx,24pdx,cabana,fantasy16,fantasy24,tranquil_fantasy_23,tfp39,faraway,fleja,koni,linearbasic,legowiki,lego2021,vinelinear,arcade,arq,atom,blk36,blkneo,brokefac,bubblegum,cpcboy,cade,calder,cdbac,cgarne,dinoknight,4l,fzt,indecision,island,journey,shallowmarsh,lago_nenufar,juicy,chocolateganache,brightwinter1,brightwinter2,kawaii,xdb,gzxp,chromatic,piet_code,boltbait_matrix,material_design,thehamster_rainbow,boltbait_rainbow,scrj,pxls,lospec,moderna,oak,nature,rbypgo,new_worlds,nauris,dynamite,interstate,downgraded,pear,pineapple,peachy,resurrect,rosy42,slso,softy,spec,roarin80s,starmancer,superfuture,sunshine,sweetie,calm,optimism,taffy,todayland,trirampo,reddit_place_2022,tropical,vivid,shido,intacto,itatsi,enos,grixel,superb,undertones,tango,cheese,equpix15,zughy,voodo,franzston,night,star29,star34,still_life,simjpc,acid,battery,clump,cthul,crimso11,coptec,drz,eggy,europa,greyt_bit,jewel,polar,sheltzy,wyrm,yume_nikki,rube_goldberg,boomboom,g8,crayola,funky,golden_wall,matriax,nt1h,jerrypie,nineties_nine,on70,anb,retrocal,punolit,luap,autum_villan,au15,au15y,galaxy_flame,cretaceous,antiquity,mushroom,aerugo,hotel_paintings,nopal,blessing,fairydust,milkshake,fairy,naji,easter,pastel_and_darks,pastel_irena,nostalgia,ocaso,pastel_starlitsunset,pollen,kule,hydrangea,fluffy,st8rb,neon,cyclope,sy,syz,tui,cave,psygnosia,marshmellow,lost_century,finlal,industrial,murder_mystery,fate_and_destiny,vinik,ykb,halloween,graveyard,steamlords,frostical,deuterospill,cool_bone,muted_ally,ephemera,ink,violet_dreams,tinyfolks,old_gold,rosemoss,aaprad,aapmaj,dead_weight,mojave,pet8,pet8d,xaiue_rad,daruda,firestorm,borkfest,spicy,rust,apricot,supernova,pastry,sandy,illumination,nyx,dreamhaze,oil,regal,softdemon,sgm,midnight_ablaze,black_cherry,sunset_red,inkpink,brash_pink,pink_neon_sign,enchanted_purple,arch,spaceyeaster,fornaxvoid1,fornaxvoid2,pixelwave,s1,berry_nebula,abyss,moonlight,moon39,h2o,magic_waters,moss,deep_maze,toxic_slime,lush_green,tsunami,cryptic_ocean,marsh_madness,oxyd,pinkgreen,woodwalk,paper,sahara_pastell,sunflower,arthoe,sky,ocean_glass,royal,eulbink,winter_wonderland,moon_squid,stratus,arctic_dust,clouds_sunset,lilac_skies,sea_of_fire,autochrome5,tritanopia,rabbit,amiga2600ntsc,amiga2600pal,amiga2600secam,amiga7800mess,amiga7800,amstrad_cpc,apple,atari,cga,c64_pepto,c64_colodore,com_vic_20,colecovision,jmp,mac2,mac8,msx,nes,pico,risc,samcoupe,mo5,vga,win95,zx,gnome,elc,chip16,deluxepaint,flat,makecode,oekaki,lms,msxp,vista,piet,japwood,humanfaces,hues,christmas,ladybugreds}
  srand $20
  rep_ellsworth_kelly_board $main_arg,$ppc,$ufc,$second_set_arg
 fi
@@ -29327,14 +29347,13 @@ u "{$1}"\
 "{$15}"\
 "{$16}"\
 "{$17}"
-#@gui Color Harmonies:_none_,fx_rep_color_harmonies_preview(1)*
+#@gui Color Harmonies:_none_,fx_rep_color_harmonies_tool(1)*
 #@gui:_=note("This is a recreation of the <a href="https://forums.getpaint.net/topic/29332-color-harmonies-tools-effect/">Color Harmonies plugin for Paint.NET.</a> which was made by <a href="https://forums.getpaint.net/profile/79572-midora/">midora</a> who is also known as Martin Osieka.")
 #@gui:_=separator(),_=note("<b>Reference Point</b>")
 #@gui:Hue=float(50,0,360)
 #@gui:Saturation(%)=float(100,0,100)
 #@gui:Shade/Tint(%)=float(0,-100,100)
 #@gui:Color Space=choice(0,"RGB",RYB")
-#@gui:_=separator(),_=note("<b>Additional Information</b>")
 #@gui:Palette Mode=choice(0,"Neutral 8","Neutral 15","Analogous 30","Complementary","Split-Complementary","Triadic","Tetradic","Clash","Four Tones","Five Tones","Six Tones")
 #@gui:_=separator(),_=note("<b>Output Color</b>")
 #@gui:Color A=color(0,0,0)
@@ -29344,359 +29363,173 @@ u "{$1}"\
 #@gui:Color E=color(0,0,0)
 #@gui:Color F=color(0,0,0)
 #@gui:_=separator(),_=note("<b>Preview</b>")
-#@gui:Color Point Position=point(50,50,0,1,128,128,128,255)
-#@gui:Color Select Position(%)=float(10,10,50)
+#@gui:Color A Point Position=point(50,50,1,1,255,255,255,255)_0
+#@gui:Color B Point Position=point(50,50,1,1,255,255,255,255)_0
+#@gui:Color C Point Position=point(50,50,1,1,255,255,255,255)_0
+#@gui:Color D Point Position=point(50,50,1,1,255,255,255,255)_0
+#@gui:Color E Point Position=point(50,50,1,1,255,255,255,255)_0
+#@gui:Color F Point Position=point(50,50,1,1,255,255,255,255)_0
 #@gui:Scaling(%)=float(90,30,100)
-#@gui:Point=point(50,50,0,0,0,0,0,0,0)_0
-#@gui:Color A=color(0,0,0)_0
-#@gui:Color B=color(0,0,0)_0
-#@gui:Color C=color(0,0,0)_0
-#@gui:Color D=color(0,0,0)_0
-#@gui:Color E=color(0,0,0)_0
-#@gui:Color F=color(0,0,0)_0
-#@gui:Hue=float(0,0,360)_0
-#@gui:Saturation(%)=float(100,0,100)_0
-#@gui:Shade/Tint(%)=float(0,-100,100)_0
-#@gui:Hue=float(0,0,360)_0
-#@gui:Saturation(%)=float(100,0,100)_0
-#@gui:Shade/Tint(%)=float(0,-100,100)_0
-#@gui:Hue=float(0,0,360)_0
-#@gui:Saturation(%)=float(100,0,100)_0
-#@gui:Shade/Tint(%)=float(0,-100,100)_0
-#@gui:Hue=float(0,0,360)_0
-#@gui:Saturation(%)=float(100,0,100)_0
-#@gui:Shade/Tint(%)=float(0,-100,100)_0
-#@gui:Hue=float(0,0,360)_0
-#@gui:Saturation(%)=float(100,0,100)_0
-#@gui:Shade/Tint(%)=float(0,-100,100)_0
-#@gui:Hue=float(0,0,360)_0
-#@gui:Saturation(%)=float(100,0,100)_0
-#@gui:Shade/Tint(%)=float(0,-100,100)_0
-#@gui:Color Space=choice(0,"RGB",RYB")_0
-#@gui:Palette Mode=choice(0,"Neutral 8","Neutral 15","Analogous 30","Complementary","Split-Complementary","Triadic","Tetradic","Clash","Four Tones","Five Tones","Six Tones")_0
-#@gui:Color Select Position(%)=float(10,10,50)_0
-#@gui:Scaling(%)=float(90,30,100)_0
-#@gui:Preview Palette?=bool(0)_0
-#@gui:Orientation=choice(0,"Horizontal","Vertical")_0
-#@gui:Palette X=choice(1,"Bottom","Middle","Top")_0
-#@gui:Palette Y=choice(1,"Left","Middle","Top")_0
-#@gui:_=separator(),_=note("<b>Export</b>")
-#@gui:Output Location=folder()
-#@gui:File Name=text("color_harmonies")
-#@gui:Format=choice(0,"GIMP Palette - .gpl","Paint.NET Palette - .txt","JASC-PAL - .pal")
+#@gui:Color Select Position(%)=float(10,10,50)
+#@gui:_=separator(),_=note("<b>Palette Export</b>")
+#@gui:Output Location=_folder()
+#@gui:File Name=_text("color_harmonies")
+#@gui:Format=_choice(0,"GIMP Palette - .gpl","Paint.NET Palette - .txt","JASC-PAL - .pal")
 #@gui:Export=button()
 #@gui:_=separator(),_=note("<b>Miscellaneous</b>")
 #@gui:Console Message=text("This is a interactive tool meant to create palette.")
-#@gui:Mode=int(-1,-1,2)_0
-#@gui:Old Preview Height=int(0,0,15360)_0
-#@gui:Old Preview Height=int(0,0,15360)_0
-#@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2022/07/01</i>.</small>")
-fx_rep_color_harmonies_preview:
-_hsl_h,_hsl_s,_hsl_l,\
-_rgb_0_r,_rgb_0_g,_rgb_0_b,\
-_rgb_1_r,_rgb_1_g,_rgb_1_b,\
-_rgb_2_r,_rgb_2_g,_rgb_2_b,\
-_rgb_3_r,_rgb_3_g,_rgb_3_b,\
-_rgb_4_r,_rgb_4_g,_rgb_4_b,\
-_rgb_5_r,_rgb_5_g,_rgb_5_b,\
-_rgb_0_r_alt,_rgb_0_g_alt,_rgb_0_b_alt,\
-_rgb_1_r_alt,_rgb_1_g_alt,_rgb_1_b_alt,\
-_rgb_2_r_alt,_rgb_2_g_alt,_rgb_2_b_alt,\
-_rgb_3_r_alt,_rgb_3_g_alt,_rgb_3_b_alt,\
-_rgb_4_r_alt,_rgb_4_g_alt,_rgb_4_b_alt,\
-_rgb_5_r_alt,_rgb_5_g_alt,_rgb_5_b_alt,\
-_hsl_0_h,_hsl_0_s,_hsl_0_l,\
-_hsl_1_h,_hsl_1_s,_hsl_1_l,\
-_hsl_2_h,_hsl_2_s,_hsl_2_l,\
-_hsl_3_h,_hsl_3_s,_hsl_3_l,\
-_hsl_4_h,_hsl_4_s,_hsl_4_l,\
-_hsl_5_h,_hsl_5_s,_hsl_5_l,\
-_point_x_0,_point_y_0,\
-folder_name,basename,console_message,console_mode,\
-old_preview_area_width,old_preview_area_height\
-=${1-3},${6-23},${30-65},$24,$25,"$74","$75","$78",${79-81}
-
-use_persistence={narg($_persistent)&&([$2,$4,$26,$27]==[$49,$66,$68,$69])&&([$_preview_area_width,$_preview_area_height]==[$old_preview_area_width,$old_preview_area_height])}
-
+#@gui:Old Hue=value(50)
+#@gui:Old Saturation(%)=value(100)
+#@gui:Old Shade/Tint(%)=value(0)
+#@gui:Old Color Space=value(0)
+#@gui:Old Palette Mode=value(0)
+#@gui:List of Old Colors=value{"vector(#18,0)"}
+#@gui:List of Old Points=value{"vector(#12,50)"}
+#@gui:Old Scaling(%)=value(90)
+#@gui:Old Color Select Position(%)=value(10)
+#@gui:Old Number of Points=value(6)
+#@gui:Old Preview Width=value(1)
+#@gui:Old Preview Width=value(1)
+#@gui:_=separator(),_=note("<small>Author: <i>Reptorian.</i> Latest update: <i>2024/4/11</i>.</small>")
+fx_rep_color_harmonies_tool:
+skip "$*"
 rm
-if !$use_persistence $_preview_area_width,$_preview_area_height fi
 
-command "draw_points :
-  eval[1] \"begin(
-    const radius=9;
-    const colsize=sqr(radius)*3;
-    blkcol=vector(#colsize,128);
-    circle_alpha_component=expr('begin(
-     const ww=w-1;
-     const hh=h-1;
-     const cx=ww/2;
-     const cy=hh/2;
-    );
-    xx=(x-cx)/cx;
-    yy=(y-cy)/cy;
-    inrange(norm(xx,yy),.4,1,1);'
-    ,radius,radius,1,1);
-   );
-  m=(I/100)*[w#0,h#0];
-  if(x,
-   draw(#0,blkcol,round(m[0])-6,round(m[1])-6,0,0,radius,radius,1,3,1,circle_alpha_component,1);
-  );
-  \"
- "
+contain_persistent:=narg($_persistent)
 
-command "gen_pt_info :
+hue,saturation,shade_tint,ryb_mode,palette_mode=${1-5}
+hsl_changed={[${1-4}]!=[${43-46}]}
+cs_sat_changed={[$2,$4]!=[$44,$46]}
+switched_palette_mode:=$palette_mode!=$47
+number_of_points={$switched_palette_mode?([6,6,6,2,3,3,4,3,4,5,6])[$palette_mode]:$52}
+folder_name,file_name,format_choice,export="$38","$39",${40-41}
 
- width,height={w#0},{h#0}
+color_wheel_scaling,color_wheel_black_point=$36,$37
 
- local[-2] {
+generate_points=0
+if $contain_persistent
+ $_persistent
 
-  lightness={i(#-1,0,0,0,2)}
+ change_only_color_wheel:=[${36-37}]!=[${50-51}]
+ preview_dimensions_changed:=[$_preview_area_width,$_preview_area_height]!=[${53-54}]
 
-  {w},{h},{d},2,\"begin(
-    const scale=$27%;
-    const lightness=($lightness+100)/200;
-    const width=$width;
-    const height=$height;
-    const ww=width-1;
-    const hh=height-1;
-    const cx=ww/2;
-    const cy=hh/2;
-    const ref_dim=min(cx,cy);
-    const max_length=ref_dim*scale;
-    const min_length=max_length*$26/100;
-    const length=lerp(min_length,max_length,lightness);
-   );
-   rad_ang=((360-i(#-1,x,0,0,0))-90)°;
-   center=[cx,cy];
-   off=[cos(rad_ang)*length,sin(rad_ang)*length];
-   point=center+off;
-   point[0]/=ww;
-   point[1]/=hh;
-   point*=100;\"
-
-  _point_x_0,_point_y_0={I(#-1,0)}
-  rv
-
- }
-
- draw_points "
-
-command "gen_col_info :
-
- if w==2
-
-  _hsl_0_h,_hsl_1_h,\
-  _hsl_0_s,_hsl_1_s,\
-  _hsl_0_l,_hsl_1_l\
-  ={crop(#-2)}
-
-  _rgb_0_r,_rgb_1_r,\
-  _rgb_0_g,_rgb_1_g,\
-  _rgb_0_b,_rgb_1_b\
-  ={crop(#-1)}
-
-  _rgb_0_r_alt,_rgb_1_r_alt,\
-  _rgb_0_g_alt,_rgb_1_g_alt,\
-  _rgb_0_b_alt,_rgb_1_b_alt\
-  ={crop(#-1)}
-
- elif w==3
-
-  _hsl_0_h,_hsl_1_h,_hsl_2_h,\
-  _hsl_0_s,_hsl_1_s,_hsl_2_s,\
-  _hsl_0_l,_hsl_1_l,_hsl_2_l\
-  ={crop(#-2)}
-
-  _rgb_0_r,_rgb_1_r,_rgb_2_r,\
-  _rgb_0_g,_rgb_1_g,_rgb_2_g,\
-  _rgb_0_b,_rgb_1_b,_rgb_2_b\
-  ={crop(#-1)}
-
-  _rgb_0_r_alt,_rgb_1_r_alt,_rgb_2_r_alt,\
-  _rgb_0_g_alt,_rgb_1_g_alt,_rgb_2_g_alt,\
-  _rgb_0_b_alt,_rgb_1_b_alt,_rgb_2_b_alt\
-  ={crop(#-1)}
-
- elif w==4
-
-  _hsl_0_h,_hsl_1_h,_hsl_2_h,_hsl_3_h,\
-  _hsl_0_s,_hsl_1_s,_hsl_2_s,_hsl_3_s,\
-  _hsl_0_l,_hsl_1_l,_hsl_2_l,_hsl_3_l\
-  ={crop(#-2)}
-
-  _rgb_0_r,_rgb_1_r,_rgb_2_r,_rgb_3_r,\
-  _rgb_0_g,_rgb_1_g,_rgb_2_g,_rgb_3_g,\
-  _rgb_0_b,_rgb_1_b,_rgb_2_b,_rgb_3_b\
-  ={crop(#-1)}
-
-  _rgb_0_r_alt,_rgb_1_r_alt,_rgb_2_r_alt,_rgb_3_r_alt,\
-  _rgb_0_g_alt,_rgb_1_g_alt,_rgb_2_g_alt,_rgb_3_g_alt,\
-  _rgb_0_b_alt,_rgb_1_b_alt,_rgb_2_b_alt,_rgb_3_b_alt\
-  ={crop(#-1)}
-
- elif w==5
-
-  _hsl_0_h,_hsl_1_h,_hsl_2_h,_hsl_3_h,_hsl_4_h,\
-  _hsl_0_s,_hsl_1_s,_hsl_2_s,_hsl_3_s,_hsl_4_s,\
-  _hsl_0_l,_hsl_1_l,_hsl_2_l,_hsl_3_l,_hsl_4_l\
-  ={crop(#-2)}
-
-  _rgb_0_r,_rgb_1_r,_rgb_2_r,_rgb_3_r,_rgb_4_r,\
-  _rgb_0_g,_rgb_1_g,_rgb_2_g,_rgb_3_g,_rgb_4_g,\
-  _rgb_0_b,_rgb_1_b,_rgb_2_b,_rgb_3_b,_rgb_4_b\
-  ={crop(#-1)}
-
-  _rgb_0_r_alt,_rgb_1_r_alt,_rgb_2_r_alt,_rgb_3_r_alt,_rgb_4_r_alt,\
-  _rgb_0_g_alt,_rgb_1_g_alt,_rgb_2_g_alt,_rgb_3_g_alt,_rgb_4_g_alt,\
-  _rgb_0_b_alt,_rgb_1_b_alt,_rgb_2_b_alt,_rgb_3_b_alt,_rgb_4_b_alt\
-  ={crop(#-1)}
-
- elif w==6
-
-  _hsl_0_h,_hsl_1_h,_hsl_2_h,_hsl_3_h,_hsl_4_h,_hsl_5_h,\
-  _hsl_0_s,_hsl_1_s,_hsl_2_s,_hsl_3_s,_hsl_4_s,_hsl_5_s,\
-  _hsl_0_l,_hsl_1_l,_hsl_2_l,_hsl_3_l,_hsl_4_l,_hsl_5_l\
-  ={crop(#-2)}
-
-  _rgb_0_r,_rgb_1_r,_rgb_2_r,_rgb_3_r,_rgb_4_r,_rgb_5_r,\
-  _rgb_0_g,_rgb_1_g,_rgb_2_g,_rgb_3_g,_rgb_4_g,_rgb_5_g,\
-  _rgb_0_b,_rgb_1_b,_rgb_2_b,_rgb_3_b,_rgb_4_b,_rgb_5_b\
-  ={crop(#-1)}
-
-  _rgb_0_r_alt,_rgb_1_r_alt,_rgb_2_r_alt,_rgb_3_r_alt,_rgb_4_r_alt,_rgb_5_r_alt,\
-  _rgb_0_g_alt,_rgb_1_g_alt,_rgb_2_g_alt,_rgb_3_g_alt,_rgb_4_g_alt,_rgb_5_g_alt,\
-  _rgb_0_b_alt,_rgb_1_b_alt,_rgb_2_b_alt,_rgb_3_b_alt,_rgb_4_b_alt,_rgb_5_b_alt\
-  ={crop(#-1)}
-
- fi"
-
-console_mode=1
-
-if ([${1-3}]!=[${48-50}])||($4!=$66)||($5!=$67)
- if $use_persistence $_persistent
- else
-  rep_create_hsl_color_select $2%,{$26/100},$4,{$27/100}
-  +store. _persistent
+ if $switched_palette_mode||$cs_sat_changed||$change_only_color_wheel||$preview_dimensions_changed
+  generate_palette,generate_points=1
+  remove_named rgb,ryb
+  +_fx_rep_color_harmonies_tool_create_color_wheel
+  name[-2,-1] rgb,ryb
+  move[rgb,ryb] 0
+  console_mode={!$change_only_color_wheel}
+ elif $hsl_changed console_mode=1
+ else console_mode=0
  fi
- +rep_color_harmony_palette $1,{$2/100},{$3/100},$5,{$4+2}
-
- sh.. 2 *. 200 -. 100 sh... 1 *. 100 rm[-2,-1]
-
- gen_col_info gen_pt_info
-
-elif [${6-23}]!=[${30-47}]
-
- eval "
-  vec_a=[${6-23}];
-  vec_b=[${30-47}];
-  repeat(arg(1+$5,6,6,6,2,3,3,4,3,4,5,6),p,
-   a=(vec_a)[3*p,3];
-   b=(vec_b)[3*p,3];
-   a!=b?(
-    v=p;
-    set('col_a',v2s(a));
-    set('col_b',v2s(b));
-    break();
-   );
-  );
-  v;"
-
- 1,1,1,3,([${6-23}])[3*${},3]
- 1,1,1,3,([${30-47}])[3*${},3]
-
- if $4
-  rgb2ryb[-2,-1]
-  rgb2hsl[-2,-1]
- else
-  rgb2hsl[-2,-1]
- fi
-
- hsl_base={"
-  fmod(a)=a-360*floor(a/360);
-  rescale_lightness(a)=(a+100)/200;
-  new_col=crop(#-2);
-  old_col=crop(#-1);
-  diff=new_col-old_col;
-  out_hsl=[${1-3}];
-  out_hsl[1]/=100;
-  out_hsl[2]=rescale_lightness(out_hsl[2]);
-  out_hsl+=diff;
-  out_hsl[2]=cut(out_hsl[2]*2-1,-1,1);
-  out_hsl[1]=cut(out_hsl[1],0,1);
-  out_hsl;
- "}
-
- if $use_persistence $_persistent
- else
-  rep_create_hsl_color_select $2%,{$26/100},$4,{$27/100}
-  +store. _persistent
- fi
- +rep_color_harmony_palette $hsl_base,$5,{$4+2}
-
- sh.. 2 *. 200 -. 100 sh... 1 *. 100 rm[-2,-1]
-
- _hsl_h,_hsl_s,_hsl_l={I(#-2,0)}
-
- gen_col_info gen_pt_info
-
-elif [${24-25}]!=[${28-29}]
-
- if $use_persistence $_persistent
- else
-  rep_create_hsl_color_select $2%,{$26/100},$4,{$27/100}
-  +store. _persistent
- fi
-
- hsl_base={"
-  const scale=$27%;
-  const mx=w-1;
-  const my=h-1;
-  const cx=mx/2;
-  const cy=my/2;
-  const ref_dim=min(cx,cy);
-  const max_length=ref_dim*scale;
-  const min_length=max_length*$26/100;
-  const length=max_length-min_length;
-  const pos_x=mx*$24%;
-  const pos_y=my*$25%;
-  const dx=pos_x-cx;
-  const dy=pos_y-cy;
-  const hue=(atan2(dx,dy)+pi)/((pi*2)/360);
-  const dist=2*((cut(sqrt(dx^2+dy^2),min_length,max_length)-min_length)/length)-1;
-  [hue,$2/100,dist];
- "}
-
- +rep_color_harmony_palette $hsl_base,$5,{$4+2}
-
- sh.. 2 *. 200 -. 100 sh... 1 *. 100 rm[-2,-1]
-
- _hsl_h,_hsl_s,_hsl_l={I(#-2,0)}
-
- gen_col_info gen_pt_info
-
 else
- if $use_persistence $_persistent
- else
-  rep_create_hsl_color_select $2%,{$26/100},$4,{$27/100}
-  +store. _persistent
- fi
- +rep_color_harmony_palette $1,{$2/100},{$3/100},$5,{$4+2}
- sh.. 2 *. 200 -. 100 rm.
- gen_pt_info
-
- console_mode=0
+ +_fx_rep_color_harmonies_tool_create_color_wheel
+ name[-2,-1] rgb,ryb
+ generate_points,generate_palette=1
+ console_mode=-1
 fi
 
-num_of_col={w+1}
+list_of_points_strs=\
+ point_x_a,point_y_a,\
+ point_x_b,point_y_b,\
+ point_x_c,point_y_c,\
+ point_x_d,point_y_d,\
+ point_x_e,point_y_e,\
+ point_x_f,point_y_f
+list_of_points=${24-35}
+$list_of_points_strs=$list_of_points
 
-uncommand draw_points,gen_pt_info,gen_pt_info_alt,gen_col_info
+color_0=${6-8}
+color_1=${9-11}
+color_2=${12-14}
+color_3=${15-17}
+color_4=${18-20}
+color_5=${21-23}
+list_of_colors=$color_0,$color_1,$color_2,$color_3,$color_4,$color_5
 
-k[0,-1]
+if !$switched_palette_mode
 
-if $77
- format_choice=${arg\ $76+1,gpl,pdn_pal,jasc}
- => "Generated by G'MIC Color Harmonies"
- rep_output_$format_choice. $folder_name/$basename
+ if ([${24-35}])[0,$number_of_points<<1]!=($49)[0,$number_of_points<<1]
+  list_of_old_points=$49
+  _fx_rep_color_harmonies_tool_generate_points_from_changed_points
+  console_mode,generate_points,generate_palette=1
+ fi
+
+ if ([${6-23}])[0,$number_of_points*3]!=($48)[0,$number_of_points*3]
+  colors_collection_a=${6-23}
+  colors_collection_b=${48-48}
+  _fx_rep_color_harmonies_tool_change_colors
+
+  if $saturation_changed
+   rm[rgb,ryb]
+   +_fx_rep_color_harmonies_tool_create_color_wheel
+   name[-2,-1] rgb,ryb
+   move[rgb,ryb] 0
+  fi
+
+  console_mode=1
+  console_mode,generate_points,generate_palette=1
+ fi
+
+else generate_points,generate_palette=1
+fi
+
+if $generate_palette
+ remove_named[-1] palette
+ +_fx_rep_color_harmonies_tool_create_palette => palette
+fi
+
+if $generate_points
+ _fx_rep_color_harmonies_tool_generate_points
+fi
+
+display_boxes_a,display_boxes_b,display_boxes_c,display_boxes_d={([3,4,5,6]<=$number_of_points)<<1}
+
+_fx_rep_color_harmonies_tool_console_message
++store _persistent
+keep[$ryb_mode]
+
+u "{"$hue"}"\
+"{"$saturation"}"\
+"{"$shade_tint"}"\
+"{$4}"\
+"{$5}"\
+"{"$color_0"}"\
+"{"$color_1"}"\
+"{"$color_2"}_"$display_boxes_a\
+"{"$color_3"}_"$display_boxes_b\
+"{"$color_4"}_"$display_boxes_c\
+"{"$color_5"}_"$display_boxes_d\
+"{"$point_x_a,$point_y_a"}"\
+"{"$point_x_b,$point_y_b"}"\
+"{"$point_x_c,$point_y_c"}"\
+"{"$point_x_d,$point_y_d"}"\
+"{"$point_x_e,$point_y_e"}"\
+"{"$point_x_f,$point_y_f"}"\
+"{$36}"\
+"{$37}"\
+"{$38}"\
+"{$39}"\
+"{$40}"\
+"{0}"\
+"{"$console_message"}"\
+"{"$hue"}"\
+"{"$saturation"}"\
+"{"$shade_tint"}"\
+"{$4}"\
+"{$5}"\
+"{"[$list_of_colors]"}"\
+"{"[$list_of_points]"}"\
+"{$36}"\
+"{$37}"\
+"{"$number_of_points"}"\
+"{"$_preview_area_width"}"\
+"{"$_preview_area_height"}"
+_fx_rep_color_harmonies_tool_console_message:
+if $export
+ format_output=${arg\ $format_choice+1,gpl,pdn_pal,jasc} => "Generated by G'MIC Color Harmonies"
+ +rep_output_$format_output. $folder_name/$file_name
  console_mode=2
 fi
 
@@ -29710,86 +29543,215 @@ else
  console_message="Initialized"
 fi
 
-u "{"$_hsl_h"}"\
-"{"$_hsl_s"}"\
-"{"$_hsl_l"}"\
-"{$4}"\
-"{$5}"\
-"{"$_rgb_0_r","$_rgb_0_g","$_rgb_0_b"}"\
-"{"$_rgb_1_r","$_rgb_1_g","$_rgb_1_b"}"\
-"{"$_rgb_2_r","$_rgb_2_g","$_rgb_2_b"}_"{3<$num_of_col?2}\
-"{"$_rgb_3_r","$_rgb_3_g","$_rgb_3_b"}_"{4<$num_of_col?2}\
-"{"$_rgb_4_r","$_rgb_4_g","$_rgb_4_b"}_"{5<$num_of_col?2}\
-"{"$_rgb_5_r","$_rgb_5_g","$_rgb_5_b"}_"{6<$num_of_col?2}\
-"{"$_point_x_0","$_point_y_0"}"\
-"{$26}"\
-"{$27}"\
-"{"$_point_x_0","$_point_y_0"}"\
-"{"$_rgb_0_r_alt","$_rgb_0_g_alt","$_rgb_0_b_alt"}"\
-"{"$_rgb_1_r_alt","$_rgb_1_g_alt","$_rgb_1_b_alt"}"\
-"{"$_rgb_2_r_alt","$_rgb_2_g_alt","$_rgb_2_b_alt"}"\
-"{"$_rgb_3_r_alt","$_rgb_3_g_alt","$_rgb_3_b_alt"}"\
-"{"$_rgb_4_r_alt","$_rgb_4_g_alt","$_rgb_4_b_alt"}"\
-"{"$_rgb_5_r_alt","$_rgb_5_g_alt","$_rgb_5_b_alt"}"\
-"{"$_hsl_0_h"}"\
-"{"$_hsl_0_s"}"\
-"{"$_hsl_0_l"}"\
-"{"$_hsl_1_h"}"\
-"{"$_hsl_1_s"}"\
-"{"$_hsl_1_l"}"\
-"{"$_hsl_2_h"}"\
-"{"$_hsl_2_s"}"\
-"{"$_hsl_2_l"}"\
-"{"$_hsl_3_h"}"\
-"{"$_hsl_3_s"}"\
-"{"$_hsl_3_l"}"\
-"{"$_hsl_4_h"}"\
-"{"$_hsl_4_s"}"\
-"{"$_hsl_4_l"}"\
-"{"$_hsl_5_h"}"\
-"{"$_hsl_5_s"}"\
-"{"$_hsl_5_l"}"\
-"{$4}"\
-"{$5}"\
-"{$26}"\
-"{$27}"\
-"{$70}"\
-"{$71}"\
-"{$72}"\
-"{$73}"\
-"{$74}"\
-"{$75}"\
-"{$76}"\
-"{0}"\
-"{"$console_message"}"\
-"{"$console_mode"}"\
-"{"$_preview_area_width"}"\
-"{"$_preview_area_height"}"
-rep_create_hsl_color_select:
-skip ${2=.25},${3=0},${4=.9}
+_fx_rep_color_harmonies_tool_change_colors:
 
-ow,oh={w#0},{h#0}
+old_saturation=$saturation
 
-rm
+hue,saturation,shade_tint={"
+  
+  const old_hue=$hue;
+  const old_saturation=$saturation;
+  const old_shade_tint=$shade_tint;
+  
+  const ryb_mode=$ryb_mode;
+  const number_of_points=$number_of_points;
+  
+  rgb2hsl(rgb)=(
+    m=min(rgb);
+    M=max(rgb);
+    C=M-m;
+    H=60*(!C?0:M==rgb[0]?((rgb[1]-rgb[2])/C)%6:M==rgb[1]?(rgb[2]-rgb[0])/C+2:(rgb[0]-rgb[1])/C + 4);
+    L=0.5*(m + M)/255;
+    S=L==1||!L?0:C/(1-abs(2*L-1))/255;
+    [H,S*100,L*200-100];
+  );
+  
+  colors_collection_a=(["$colors_collection_a"])[0,number_of_points*3];
+  colors_collection_b=(["$colors_collection_b"])[0,number_of_points*3];
+  
+  repeat(number_of_points,position_of_differences,
+   new_color=(colors_collection_a)[position_of_differences*3,3];
+   old_color=(colors_collection_b)[position_of_differences*3,3];
+   if(new_color!=old_color,break(););
+  );
+  
+  if(ryb_mode,
+  
+   rgb2ryb(rgb)=(
+     white=min(rgb);
+     rgb-=white;
+     maxgreen=max(rgb);
+     yellow=min(rgb[0],rgb[1]);
+     rgb[0]-=yellow;
+     rgb[1]-=yellow;
+     if(rgb[2]>0&&rgb[1]>0,
+      rgb[2]/=2;
+      rgb[1]/=2;
+     );
+     yellow+=rgb[1];
+     rgb[2]+=rgb[1];
+     maxyellow = max(rgb[0],yellow,rgb[2]);
+     if(maxyellow>0,
+       N = maxgreen/maxyellow;
+       rgb[0]*=N;
+       yellow*=N;
+       rgb[2]*=N;
+     );
+     rgb[0]+=white;
+     yellow+=white;
+     rgb[2]+=white;
+     [rgb[0],yellow,rgb[2]];
+   );
+   
+   new_color=rgb2ryb(new_color);
+   old_color=rgb2ryb(old_color);
+  );
+  
+  new_color=rgb2hsl(new_color);
+  old_color=rgb2hsl(old_color);
+  diff_color=new_color-old_color;
+  
+  new_hsl=[old_hue,old_saturation,old_shade_tint]+diff_color;
+  
+  new_hsl[0]=round(new_hsl[0]%360,0.01);
+  new_hsl[1]=round(cut(new_hsl[1],0,100),0.1);
+  new_hsl[2]=round(cut(new_hsl[2],-100,100),0.1);
+  
+  new_hsl;
+ "}
 
-$ow,$oh,1,3,"*begin(
-  const ww=w-1;
-  const hh=h-1;
-  const cx=ww/2;
-  const cy=hh/2;
+saturation_changed={$old_saturation!=$saturation}
+
++_fx_rep_color_harmonies_tool_create_palette:
+ +rep_color_harmony_palette $hue,$saturation%,$shade_tint%,$palette_mode,$ryb_mode
+ repeat whd#-1 { color_$>:=I[#-1,$>] }
+ list_of_colors=$color_0,$color_1,$color_2,$color_3,$color_4,$color_5
+
+_fx_rep_color_harmonies_tool_generate_points_from_changed_points:
+
+hue,shade_tint={_"
+ const old_hue=$hue;
+ const area_width=$_preview_area_width;
+ const area_height=$_preview_area_height;
+ 
+ const center_x=area_width/2;
+ const center_y=area_height/2;
+ 
+ const number_of_points=$number_of_points;
+ const coordinates=number_of_points<<1;
+ 
+ const end_radius=min(center_x,center_y)*($color_wheel_scaling%);
+ const start_radius=end_radius*($color_wheel_black_point%);
+ difference_radius=end_radius-start_radius;
+ 
+ new_points=(["$list_of_points"])[0,coordinates];
+ old_points=("$list_of_old_points")[0,coordinates];
+ 
+ repeat(number_of_points,position_of_differences,
+  xy_new=(new_points)[position_of_differences<<1,2];
+  xy_old=(old_points)[position_of_differences<<1,2];
+  if(xy_new!=xy_old,break(););
+ );
+ 
+ xy_new_hue_at_changed_point=180+rad2deg(atan2(xy_new[0]-50,xy_new[1]-50));
+ xy_old_hue_at_changed_point=180+rad2deg(atan2(xy_old[0]-50,xy_old[1]-50));
+ diff=xy_new_hue_at_changed_point-xy_old_hue_at_changed_point;
+ 
+ radius_of_current_point=norm([area_width*xy_new[0]/100,area_height*xy_new[1]/100]-[center_x,center_y]);
+ new_shade_tint=lerp(-100,100,(cut(radius_of_current_point,start_radius,end_radius)-start_radius)/difference_radius);
+ 
+ [round((old_hue+diff)%360,0.01),round(new_shade_tint,0.1)];
+ "}
+_fx_rep_color_harmonies_tool_generate_points:
+number_of_points={arg(1+$palette_mode,6,6,6,2,3,3,4,3,4,5,6)}
+list_of_points={_"
+ const start_ang=deg2rad($hue-180);
+ const area_width=$_preview_area_width;
+ const area_height=$_preview_area_height;
+ const center_x=area_width/2;
+ const center_y=area_height/2;
+ const end_radius=min(center_x,center_y)*($color_wheel_scaling%);
+ const start_radius=end_radius*($color_wheel_black_point%);
+ const shade_tint_percentile=($shade_tint+100)/200;
+ const distance_from_center=lerp(start_radius,end_radius,shade_tint_percentile);
+ const palette_mode=$palette_mode;
+ const number_of_points=$number_of_points;
+ calc_points(ang,pos)=(
+   points=[sin(ang)*distance_from_center,cos(ang)*distance_from_center];
+   points+=[center_x,center_y];
+   points/=[area_width,area_height];
+   points*=100;
+   copy(all_points[p<<1],points[0],2,1,1,1);
+ );
+ all_points=vector(#12,nan);
+ ang=start_ang;
+ palette_mode<3?( # Neutral 8-15 and Analogous 30
+  const add_ang=deg2rad(arg(palette_mode+1,8,15,30));
+  repeat(number_of_points,p,
+   calc_points(ang,p);
+   ang+=add_ang;
+  );
+ ):
+ palette_mode==3?( # Complementary
+  repeat(number_of_points,p,
+   calc_points(ang,p);
+   ang+=pi;
+  );
+ ):
+ palette_mode==4?( # Split-Complementary
+  repeat(number_of_points,p,
+   calc_points(ang,p);
+   if(p
+   ,ang+=60°;
+   ,ang+=150°;
+   );
+  );
+ ):
+ palette_mode<7?(
+  const add_ang=(palette_mode&1?120:90)°;
+  repeat(number_of_points,p,
+   calc_points(ang,p);
+   ang+=add_ang;
+  );
+ ):(
+  const ind=palette_mode-7;
+  add_ang_a=deg2rad(([90,60,120,30])[ind]);
+  add_ang_b=deg2rad(([180,120,30,90])[ind]);
+  mode=0;
+  repeat(number_of_points,p,
+   calc_points(ang,p);
+   if(mode
+   ,ang+=add_ang_b;
+   ,ang+=add_ang_a;
+   );
+   mode=!mode;
+   if(palette_mode==9,if(!p,add_ang_a=60°;););
+  );
+ );
+ round(all_points,0.01);
+ "}
+$list_of_points_strs=$list_of_points
++_fx_rep_color_harmonies_tool_create_color_wheel:
+$_preview_area_width,$_preview_area_height,2,3,"begin(
+  const mx=w-1;
+  const my=h-1;
+  const cx=mx/2;
+  const cy=my/2;
   const sd=max(w,h)/min(w,h);
-  const scaling=1/$4;
+  const scaling=1/$color_wheel_scaling%;
   const sx=(w>h?sd:1)*scaling;
   const sy=(w>h?1:sd)*scaling;
   const cxsx=cx/sx;
   const cysy=cy/sy;
-  const pt=$2;
-  const ipt=1/(1-pt);
-  const res_atan_end=(2*pi)/360;
-  const saturation=$1;
-  rescale_radial(a)=(a-pt)*ipt;
-  rescale_atan2(a)=(a+pi)/res_atan_end;
 
+  const internal_cut_point=$color_wheel_black_point%;
+  const reciprocal_internal_cut_point=1/(1-internal_cut_point);
+  const saturation=$saturation%;
+
+  const res_atan_end=(2*pi)/360;
+  rescale_radial(value)=(value-internal_cut_point)*reciprocal_internal_cut_point;
+  rescale_atan2(value)=(value+pi)/res_atan_end;
+  
   hsl2rgb(hue,saturation,lightness)=(
    H=(hue/60)%6;
    C=(1-abs(2*lightness-1))*saturation;
@@ -29836,27 +29798,28 @@ $ow,$oh,1,3,"*begin(
    [red,green,blue];
   );
 
-  if($3
-  ,calc(hue,saturation,lightness)=hsl2ryb2rgb(hue,saturation,lightness);
-  ,calc(hue,saturation,lightness)=hsl2rgb(hue,saturation,lightness);
-  );
-
   ev_light=vector(#3,255);
   ev_dark=vector(#3,0);
-
+  
  );
+ 
  xx=(x-cx)/cxsx;
  yy=(y-cy)/cysy;
-
+ 
  radial_gradient=rescale_radial(norm(xx,yy));
-
+ 
  inrange(radial_gradient,0,1,1,1)?(
   conical_gradient=rescale_atan2(atan2(xx,yy));
-  calc(conical_gradient,saturation,radial_gradient);
+  if(z
+  ,hsl2ryb2rgb(conical_gradient,saturation,radial_gradient);
+  ,hsl2rgb(conical_gradient,saturation,radial_gradient);
+  );
  ):(
   radial_gradient>.5?ev_light:ev_dark;
  );
  "
+
+split[-1] z
 #@gui Hitomezashi: fx_rep_hitomezashi,fx_rep_hitomezashi_preview(0)*
 #@gui:_=note("<b>Initial</b>"),_=separator()
 #@gui:Mode=choice(0,"One String","Two Strings")
