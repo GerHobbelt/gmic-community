@@ -49,7 +49,7 @@
 #-------------------------------
 
 #@cli rep_cbsoo: eq. to 'rep_channels_overblur_overline_blur_sharpen'.
-rep_cbsoo: rep_channels_overblur_overline_blur_sharpen $*
+rep_cbsoo: rep_channels_blur_sharpen_overblur_overline $*
 #@cli rep_channels_overblur_overline_blur_sharpen: method_a={ 0=blur | 1=sharpen | 2=overblur | 3=overline },0%<_effect_factor_a[%]<=100%,_multiplication_factor>0,_blending_mode,0<_blending_opacity[%]<=100%...
 #@cli : Apply BSOO filtering over channels within images.
 #@cli : 'blending_mode' can be { add | alpha | and | average | burn | darken | difference | divide | dodge | exclusion | freeze | grainextract | grainmerge | hardlight | hardmix | interpolation | lighten | linearburn | linearlight | multiply | normal | negation | or | overlay | pinlight | reflect | screen | shapeaverage | softburn | softdodge | softlight | stamp | subtract | vividlight | xor }.
@@ -64,7 +64,7 @@ rep_cbsoo: rep_channels_overblur_overline_blur_sharpen $*
 #@cli : $ sp lena shape_cupid 512 blur. 10 *. 255 cut. 0,255 a c sp house rep_channels_blur_sharpen_overblur_overline 2,150,1.5,normal,100%
 #@cli : $ sp lena shape_cupid 512 blur. 10 *. 255 cut. 0,255 a c sp house rep_channels_blur_sharpen_overblur_overline 3,150,1.5,normal,100%,2,100,1,xor,20%,3,200,2,linearlight,100%,-,1,200,1,normal,100%
 rep_channels_blur_sharpen_overblur_overline:
-skip $*
+skip "$*"
 check "!($#<5)"
 $=arg
 
@@ -110,7 +110,7 @@ m $0_process_individual_channel_section:"
   
   if $effect_factor||$opacity>0
    use_output=1
-   if ($use_blend_str?'$blending_id'=='normal'||'$blending_id'=='alpha':$blending_id=="$normal"||$blending_id=="$alpha")&&($opacity==1)
+   if ($use_blend_str?same('$blending_id','normal')||same('$blending_id','alpha'):$blending_id=="$normal"||$blending_id=="$alpha")&&($opacity==1)
     m $0_process_$""1:$0_bsoo_edit\\ $method,$effect_factor,$multiplication\\ cut\\ 0,255
    else
     if !$use_blend_str blending_id=${arg\\ $blending_id+1,"$list_of_blending_modes"} fi
@@ -119,11 +119,11 @@ m $0_process_individual_channel_section:"
   fi
 
   status $use_output"
+  
+cmyk_mode,max_col_spec_size={m=same('$-1','cmyk');[m,3+(m?1)]}
+user_cmyk_mode=$cmyk_mode
 
-if '$_host'=='$cli'
-
- cmyk_mode,max_col_spec_size={m='$-1'=='cmyk';[m,3+(m?1)]}
- user_cmyk_mode=$cmyk_mode
+if same('$_host','cli')&&!narg($_pasted_from_gui)
 
  do
 
@@ -172,9 +172,9 @@ if '$_host'=='$cli'
    set('continue_analyzing_color_space',continue_analyzing_color_space);"
 
  while $continue_analyzing_color_space
+ 
+ 
 else
- user_cmyk_mode,cmyk_mode=$_gui_cmyk_mode
- max_col_spec_size:=3+($_gui_include_k)
  contain_gray,contain_alpha=$_gui_analysis_gray,$_gui_analysis_alpha
  contain_cmy=0
  contain_color,contain_cmyk=$_gui_analysis_color
@@ -214,17 +214,32 @@ if $cmyk_mode
  # Please factor in CMYK here. Find out how it should work #
  if ($#-$user_cmyk_mode)==5
   effect_factor,multiplication,opacity:=[${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity}]
+
+  method,blending_id=${arg$var_method},${arg$var_blending}
   
-  method=${arg$var_method}
-  if !isint($current_method)&&('$current_method'!='-') method=${$method} fi
-  
-  blending=${arg$var_blending}
+  if !isint($method)&&('$method'!='-') method=${$method} fi
 
   if !$effect_factor||$opacity<=0 return fi
-  use_blend_str:=!isnum($blending_id)
+  use_blend_str:=!isint($blending_id)
   if !$use_blend_str blending_id=${arg\ $blending_id+1,$list_of_blending_modes} fi
   
-  foreach { $0_process_individual_channel_section $method,$effect_factor,$multiplication,$opacity,$blending_id }
+  if $effect_factor||$opacity>0
+   if $opacity==1?(same('$blending_id','normal')||same('$blending_id','alpha'))
+    foreach {
+     $0_bsoo_edit $method,$effect_factor,$multiplication
+     cut 0,255
+    }
+   else
+    foreach {
+     +$0_bsoo_edit $method,$effect_factor,$multiplication
+     _blend_$blending_id
+     if $opacity<1 j.. .,0,0,0,0,$opacity rm.
+     else rm..
+     fi
+     cut 0,255
+    }
+   fi
+  fi
  else
   use_gray,use_cmy,use_cmyk,use_alpha,use_cmy_channel_0,use_cmy_channel_1,use_cmy_channel_2,use_cmyk_channel_0,use_cmyk_channel_1,use_cmyk_channel_2,use_cmyk_channel_3=0
   
@@ -246,7 +261,7 @@ if $cmyk_mode
    if narg($current_method)
     repeat 3 {
      if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
-     if '$current_method'=='-'
+     if same('$current_method','-')
       var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
      elif narg($current_method)
       use_cmy_channel_$>=${$0_process_individual_channel_section\ cmy_channel_$>,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
@@ -266,7 +281,7 @@ if $cmyk_mode
    if narg($current_method)
     repeat 4 {
      if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
-     if '$current_method'=='-'
+     if same('$current_method','-')
       var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
      elif narg($current_method)
       use_cmyk_channel_$>=${$0_process_individual_channel_section\ cmyk_channel_$>,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
@@ -290,15 +305,15 @@ if $cmyk_mode
   fi
   
   foreach {
-   chan_count,contain_color,contain_alpha:=[s,s>2,!(s&1)]
+   contain_color,contain_alpha:=[s>2,s==2||s>4]
    
    if $use_alpha?$contain_alpha
     s c,-{s-1}
-    if $use_alpha $0_process_alpha[-1] fi   
+    if $use_alpha $0_process_alpha[-1] fi
    fi
    
    if $contain_color
-    if s>3 
+    if s#0>3 
      if $use_cmyk
       s[0] c
       foreach[0-3] { if ${use_cmyk_channel_$>} $0_process_cmyk_channel_$> fi }
@@ -308,6 +323,10 @@ if $cmyk_mode
       s[0] c
       foreach[0-2] { if ${use_cmy_channel_$>} $0_process_cmy_channel_$> fi }
      fi
+    fi
+   else
+    if $use_gray
+     $0_process_gray[0]
     fi
    fi
    
@@ -339,7 +358,7 @@ else
    if narg($current_method)
     repeat 3 {
      if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
-     if '$current_method'=='-'
+     if same('$current_method','-')
       var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
      elif narg($current_method)
       use_channel_$>=${$0_process_individual_channel_section\ channel_$>,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
@@ -392,10 +411,27 @@ else
   if !isint($method)&&('$method'!='-') method=${$method} fi
 
   if !$effect_factor||$opacity<=0 return fi
-  use_blend_str:=!isnum($blending_id)
+  use_blend_str:=!isint($blending_id)
   if !$use_blend_str blending_id=${arg\ $blending_id+1,$list_of_blending_modes} fi
   
-  foreach { $0_process_individual_channel_section $method,$effect_factor,$multiplication,$opacity,$blending_id }
+  if $effect_factor||$opacity>0
+   if $opacity==1?(same('$blending_id','normal')||same('$blending_id','alpha'))
+    foreach {
+     $0_bsoo_edit $method,$effect_factor,$multiplication
+     cut 0,255
+    }
+   else
+    foreach {
+     +$0_bsoo_edit $method,$effect_factor,$multiplication
+     _blend_$blending_id
+     if $opacity<1 j.. .,0,0,0,0,$opacity rm.
+     else rm..
+     fi
+     cut 0,255
+    }
+   fi
+  fi
+  
  elif !$num_of_set_args
   error needs_at_least_5_for_one_arg_set
  else
@@ -1879,10 +1915,10 @@ fi
 +rep_lavander_binary_map:
 skip ${1=11},${2=2},${3=01},${4=10},${5=0},${6=}
 
-check "$1>0&&($1==int($1))&&(isint($2)||('-'=='$2'))"
+check "$1>0&&($1==int($1))&&(isint($2)||same('-','$2'))"
 
 a6={size('$6')}
-shift,length,mode,str_code={int(abs($5))},{2^$1},{v='$2'=='-';n=isint($2)?$2:0;v?0:(n>=0?n%3+1:-((abs(n)-1)%3+1));},0
+shift,length,mode,str_code={int(abs($5))},{2^$1},{v=same('-','$2');n=isint($2)?$2:0;v?0:(n>=0?n%3+1:-((abs(n)-1)%3+1));},0
 size_of_arr={int(log2($length+$shift-1))+1}
 str_code_2=n=init_num()
 act_arr_sortclass={$mode>-1}
@@ -6146,7 +6182,7 @@ if narg($10)
  ms=3
  contain_palette=1
 
- if '$10'=='pal'
+ if same('$10','pal')
  elif ${is_image_arg\ $10} pass$10 0 ms={s#-1} rm.
  else contain_palette=0
  fi
@@ -6158,7 +6194,7 @@ if narg($10)
  ms=3
  contain_palette=1
 
- if '$10'=='pal'
+ if same('$10','pal')
  elif ${is_image_arg\ $10} pass$10 0 ms={s#-1} rm.
  else
 
@@ -6471,7 +6507,7 @@ if narg($10)&&$activate_code_block
   if $border_size
    col=${rep_hex2int8\ $9}
    1,1,1,$ms,vector(#3,$col);
-   if '$10'=='pal'
+   if same('$10','pal')
 
     +pal $11
     if narg($12)
@@ -6511,7 +6547,7 @@ if narg($10)&&$activate_code_block
    fi
 
   else
-   if '$10'=='pal'
+   if same('$10','pal')
 
     +pal $11
 
@@ -7753,7 +7789,7 @@ if narg($9)||narg($10)
 
  else
 
-  if ('$9'=='u')&&('$10'=='u')
+  if same('$9','u')&&same('$10','u')
 
    mode=3
    use_double_u=1
@@ -7774,7 +7810,7 @@ if narg($9)||narg($10)
 
   else
 
-   if ('$9'=='u')||('$10'=='u')
+   if same('$9','u')&&same('$10','u')
     mode=3
     if narg($11)
      if ($11%3)==2 cs_out=lch82rgb
@@ -7784,7 +7820,7 @@ if narg($9)||narg($10)
     else cs_out=hsl82rgb
     fi
     if narg($12) srand $12 fi
-    if '$9'=='u'
+    if same('$9','u')
      $10,1,1,3,u(0,255)
      store. ref_colors
     else
@@ -8127,8 +8163,8 @@ if narg($8)||narg($9)
   store. ref_gradient
 
  else
-
-  if ('$8'=='u')&&('$9'=='u')
+  
+  if same('$8','u')&&same('$9','u')
 
    mode=3
    use_double_u=1
@@ -8153,7 +8189,7 @@ if narg($8)||narg($9)
 
   else
 
-   if ('$8'=='u')||('$9'=='u')
+   if same('$8','u')&&same('$9','u')
 
     mode=3
 
@@ -8167,7 +8203,7 @@ if narg($8)||narg($9)
 
     if narg($11) srand $11 fi
 
-    if '$8'=='u'
+    if same('$8','u')
      $9,1,1,3,u(0,255)
      store. ref_colors
     else
@@ -8545,7 +8581,7 @@ foreach {
 rep_skew:
 skip ${2=0},${3=0},${4=3},${5=1},${6=1}
 
-check (abs($1)<90)&&(abs($2)<=1)&&((($3==0)||($3==1)||($3==2))||(('$3'=='x')||('$3'=='y')||('$3'=='z')))
+check (abs($1)<90)&&(abs($2)<=1)&&((($3==0)||($3==1)||($3==2))||inrange(_'$3',_'x',_'z',1,1))
 
 if $1==0 return fi
 
@@ -8555,9 +8591,9 @@ if $6
  tang={tan($ang)}
 
  foreach {
-  if '$3'=='z'||$3==2
+  if same('$3','z')||$3==2
    echo[] "TODO: Add depth. Possible TODO: zx,zy,xz,zy" return
-  elif '$3'=='y'||$3==1
+  elif same('$3','y')||$3==1
 
    dist={abs(w*$tang)}
    new_height={h+$dist}
@@ -8572,7 +8608,7 @@ if $6
     ypos=(x-half_w)/ww*dist-offpos;
     I(#-1,x,y+ypos,z,$5,$4);"
 
-  elif '$3'=='x'||$3==0
+  elif same('$3','x')||$3==0
 
    dist={abs(h*$tang)}
    new_width={w+$dist}
@@ -8595,7 +8631,7 @@ if $6
  }
 else
 
- if '$3'=='z'||$3==2
+ if same('$3','z')||$3==2
 
   echo[] "Untested! Possible TODO: zx,zy,xz,zy"
 
@@ -8608,7 +8644,7 @@ else
    zpos=(z-pz)/dd;
    J(0,0,lerp(0,dist,zpos),$5,$4);"
 
- elif '$3'=='y'||$3==1
+ elif same('$3','y')||$3==1
 
   f "begin(
     const ang=($1/180)*pi*-1;
@@ -8619,7 +8655,7 @@ else
    xpos=(x-px)/ww;
    J(0,lerp(0,dist,xpos),0,$5,$4);"
 
- elif '$3'=='x'||$3==0
+ elif same('$3','x')||$3==0
 
   f "begin(
     const ang=($1/180)*pi;
@@ -12410,7 +12446,7 @@ rep_trsa: rep_technorobbo_strange_attractor $*
 rep_technorobbo_strange_attractor:
 skip ${2=7},${3=1},${4=},${5=},${6=},${7=},${8=},${9=},${10=},${11=},${12=},${13=0}
 
-if '$_host'=='cli' if narg($*)>12 error narg(\$"13")<13==F fi fi
+if same('$_host','cli') if narg($*)>12 error narg(\$"13")<13==F fi fi
 
 max_width=${-max_w}
 max_height=${-max_h}
@@ -12641,7 +12677,7 @@ if isnum($1)
  }
 else
  if narg($1)
-  if '$1'=='8i'
+  if same('$1','8i')
 
    foreach {
     repeat 3 {
@@ -12651,7 +12687,7 @@ else
     }
    }
 
-  elif '$1'=='8il'
+  elif same('$1','8il')
 
    foreach {
 
@@ -16230,7 +16266,7 @@ v - _gmic_s=$? v +
 _$0 $*
 +_pal:
 
-if '$1'=='*'
+if same('$1','*')
  if $#>1 error ambiguous_args fi
  _pal_385_pals
  v + e[^-1] "Create palette(s) '"${}"'." v -
@@ -16238,6 +16274,8 @@ if '$1'=='*'
 fi
 
 $=var
+
+d0,d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19,d20,d21,d22,d23,d24,d25,d26,d27,d28,d29,d30,d31,d32,d33,d34,d35,d36,d37,d38,d39,d40,d41,d42,d43,d44,d45,d46,d47,d48,d49,d50,d51,d52,d53,d54,d55,d56,d57,d58,d59,d60,d61,d62,d63,d64,d65,d66,d67,d68,d69,d70,d71,d72,d73,d74,d75,d76,d77,d78,d79,d80,d81,d82,d83,d84,d85,d86,d87,d88,d89,d90,d91,d92,d93,d94,d95,d96,d97,d98,d99,d100,d101,d102,d103,d104,d105,d106,d107,d108,d109,d110,d111,d112,d113,d114,d115,d116,d117,d118,d119,d120,d121,d122,d123,d124,d125,d126,d127,d128,d129,d130,d131,d132,d133,d134,d135,d136,d137,d138,d139,d140,d141,d142,d143,d144,d145,d146,d147,d148,d149,d150,d151,d152,d153,d154,d155,d156,d157,d158,d159,d160,d161,d162,d163,d164,d165,d166,d167,d168,d169,d170,d171,d172,d173,d174,d175,d176,d177,d178,d179,d180,d181,d182,d183,d184,d185,d186,d187,d188,d189,d190,d191,d192,d193,d194,d195,d196,d197,d198,d199,d200,d201,d202,d203,d204,d205,d206,d207,d208,d209,d210,d211,d212,d213,d214,d215,d216,d217,d218,d219,d220,d221,d222,d223,d224,d225,d226,d227,d228,d229,d230,d231,d232,d233,d234,d235,d236,d237,d238,d239,d240,d241,d242,d243,d244,d245,d246,d247,d248,d249,d250,d251,d252,d253,d254,d255,d256,d257,d258,d259,d260,d261,d262,d263,d264,d265,d266,d267,d268,d269,d270,d271,d272,d273,d274,d275,d276,d277,d278,d279,d280,d281,d282,d283,d284,d285,d286,d287,d288,d289,d290,d291,d292,d293,d294,d295,d296,d297,d298,d299,d300,d301,d302,d303,d304,d305,d306,d307,d308,d309,d310,d311,d312,d313,d314,d315,d316,d317,d318,d319,d320,d321,d322,d323,d324,d325,d326,d327,d328,d329,d330,d331,d332,d333,d334,d335,d336,d337,d338,d339,d340,d341,d342,d343,d344,d345,d346,d347,d348,d349,d350,d351,d352,d353,d354,d355,d356,d357,d358,d359,d360,d361,d362,d363,d364,d365,d366,d367,d368,d369,d370,d371,d372,d373,d374,d375,d376,d377,d378,d379,d380,d381,d382,d383,d384=bw,rgb,b_rgb,bw_rgb,cmy,cmyk,wcmyk,rgbcmy,1bitrgb,aurora,zenit,gbg,duel,hocuspocus,playpal,srb2,uzebox,kens16,kens32,kens54,aap12,aap16,aap64,aap96,aap128,aap_dga16,cheerful,db8,db16,db32,db_iso22,dimwid17,dimwid23,edg4,edg8,edg16,edg32,edg36,edg64,famicube,juicy32,juicy56,xaiue,15pdx,20pdx,24pdx,cabana,fant16,fant24,tf23,tfp39,faraway,fleja,koni,linearbasic,legowiki,lego2021,vinelinear,arcade,arq,atom,blk36,blkneo,brokefac,bubblegum,cpcboy,cade,calder,cdbac,cgarne,dinoknight,4l,fzt,indecision,island,journey,shallowmarsh,lago_nenufar,juicy,chocolateganache,brightwinter1,brightwinter2,kawaii,xdb,gzxp,chromatic,piet_code,boltbait_matrix,material_design,thehamster_rainbow,boltbait_rainbow,scrj,pxls,lospec,moderna,oak,nature,rbypgo,new_worlds,nauris,dynamite,interstate,downgraded,pear,pineapple,peachy,resurrect,rosy42,slso,softy,spec,roarin80s,starmancer,superfuture,sunshine,sweetie,calm,optimism,taffy,todayland,trirampo,reddit_place_2022,tropical,vivid,shido,intacto,itatsi,enos,grixel,superb,undertones,tango,cheese,equpix15,zughy,voodo,franzston,night,star29,star34,still_life,simjpc,acid,battery,clump,cthul,crimso11,coptec,drz,eggy,europa,greyt,jewel,polar,sheltzy,wyrm,yume_nikki,rube_goldberg,boomboom,g8,crayola,funky,golden_wall,matriax,nt1h,jerrypie,nineties_nine,on70,anb,retrocal,punolit,luap,autum_villan,au15,au15y,galaxy_flame,cretaceous,antiquity,mushroom,aerugo,hotel_paintings,nopal,gpy,blessing,fairydust,milkshake,fuzz,fairy,naji,easter,pastel_and_darks,pastel_irena,nostalgia,ocaso,pastel_starlitsunset,pollen,kule,hydrangea,fluffy,st8rb,neon,cyclope,sy,syz,tui,cave,psygnosia,marshmellow,lost_century,finlal,industrial,murder_mystery,fate_and_destiny,vinik,ykb,halloween,graveyard,steamlords,frostical,deuterospill,cool_bone,muted_ally,ephemera,ink,violet_dreams,tinyfolks,old_gold,rosemoss,aaprad,aapmaj,dead_weight,mojave,pet8,pet8d,xaiue_rad,daruda,firestorm,borkfest,spicy,rust,apricot,supernova,pastry,sandy,illumination,nyx,dreamhaze,oil,regal,softdemon,sgm,midnight_ablaze,black_cherry,sunset_red,inkpink,brash_pink,pink_neon_sign,enchanted_purple,arch,spaceyeaster,fornaxvoid1,fornaxvoid2,pixelwave,s1,berry_nebula,abyss,moonlight,moon39,h2o,magic_waters,bluemold,moss,deep_maze,toxic_slime,lush_green,tsunami,cryptic_ocean,marsh_madness,oxyd,pinkgreen,woodwalk,paper,sahara_pastell,sunflower,arthoe,sky,ocean_glass,royal,eulbink,winter_wonderland,moon_squid,stratus,arctic_dust,clouds_sunset,lilac_skies,sea_of_fire,autochrome3,autochrome5,gb_d_1,gb_d_2,gb_andrade,gb_blue,gb_bz,gb_suburb,gb_crimson,gb_didi,gb_dirty,gb_arne,gb_easy,gb_forest,gb_hg,gb_lg,gb_nostalgia,gb_platinum,gb_kirokaze,gb_cyber,gb_wish,gb_grapefruit,gb_ice_cream,gb_rb,gb_gold,gb_choco,gb_gray,gb_space,gb_purpdawn,moon_crystal,arne,autumn_chill,cherrymelon,hal4,hollow,lavender,maw,voltage_warning,tritanopia,rabbit,amiga2600ntsc,amiga2600pal,amiga2600secam,amiga7800mess,amiga7800,amstrad_cpc,apple,atari,cga,cga00,cga01,cga10,cga11,cga20,cga21,c64_pepto,c64_colodore,com_vic_20,colecovision,jmp,mac2,mac8,msx,nes,pico,risc,samcoupe,mo5,trs80,virtualboy,vga,win95,zx,gnome,elc,chip16,deluxepaint,flat,makecode,oekaki,lms,msxp,vista,piet,japwood,humanfaces,hues,christmas,ladybugreds
 
 if ('$1')[0]==_'-'
  rd,var1=1,{`str='$1';(str)[1,size(str)-1]`}
@@ -17021,7 +17059,8 @@ repeat $# {
 
  if isnum($m)
   if isint($m)
-   m=${arg\ 1+$m,bw,rgb,b_rgb,bw_rgb,cmy,cmyk,wcmyk,rgbcmy,1bitrgb,aurora,zenit,gbg,duel,hocuspocus,playpal,srb2,uzebox,kens16,kens32,kens54,aap12,aap16,aap64,aap96,aap128,aap_dga16,cheerful,db8,db16,db32,db_iso22,dimwid17,dimwid23,edg4,edg8,edg16,edg32,edg36,edg64,famicube,juicy32,juicy56,xaiue,15pdx,20pdx,24pdx,cabana,fant16,fant24,tf23,tfp39,faraway,fleja,koni,linearbasic,legowiki,lego2021,vinelinear,arcade,arq,atom,blk36,blkneo,brokefac,bubblegum,cpcboy,cade,calder,cdbac,cgarne,dinoknight,4l,fzt,indecision,island,journey,shallowmarsh,lago_nenufar,juicy,chocolateganache,brightwinter1,brightwinter2,kawaii,xdb,gzxp,chromatic,piet_code,boltbait_matrix,material_design,thehamster_rainbow,boltbait_rainbow,scrj,pxls,lospec,moderna,oak,nature,rbypgo,new_worlds,nauris,dynamite,interstate,downgraded,pear,pineapple,peachy,resurrect,rosy42,slso,softy,spec,roarin80s,starmancer,superfuture,sunshine,sweetie,calm,optimism,taffy,todayland,trirampo,reddit_place_2022,tropical,vivid,shido,intacto,itatsi,enos,grixel,superb,undertones,tango,cheese,equpix15,zughy,voodo,franzston,night,star29,star34,still_life,simjpc,acid,battery,clump,cthul,crimso11,coptec,drz,eggy,europa,greyt,jewel,polar,sheltzy,wyrm,yume_nikki,rube_goldberg,boomboom,g8,crayola,funky,golden_wall,matriax,nt1h,jerrypie,nineties_nine,on70,anb,retrocal,punolit,luap,autum_villan,au15,au15y,galaxy_flame,cretaceous,antiquity,mushroom,aerugo,hotel_paintings,nopal,gpy,blessing,fairydust,milkshake,fuzz,fairy,naji,easter,pastel_and_darks,pastel_irena,nostalgia,ocaso,pastel_starlitsunset,pollen,kule,hydrangea,fluffy,st8rb,neon,cyclope,sy,syz,tui,cave,psygnosia,marshmellow,lost_century,finlal,industrial,murder_mystery,fate_and_destiny,vinik,ykb,halloween,graveyard,steamlords,frostical,deuterospill,cool_bone,muted_ally,ephemera,ink,violet_dreams,tinyfolks,old_gold,rosemoss,aaprad,aapmaj,dead_weight,mojave,pet8,pet8d,xaiue_rad,daruda,firestorm,borkfest,spicy,rust,apricot,supernova,pastry,sandy,illumination,nyx,dreamhaze,oil,regal,softdemon,sgm,midnight_ablaze,black_cherry,sunset_red,inkpink,brash_pink,pink_neon_sign,enchanted_purple,arch,spaceyeaster,fornaxvoid1,fornaxvoid2,pixelwave,s1,berry_nebula,abyss,moonlight,moon39,h2o,magic_waters,bluemold,moss,deep_maze,toxic_slime,lush_green,tsunami,cryptic_ocean,marsh_madness,oxyd,pinkgreen,woodwalk,paper,sahara_pastell,sunflower,arthoe,sky,ocean_glass,royal,eulbink,winter_wonderland,moon_squid,stratus,arctic_dust,clouds_sunset,lilac_skies,sea_of_fire,autochrome3,autochrome5,gb_d_1,gb_d_2,gb_andrade,gb_blue,gb_bz,gb_suburb,gb_crimson,gb_didi,gb_dirty,gb_arne,gb_easy,gb_forest,gb_hg,gb_lg,gb_nostalgia,gb_platinum,gb_kirokaze,gb_cyber,gb_wish,gb_grapefruit,gb_ice_cream,gb_rb,gb_gold,gb_choco,gb_gray,gb_space,gb_purpdawn,moon_crystal,arne,autumn_chill,cherrymelon,hal4,hollow,lavender,maw,voltage_warning,tritanopia,rabbit,amiga2600ntsc,amiga2600pal,amiga2600secam,amiga7800mess,amiga7800,amstrad_cpc,apple,atari,cga,cga00,cga01,cga10,cga11,cga20,cga21,c64_pepto,c64_colodore,com_vic_20,colecovision,jmp,mac2,mac8,msx,nes,pico,risc,samcoupe,mo5,trs80,virtualboy,vga,win95,zx,gnome,elc,chip16,deluxepaint,flat,makecode,oekaki,lms,msxp,vista,piet,japwood,humanfaces,hues,christmas,ladybugreds}
+   m%=385
+   m=${d$m}
   fi
  fi
 
@@ -20214,7 +20253,7 @@ if $activate_overload!=2&&$1<0
   strcontains $it,cfb
   if ${} error \$\-1!=2?!incl(\$$n,cfb):T==F fi
 
-  if ('$it'=='cfa')||('$it'=='cfb') error overload!=2?str_incl(cfa):T==F fi
+  if same('$it','cfa')||same('$it','cfb') error overload!=2?str_incl(cfa):T==F fi
 
  }
 fi
@@ -20675,7 +20714,7 @@ if $1
 fi
 
 if !$3 rv fi
-if '$_host'=='paintdotnet' k[0] fi
+if same('$_host','paintdotnet') k[0] fi
 
 fx_rep_modo_preview:
 two_plus_layer={$!>1}
@@ -20748,7 +20787,7 @@ u "{$1}"\
 "{$43,$44}"
 #@gui Channel Blur-Sharpen-Overblur-Overline:fx_rep_cbsoo,fx_rep_cbsoo_preview(0)*
 #@gui:_=separator(),_=note("<b>Color Space Mode</b>")
-#@gui:-Bit Color Space=choice(0,"RGB","RYB","CMY/K","HSI","HSL","HSV","LAB","LCH","YCbCr-GLIC","YIQ","YUV","YES",Ohta","Kodak-1")
+#@gui:8-Bit Color Space=choice(0,"RGB","RYB","CMY/K","HSI","HSL","HSV","LAB","LCH","YCbCr-GLIC","YIQ","YUV","YES",Ohta","Kodak-1")
 #@gui:Include K Channel=bool(1)
 #@gui:Contain Gray=bool(0)_0
 #@gui:Contain Color=bool(0)_0
@@ -20835,20 +20874,27 @@ u "{$1}"\
 #@gui:Filter Parameter Changed=bool(0)_0
 #@gui:Stored Variables=text("-1")_0
 #@gui:Previous Image Display=int(0,0,3)_0
+#@gui:_=separator(),_=note("<small>Author: <i>Reptorian</i> Latest update: <i>2024/03/27</i>.</small>")
 fx_rep_cbsoo:
 skip $*
-rm $_persistent keep[filtered]
+if same('$_host','cli')
+ _pasted_from_gui=1
+ fx_rep_cbsoo_preview $*
+else
+ if narg($_persistent) rm $_persistent keep[filtered]
+ else
+  _gui_reapply=1
+  fx_rep_cbsoo_preview $*
+ fi
+fi
 fx_rep_cbsoo_preview:
 skip $*
 
-cs_choice,include_k,num_of_imgs=$1,$2,$!
-convert_colors_fwd=${arg\ $cs_choice+1,,rgb2ryb,error,rgb2hsi8,rgb2hsl8,rgb2hsv8,rgb2lab8,rgb2lch8,rgb2ycbcrglic,rgb2yiq8,rgb2yuv8,rgb2ohta8,rgb2k18}
-convert_colors_bwd=${arg\ $cs_choice+1,,ryb2rgb,error,hsi82rgb,hsl82rgb,hsv82rgb,lab82rgb,lch82rgb,ycbcrglic2rgb,yiq82rgb,yuv82rgb,ohta82rgb,k182rgb}
+cs_choice,include_k,num_of_imgs,previous_image_preview=$1,$2,$!,$86
+convert_colors_fwd=${arg\ $cs_choice+1,,rgb2ryb,error,rgb2hsi8,rgb2hsl8,rgb2hsv8,rgb2lab8,rgb2lch8,rgb2ycbcrglic,rgb2yiq8,rgb2yuv8,rgb2yes8,rgb2ohta8,rgb2k18}
+convert_colors_bwd=${arg\ $cs_choice+1,,ryb2rgb,error,hsi82rgb,hsl82rgb,hsv82rgb,lab82rgb,lch82rgb,ycbcrglic2rgb,yiq82rgb,yuv82rgb,yes82rgb,ohta82rgb,k182rgb}
 cmyk_mode,contain_persistent,filter_parameters_changed={[$cs_choice==2,narg($_persistent),$84]}
 list_of_images_to_display=gray_preview,gray_alpha_preview,color_preview,color_alpha_preview
-
-_gui_cmyk_mode,_gui_include_k=$cmyk_mode,$include_k
-
 
 if $contain_persistent 
  rm $_persistent
@@ -20862,14 +20908,13 @@ if $contain_persistent
 
  use_section,section_variable,\
  use_link,display_link_checkbox,old_link,\
- display_color_space_options,last_visible_option,\
- previous_image_preview\
- =${23-24},${74-75},$78,$79,$83,$86
+ display_color_space_options,last_visible_option\
+ =${23-24},${74-75},$78,$79,$83
  
  color_space_switched={[$1,$2]!=[$76,$77]}
 
  display_make_same_vars_button=$display_link_checkbox
- k_display_mode:=$display_color_space_options?1+$cmyk_mode
+ k_display_mode:=$display_color_space_options?$cmyk_mode<<1
  stored_variables=$85
 
  temp_check_count_bools,check_count_bools=$82
@@ -20996,10 +21041,10 @@ else
  fi
 
  display_make_same_vars_button,display_link_checkbox:=($use_section||$_gui_analysis_color)<<1
- use_link:=$display_link_checkbox?$72
+ use_link:=$display_link_checkbox?$74
  old_link=$use_link
  display_color_space_options:=$_gui_analysis_color<<1
- k_display_mode:=$display_color_space_options?(1+$cmyk_mode)
+ k_display_mode:=$display_color_space_options?$cmyk_mode<<1
 
  last_visible_option=-1
 fi
@@ -21056,9 +21101,9 @@ if $use_section
 
  if !$use_link
   section_${temp_section_variable}_visibility=2
-  if '$section_space'=='color'||'$section_space'=='cmy'
+  if same('$section_space','color')||same('$section_space','cmy')
    color_3_channels_box_visibility=2
-  elif '$section_space'=='cmyk'
+  elif same('$section_space','cmyk')
    color_4_channels_box_visibility=2
   fi
  else display_make_same_vars_button=0
@@ -21189,7 +21234,7 @@ if $use_link
    
    if !$at_least_one_bool?($44||$51||$58||$64) at_least_one_bool=1 fi
    
-   if same('$t_filter_args',('-,-,-,-')[0,5+($include_k<<1)]) t_filter_args= fi
+   if same('$t_filter_args','-,-,-') t_filter_args= fi
 
    checked_box+=$color_channels_checkbox_count
    filter_args.=$sep$t_filter_args
@@ -21274,7 +21319,7 @@ else
   filter_args=$previous_args
   sep=,
 
-  if $use_section?'$section_space'=='gray':1
+  if $use_section?same('$section_space','gray'):1
    gray_effect_visibility:=1+$37
    gray_visibility:=bool($37?$gray_effect)+1
    if $display_link_checkbox display_gray_checkbox=2 fi
@@ -21345,11 +21390,11 @@ else
    else all_args_same=0
    fi
    
-   if same('$t_filter_args',('-,-,-,-')[0,5+($include_k<<1)]) t_filter_args= fi
+   if same('$t_filter_args','-,-,-') t_filter_args= fi
    
    filter_args.=$sep$t_filter_args
 
-   if $use_section?'$section_space'=='cmy'||'$section_space'=='cmyk':1
+   if $use_section?same('$section_space','cmy')||same('$section_space','cmyk'):1
     pos_choice:=$color_4_channels_box_visibility?$26:$25
     state_chosen_bool,state_chosen_effect:=([$44,$channel_0_effect,$51,$channel_1_effect,$58,$channel_2_effect,$64,$channel_3_effect])[$pos_choice<<1,2]
     channel_${pos_choice}_effect_visibility:=1+$state_chosen_bool
@@ -21412,7 +21457,7 @@ else
    
    filter_args.=$sep$t_filter_args
 
-   if $use_section?'$section_space'=='color':1
+   if $use_section?same('$section_space','color'):1
     state_chosen_bool,state_chosen_effect:=([$43,$channel_0_effect,$50,$channel_1_effect,$57,$channel_2_effect])[$25<<1,2]
     channel_$25_effect_visibility:=1+$state_chosen_bool
     channel_$25_visibility:=bool($state_chosen_bool?$state_chosen_effect)+1
@@ -21441,7 +21486,7 @@ else
 
   filter_args.=,$current_args
 
-  if '$section_space'=='alpha'
+  if same('$section_space','alpha')
    alpha_effect_visibility:=1+$70
    alpha_visibility:=bool($70?$alpha_effect)+1
    display_alpha_checkbox=2
@@ -21455,167 +21500,205 @@ else
  if $all_args_same filter_args=$current_args fi
 fi
 
-if !$contain_persistent||$color_space_switched||!same('$filter_args','$stored_variables')
- rmn filtered
- 
- if $cs_choice
- 
-  if $cmyk_mode
-   +foreach {
-    if s<3 continue fi
-    s c,-3
-    rgb2cmyk[0]
-    append c
+if $_gui_analysis_color?$cmyk_mode?$include_k filter_args.=,cmyk fi
+
+if same('$_host','cli')
+
+ if $_gui_analysis_color
+  if $cmyk_mode&&$include_k
+   foreach[$list_of_color_images] {
+     s c,-3
+     rgb2cmyk[0]
+     append c
    }
   else
-   +foreach {
-    if s<3 continue fi
-    $convert_colors_fwd
-   }
+   $convert_colors_fwd[$list_of_color_images]
   fi
-  
-  rep_channels_blur_sharpen_overblur_overline[$num_of_imgs--1] $filter_args
-  
-  if $cmyk_mode
-   foreach[$num_of_imgs--1] {
-    if s<4 continue fi
-    s c,-4
-    cmyk2rgb[0]
-    append c
-   }
-  else
-   foreach[$num_of_imgs--1] {
-    if s<3 continue fi
-    $convert_colors_bwd
-   }
-  fi
-  
- else
-  +rep_channels_blur_sharpen_overblur_overline $filter_args 
  fi
  
- name[$num_of_imgs--1] filtered
- +store _persistent
-fi
+ rep_channels_blur_sharpen_overblur_overline[$num_of_imgs--1] $filter_args
+ 
+ if $_gui_analysis_color
+  if $cmyk_mode&&$include_k
+   foreach[$list_of_color_images] {
+     s c,-4
+     cmyk2rgb[0]
+     append c
+   }
+  else
+   $convert_colors_bwd[$list_of_color_images]
+  fi
+ fi
+ 
+else
 
-if $use_section&&($!>2)
- if $previous_image_preview&1
-  if $use_only_alpha_to_preview
-   keep[{$num_of_imgs+$only_alpha_to_preview}]
+ if !$contain_persistent||$color_space_switched||!same('$filter_args','$stored_variables')
+  rmn filtered
+  
+  if $cs_choice
+  
+   if $cmyk_mode
+    +foreach {
+     if s<3 continue fi
+     s c,-3
+     rgb2cmyk[0]
+     append c
+    }
+   else
+    +foreach {
+     if s<3 continue fi
+     $convert_colors_fwd
+    }
+   fi
+   
+   rep_channels_blur_sharpen_overblur_overline[$num_of_imgs--1] $filter_args
+   
+   if $cmyk_mode
+    foreach[$num_of_imgs--1] {
+     if s<4 continue fi
+     s c,-4
+     cmyk2rgb[0]
+     append c
+    }
+   else
+    foreach[$num_of_imgs--1] {
+     if s<3 continue fi
+     $convert_colors_bwd
+    }
+   fi
+   
+  else
+   +rep_channels_blur_sharpen_overblur_overline $filter_args 
+  fi
+  
+  name[$num_of_imgs--1] filtered
+  +store _persistent
+ fi
+ 
+ if narg($_gui_reapply)||narg($_pasted_from_gui) keep[filtered] return fi
+ 
+ if $use_section&&($!>2)
+  if $previous_image_preview&1
+   if $use_only_alpha_to_preview
+    keep[{$num_of_imgs+$only_alpha_to_preview}]
+   else
+    if $previous_image_preview<2
+     keep[{$num_of_imgs+$gray_alpha_preview}]
+    else
+     keep[{$num_of_imgs+$color_alpha_preview}]
+    fi
+   fi
   else
    if $previous_image_preview<2
-    keep[{$num_of_imgs+$gray_alpha_preview}]
+    keep[{$num_of_imgs+$gray_preview}]
    else
-    keep[{$num_of_imgs+$color_alpha_preview}]
+    keep[{$num_of_imgs+$color_preview}]
    fi
   fi
  else
-  if $previous_image_preview<2
-   keep[{$num_of_imgs+$gray_preview}]
+  if $!==2 keep[filtered]
   else
-   keep[{$num_of_imgs+$color_preview}]
+   if $_gui_analysis_gray keep[{$num_of_imgs+$gray_preview}]
+   else                   keep[{$num_of_imgs+$color_preview}]
+   fi
   fi
  fi
-else
- if $!==2 keep[filtered]
+
+ if !isnan($80)
+  point_x,point_y:=cut([$80,$81],0,100)
+  upper_left_crop_points:=vmax([(w-1-($_preview_area_width-1))*($point_x%),(h-1-($_preview_area_height))*($point_y%)],[0,0])
+  bottom_right_crop_points:=vmin([$upper_left_crop_points]+[$_preview_area_width,$_preview_area_height],[w-1,h-1])
+  crop $upper_left_crop_points,$bottom_right_crop_points
  else
-  if $_gui_analysis_gray keep[{$num_of_imgs+$gray_preview}]
-  else                   keep[{$num_of_imgs+$color_preview}]
-  fi
+  point_x,point_y=${80-81}
  fi
-fi
 
-if !isnan($80)
- upper_left_crop_points:=vmax([(w-1-($_preview_area_width-1))*($80%),(h-1-($_preview_area_height))*($81%)],[0,0])
- bottom_right_crop_points:=vmin([$upper_left_crop_points]+[$_preview_area_width,$_preview_area_height],[w-1,h-1])
- crop $upper_left_crop_points,$bottom_right_crop_points
+ u "{$1}"_$display_color_space_options\
+ "{$2}"_$k_display_mode\
+ "{"$_gui_analysis_gray"}"\
+ "{"$_gui_analysis_color"}"\
+ "{"$_gui_analysis_alpha"}"\
+ "{"$list_of_color_images"}"\
+ "{"$gray_preview"}"\
+ "{"$gray_alpha_preview"}"\
+ "{"$color_preview"}"\
+ "{"$color_alpha_preview"}"\
+ "{"$only_alpha_to_preview"}"\
+ "{"$use_only_alpha_to_preview"}"\
+ "{$13}"_$section_0_visibility\
+ "{$14}"_$section_1_visibility\
+ "{$15}"_$section_2_visibility\
+ "{$16}"_$section_3_visibility\
+ "{$17}"_$section_4_visibility\
+ "{$18}"_$section_5_visibility\
+ "{$19}"_$section_6_visibility\
+ "{$20}"_$section_7_visibility\
+ "{$21}"_$section_8_visibility\
+ "{$22}"_$section_9_visibility\
+ "{"$use_section"}"\
+ "{"$section_variable"}"\
+ "{$25}"_$color_3_channels_box_visibility\
+ "{$26}"_$color_4_channels_box_visibility\
+ "{"$link_method"}"_$link_visibility\
+ "{"$link_effect"}"_$link_effect_visibility\
+ "{"$link_multiplication"}"_$link_visibility\
+ "{"$link_blend"}"_$link_visibility\
+ "{"$link_opacity"}"_$link_visibility\
+ "{"$gray_method"}"_$gray_visibility\
+ "{"$gray_effect"}"_$gray_effect_visibility\
+ "{"$gray_multiplication"}"_$gray_visibility\
+ "{"$gray_blend"}"_$gray_visibility\
+ "{"$gray_opacity"}"_$gray_visibility\
+ "{$37}"_$display_gray_checkbox\
+ "{"$channel_0_method"}"_$channel_0_visibility\
+ "{"$channel_0_effect"}"_$channel_0_effect_visibility\
+ "{"$channel_0_multiplication"}"_$channel_0_visibility\
+ "{"$channel_0_blend"}"_$channel_0_visibility\
+ "{"$channel_0_opacity"}"_$channel_0_visibility\
+ "{$43}"_$display_channel_0_checkbox\
+ "{$44}"_$display_cyan_checkbox\
+ "{"$channel_1_method"}"_$channel_1_visibility\
+ "{"$channel_1_effect"}"_$channel_1_effect_visibility\
+ "{"$channel_1_multiplication"}"_$channel_1_visibility\
+ "{"$channel_1_blend"}"_$channel_1_visibility\
+ "{"$channel_1_opacity"}"_$channel_1_visibility\
+ "{$50}"_$display_channel_1_checkbox\
+ "{$51}"_$display_magenta_checkbox\
+ "{"$channel_2_method"}"_$channel_2_visibility\
+ "{"$channel_2_effect"}"_$channel_2_effect_visibility\
+ "{"$channel_2_multiplication"}"_$channel_2_visibility\
+ "{"$channel_2_blend"}"_$channel_2_visibility\
+ "{"$channel_2_opacity"}"_$channel_2_visibility\
+ "{$57}"_$display_channel_2_checkbox\
+ "{$58}"_$display_yellow_checkbox\
+ "{"$channel_3_method"}"_$channel_3_visibility\
+ "{"$channel_3_effect"}"_$channel_3_effect_visibility\
+ "{"$channel_3_multiplication"}"_$channel_3_visibility\
+ "{"$channel_3_blend"}"_$channel_3_visibility\
+ "{"$channel_3_opacity"}"_$channel_3_visibility\
+ "{$64}"_$display_black_checkbox\
+ "{"$alpha_method"}"_$alpha_visibility\
+ "{"$alpha_effect"}"_$alpha_effect_visibility\
+ "{"$alpha_multiplication"}"_$alpha_visibility\
+ "{"$alpha_blend"}"_$alpha_visibility\
+ "{"$alpha_opacity"}"_$alpha_visibility\
+ "{$70}"_$display_alpha_checkbox\
+ "{0}"\
+ "{0}"_$display_make_same_vars_button\
+ "{0}"_$display_make_same_vars_button\
+ "{"$use_link"}"_$display_link_checkbox\
+ "{"$display_link_checkbox"}"\
+ "{$1}"\
+ "{$2}"\
+ "{"$use_link"}"\
+ "{"$display_color_space_options"}"\
+ "{"$point_x,$point_y"}"\
+ "{"$temp_check_count_bools"}"\
+ "{"$last_visible_option"}"\
+ "{1}"\
+ "{"$filter_args"}"\
+ "{"$previous_image_preview"}"
 fi
-
-u "{$1}"_$display_color_space_options\
-"{$2}"_$k_display_mode\
-"{"$_gui_analysis_gray"}"\
-"{"$_gui_analysis_color"}"\
-"{"$_gui_analysis_alpha"}"\
-"{"$list_of_color_images"}"\
-"{"$gray_preview"}"\
-"{"$gray_alpha_preview"}"\
-"{"$color_preview"}"\
-"{"$color_alpha_preview"}"\
-"{"$only_alpha_to_preview"}"\
-"{"$use_only_alpha_to_preview"}"\
-"{$13}"_$section_0_visibility\
-"{$14}"_$section_1_visibility\
-"{$15}"_$section_2_visibility\
-"{$16}"_$section_3_visibility\
-"{$17}"_$section_4_visibility\
-"{$18}"_$section_5_visibility\
-"{$19}"_$section_6_visibility\
-"{$20}"_$section_7_visibility\
-"{$21}"_$section_8_visibility\
-"{$22}"_$section_9_visibility\
-"{"$use_section"}"\
-"{"$section_variable"}"\
-"{$25}"_$color_3_channels_box_visibility\
-"{$26}"_$color_4_channels_box_visibility\
-"{"$link_method"}"_$link_visibility\
-"{"$link_effect"}"_$link_effect_visibility\
-"{"$link_multiplication"}"_$link_visibility\
-"{"$link_blend"}"_$link_visibility\
-"{"$link_opacity"}"_$link_visibility\
-"{"$gray_method"}"_$gray_visibility\
-"{"$gray_effect"}"_$gray_effect_visibility\
-"{"$gray_multiplication"}"_$gray_visibility\
-"{"$gray_blend"}"_$gray_visibility\
-"{"$gray_opacity"}"_$gray_visibility\
-"{$37}"_$display_gray_checkbox\
-"{"$channel_0_method"}"_$channel_0_visibility\
-"{"$channel_0_effect"}"_$channel_0_effect_visibility\
-"{"$channel_0_multiplication"}"_$channel_0_visibility\
-"{"$channel_0_blend"}"_$channel_0_visibility\
-"{"$channel_0_opacity"}"_$channel_0_visibility\
-"{$43}"_$display_channel_0_checkbox\
-"{$44}"_$display_cyan_checkbox\
-"{"$channel_1_method"}"_$channel_1_visibility\
-"{"$channel_1_effect"}"_$channel_1_effect_visibility\
-"{"$channel_1_multiplication"}"_$channel_1_visibility\
-"{"$channel_1_blend"}"_$channel_1_visibility\
-"{"$channel_1_opacity"}"_$channel_1_visibility\
-"{$50}"_$display_channel_1_checkbox\
-"{$51}"_$display_magenta_checkbox\
-"{"$channel_2_method"}"_$channel_2_visibility\
-"{"$channel_2_effect"}"_$channel_2_effect_visibility\
-"{"$channel_2_multiplication"}"_$channel_2_visibility\
-"{"$channel_2_blend"}"_$channel_2_visibility\
-"{"$channel_2_opacity"}"_$channel_2_visibility\
-"{$57}"_$display_channel_2_checkbox\
-"{$58}"_$display_yellow_checkbox\
-"{"$channel_3_method"}"_$channel_3_visibility\
-"{"$channel_3_effect"}"_$channel_3_effect_visibility\
-"{"$channel_3_multiplication"}"_$channel_3_visibility\
-"{"$channel_3_blend"}"_$channel_3_visibility\
-"{"$channel_3_opacity"}"_$channel_3_visibility\
-"{$64}"_$display_black_checkbox\
-"{"$alpha_method"}"_$alpha_visibility\
-"{"$alpha_effect"}"_$alpha_effect_visibility\
-"{"$alpha_multiplication"}"_$alpha_visibility\
-"{"$alpha_blend"}"_$alpha_visibility\
-"{"$alpha_opacity"}"_$alpha_visibility\
-"{$70}"_$display_alpha_checkbox\
-"{0}"\
-"{0}"_$display_make_same_vars_button\
-"{0}"_$display_make_same_vars_button\
-"{"$use_link"}"_$display_link_checkbox\
-"{"$display_link_checkbox"}"\
-"{$1}"\
-"{$2}"\
-"{"$use_link"}"\
-"{"$display_color_space_options"}"\
-"{$80,$81}"\
-"{"$temp_check_count_bools"}"\
-"{"$last_visible_option"}"\
-"{1}"\
-"{"$filter_args"}"\
-"{"$previous_image_preview"}"
 #@gui Vibrato:fx_vibrato,_fx_vibrato_preview(0)
 #@gui:_=note("This is the advanced version of the Vibrato filter. If you do want to manipulate multiple channels at once, use <u>Vibrato - Basic</u> filter. <i>Note: Disable channel mulplication for non-transparent images.</i> \n\n")
 #@gui:_=note("This filter is the one of the G'MIC version of <b>MadJik's</b> <i>Paint.NET plugin</i>")
@@ -24269,7 +24352,7 @@ filename="$12/$13"
 ww={w}
 hh={h}
 
-if '$_host'=='paintdotnet'
+if same('$_host','paintdotnet')
 
  k[0] ig $fileloc rep_photomosaic[0] [^0],$4,$5,{$6/100},${7-9} k[0]
  if $11==0||$11==2 o[0] $filename fi
@@ -24287,7 +24370,7 @@ else
 fi
 
 fx_rep_photomosaic_preview:
-if '$_host'=='paintdotnet' pdn=1 else pdn=0 fi
+if same('$_host','paintdotnet') pdn=1 else pdn=0 fi
 imgs={$!}
 fx_rep_photomosaic $1,"$2",${3-11},"$12","$13"
 
@@ -25651,7 +25734,7 @@ fi
 
 if !$2 rv fi
 
-if ('$_host'=='paintdotnet')&&!$2 rm[0] fi
+if same('$_host','paintdotnet')&&!$2 rm[0] fi
 gui_rep_form_pixel_preview:
 if $3 rv fi
 
@@ -26786,7 +26869,7 @@ skip ${3=""}
 ww={w}
 hh={h}
 
-if '$_host'=='paintdotnet' if $20 +store. pdnimage fi fi
+if same('$_host','paintdotnet') if $20 +store. pdnimage fi fi
 
 if $2 fileloc="$3" fi
 
@@ -26811,7 +26894,7 @@ else
  fi
  k[-2]
 fi
-if '$_host'=='paintdotnet' if $20 filename="$21/$22" o[0] $filename rm $pdnimage
+if same('$_host','paintdotnet') if $20 filename="$21/$22" o[0] $filename rm $pdnimage
 else
 r $ww,$hh,100%,100%,0,0,.5,.5
 fi fi
@@ -26869,7 +26952,7 @@ if $18
  grid=!(((x%$4)==0||(y%$4)==0)||(x==(w-1)||y==(h-1)))?tracker:$14;
  "
 fi
-if '$_host'=='paintdotnet' pdn=1 else pdn=0 fi
+if same('$_host','paintdotnet') pdn=1 else pdn=0 fi
 u "{$1}_"{!$2?2:1}\
 "{$2}"\
 "{$3}_"{$2?2:1}\
@@ -28121,7 +28204,7 @@ elif $8>1
  fi
 fi
 mv. 0
-if '$host'=='paintdotnet' k[0] fi
+if same('$host','paintdotnet') k[0] fi
 fx_rep_cstdmap_preview:
 fx_rep_cstdmap $*
 set_a={(($10==3)||($10==4))?2:0}
