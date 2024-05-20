@@ -780,6 +780,323 @@ mc_pendraw_preview:
 
 #@gui _<i>Ronounours</i>
 
+#@gui Friends Hall of Fame : _none_, fx_friends
+#@gui : note = note{"\n<span foreground="purple" underline="single">Supporters:</span>"}
+#@gui : note = note{" <b>-</b> A big hug goes to these friends who supported the project:"}
+#@gui : note = note{"<i>
+#@gui : Christian Stenner,
+#@gui : Daniel Balle,
+#@gui : Matthias Fuchs,
+#@gui : <a href="https://www.augustus5star.fr/">Alban Bourrat</a>,
+#@gui : <a href="http://viewbug.com/photo/65310796">Elizabeth Hayman</a>,
+#@gui : Nicolas Künzler,
+#@gui : Mikael Wargh,
+#@gui : Giovanni Bianchessi,
+#@gui : Job van der Zwan,
+#@gui : <a href="http://espitallier.net/">Laurent Espitallier</a>,
+#@gui : Mark van der Grijp,
+#@gui : Patrick Wauters,
+#@gui : <a href="https://pocketvj.com">Marc-André Gasser</a>,
+#@gui : <a href="http://www.flickr.com/photos/ssshupe/">Steven Shupe</a>,
+#@gui : Mika Yrjölä,
+#@gui : <a href="https://www.silviogrosso.com/">Silvio Grosso</a>,
+#@gui : Marek Kubica,
+#@gui : <a href="http://www.flickr.com/newmikey">Mike Bing</a>,
+#@gui : <a href="http://pixby.com/">Dave Allen</a>,
+#@gui : Margaret Wong,
+#@gui : Adrian Bottomley,
+#@gui : Pamela Young,
+#@gui : <a href="http://chrisbowness.com/">Chris Bowness</a>,
+#@gui : Peter Howarth,
+#@gui : Marlon Montalvo,
+#@gui : Christian Freiherr von Malchus,
+#@gui : Nolan Tyrrell,
+#@gui : Gilles Bouquerel,
+#@gui : Mihail Balabanov,
+#@gui : Rolf Niepraschk,
+#@gui : Volkmar Geske,
+#@gui : Menno Tjoelker,
+#@gui : <a href="https://borkarabhijeet05.blogspot.com/p/about-me.html">Abhijeet Borkar</a>,
+#@gui : <a href="https://www.behance.net/kontaktarl1e0a">Arleta Lesniewska</a>,
+#@gui : Nicola Giaccobe,
+#@gui : Helmut Mühleisen,
+#@gui : Paul Buckley,
+#@gui : Olivier Lecarme,
+#@gui : Edward Ingram,
+#@gui : <a href="http://www.gus-verlag.de/verlag/Artelier/">Stefan Städtler-Ley</a>,
+#@gui : Michel Pastor,
+#@gui : Sz.U,
+#@gui : Sven Kraft,
+#@gui : Frederik Elwert,
+#@gui : Jessica Leonard,
+#@gui : <a href="https://www.viewbug.com/member/KennZaney">Kenneth Simons</a>,
+#@gui : <a href="https://www.flickr.com/photos/114936163@N05/">Milos Ciuk</a>,
+#@gui : Manlio Barolo,
+#@gui : John Lewandowski,
+#@gui : <a href="http://mediaklan.com/">Didier Lima</a>,
+#@gui : Žygimantas Tauras,
+#@gui : Massimo Ferri,
+#@gui : <a href="https://github.com/sina-ht">Hiroshi Takekawa</a>,
+#@gui : Freelance writer,
+#@gui : <a href="https://www.flickr.com/photos/49284009@N04/">Elaine Hutchings</a>,
+#@gui : András Somogyi,
+#@gui : <a href="https://www.flickr.com/photos/tonurics">Jason Dora</a>,
+#@gui : Boris Hajdukovic,
+#@gui : <a href="https://mappish.com/pages/about-us">Jeff Combs / Mappish</a>,
+#@gui : <a href="http://flickr.com/photos/btraven">BTraven</a>,
+#@gui : <a href="https://500px.com/spodeworld">Steven Brener</a>,
+#@gui : Susanne Gabrielski,
+#@gui : Andrea Correani,
+#@gui : Mads Thomsen,
+#@gui : Djek Eykhout,
+#@gui : Michael Calabrese,
+#@gui : Joachim Steiert
+#@gui : Christian Dubettier,
+#@gui : J. Casseur,
+#@gui : <a href="http://www.gnomelibre.fr/">Okki</a>,
+#@gui : Dariusz Duma,
+#@gui : <a href="http://www.mahvin.com/">Mahvin</a>,
+#@gui : Elleen Hennessy,
+#@gui : BluffStuffPlus,
+#@gui : <a href="http://www.bertrandchan.eu">Bertrand Chan</a>,
+#@gui : Mirella Scotto,
+#@gui : <a href="http://www.photopablo.com">Paul Sauve</a>,
+#@gui : <a href="https://darktablemaster.de">Lars Mielke</a>,
+#@gui : Devin Sorell,
+#@gui : <a href="http://www.quesepuedehacerenlinux.net">Pepe Baeza</a>,
+#@gui : <a href=" http://www.lesnoy-tanets.com">Andrey Pivovarova</a>,
+#@gui : <a href="http://doliver.co.uk/">David Oliver</a>,
+#@gui : <a href="https://ello.co/errore">errore</a>,
+#@gui : <a href="http://www.anudai.de">Anudai</a>,
+#@gui : James Stalnaker,
+#@gui : <a href="https://plus.google.com/u/0/b/117441237982283011318/112547676857320288448/about">Paolo Finetti</a>,
+#@gui : Luigi Scarselli,
+#@gui : <a href="https://patdavid.net/">Pat David</a>,
+#@gui : Juan Jose Rodriguez Vela,
+#@gui : Thomas Jakob,
+#@gui : Kim Bartholomew,
+#@gui : <a href="http://www.captivemoment.com">Sudi</a>,
+#@gui : Michael Prostka,
+#@gui : Arkadi Gelfond,
+#@gui : <a href="https://joeysl.wordpress.com/">Sabine Schäfers</a>,
+#@gui : <a href="http://www.viewbug.com/member/KennZaney">Bull O'Woods</a>,
+#@gui : Jost Jakob Schaper,
+#@gui : Dominik Wefers,
+#@gui : Frank McLaughlin,
+#@gui : <a href="https://29a.ch/">Jonas Wagner</a>,
+#@gui : <a href="www.ixaarii.com">Void lon iXaarii</a>,
+#@gui : Mark Boadey,
+#@gui : Laura Haglund,
+#@gui : Lee Elliott,
+#@gui : Bernard Desenclos,
+#@gui : Randy Gordon-Gilmore,
+#@gui : Eddie Dedrick,
+#@gui : <a href="http://mindprints.org/">Greg FitzPatrick</a>,
+#@gui : Zsolt Szabo,
+#@gui : Daniel Hanna,
+#@gui : Peter Bengtsson,
+#@gui : Diego Nassetti,
+#@gui : William Tweedy,
+#@gui : Shawnee Horn,
+#@gui : Stephan Munsch,
+#@gui : <a href="http://www.mysticali3n-wear.com">MysticAli3n-Wear</a>,
+#@gui : Mika Mantere,
+#@gui : Christian Beuschel,
+#@gui : Tore Busch,
+#@gui : Douc McGregor.
+#@gui : Marcel Dahm,
+#@gui : Susan Voitel,
+#@gui : <a href="https://www.flickr.com/photos/henkkoning">Henk Koning</a>,
+#@gui : Arnie Jordan,
+#@gui : Carol Jennings,
+#@gui : Sébastien Huart,
+#@gui : <a href="http://www.jessstryker.com/">Jess Stryker</a>,
+#@gui : Rui Luis,
+#@gui : <a href="https://www.flickr.com/photos/sallesrenato/">Renato Salles</a>,
+#@gui : <a href="http://www.viewbug.com/member/alef0"> Petr Zagalak</a>,
+#@gui : <a href="http://www.antonio.cat">Antonio Vicién Faure</a>,
+#@gui : Vincent Bermel,
+#@gui : Christian Stocco,
+#@gui : <a href="https://www.flickr.com/photos/136307651@N04/">Richard Benedict</a>,
+#@gui : Dr. Helmut Jarausch,
+#@gui : <a href="http://www.michaeljamesbeck.com">Michael Beck</a>,
+#@gui : <a href="http://rickleone.tumblr.com/">Riccardo Leone</a>,
+#@gui : Gisela Looram,
+#@gui : <a href="https://plus.google.com/u/0/+FrankTegtmeyer/posts">Frank Tegtmeyer</a>,
+#@gui : David Kettrey,
+#@gui : <a href="https://www.youtube.com/user/kncpt1">Peter Hoge</a>,
+#@gui : Alexander Heitmann,
+#@gui : <a href="http://harlequin.webcomics.fr/page/episode-1-page-1">Olivier Larski</a>,
+#@gui : <a href="http://victorfandrey.blogspot.ca">Victor Fandrey</a>,
+#@gui : Stefan Peter,
+#@gui : <a href="https://plus.google.com/u/0/+DimitriosPsychogios">Dimitrios Psychogios</a>,
+#@gui : <a href="https://plus.google.com/+AnttiLuoma">Antti Luoma</a>,
+#@gui : <a href="https://twitter.com/jeyoung">Eddy Young Tie Yang</a>,
+#@gui : Thomas Elfstrom,
+#@gui : Valentine Boyce,
+#@gui : George Harnett,
+#@gui : Darius Manka,
+#@gui : Chris Knox,
+#@gui : <a href="http://tomtappingphotoblog.blogspot.fr/">Thomas Tapping</a>,
+#@gui : Phillip R Ziesemer,
+#@gui : Jean Francois.
+#@gui : Franz Ziereis,
+#@gui : Alessandro Renzi,
+#@gui : Tsuda Koshi,
+#@gui : <a href="http://www.boxrec.com">Boxrec Ltd</a>,
+#@gui : <a href="http://www.wolfgangschweizer.com/">Wolfgang Schweizer</a>,
+#@gui : <a href="http://www.ramonmiranda.com/">Ramon Miranda</a>,
+#@gui : Volker Bradley,
+#@gui : <a href="http://plus.google.com/+MarcoZara">Marco Zara</a>,
+#@gui : <a href="http://plus.google.com/+MarcoTedaldi">Marco Tedaldi</a>,
+#@gui : <a href="http://cybertographer.com">Rodney Lee</a>,
+#@gui : Konstantinos Blatzonis,
+#@gui : Simon Chanson,
+#@gui : Herbert Malle,
+#@gui : <a href="http://www.matthias-zepper.de/">Matthias Zepper</a>,
+#@gui : Christian Mariucci,
+#@gui : M. R.,
+#@gui : Mark Link,
+#@gui : <a href="http://blog.meetthegimp.org/">Rolf Steinort</a>,
+#@gui : <a href="https://plus.google.com/112357088505488756823/posts">Daniel Tauro</a>,
+#@gui : <a href="http://geniisoft.com/">Ben Langhinrichs</a>,
+#@gui : <a href="http://www.openlabs.it/">Paolo Pedaletti</a>,
+#@gui : <a href="http://blog.photomontager.com">Ricardo Corin</a>,
+#@gui : <a href="https://plus.google.com/115953666279509959258">James Prichard</a>,
+#@gui : <a href="https://plus.google.com/116658221461047313647">Matt Jones</a>,
+#@gui : <a href="http://www.flickr.com/people/twekkel/">Eddy Vervest</a>,
+#@gui : <a href="http://www.flaviocdc.net/wiki/">Flavio Casadei Della Chiesa</a>,
+#@gui : <a href="http://www.artwanted.com/artist.cfm?artid=10918">Lyle Kroll</a>.
+#@gui : </i>"}
+#@gui : sep = separator()
+#@gui : note = note{"\n<span foreground="purple" underline="single">Postcard senders:</span>"}
+#@gui : note = note{" <b>-</b> We've received <b>46</b> postcards from <b>G'MIC</b> enthusiasts so far.
+#@gui :               You could be the <b>47rd</b> sender :)"}
+#@gui : note = note{" <b>-</b> A big hug goes to these postcard senders (recently received first) :"}
+#@gui : note = note{"<i>
+#@gui : <a href="https://cimg.eu/img/postcard73.jpg">Benjamin Russell</a> (Portsmouth/USA),
+#@gui : <a href="https://cimg.eu/img/postcard72.jpg">Andreas Weissenburger</a> (Bochum/Germany),
+#@gui : <a href="https://cimg.eu/img/postcard70.jpg">Patrick Wanters</a> (USA),
+#@gui : <a href="https://cimg.eu/img/postcard69.jpg">Josep Febrer</a> (Pregonda/Menorca),
+#@gui : <a href="https://cimg.eu/img/postcard68.jpg">Richard Gledson</a> (Newcastle upon tyne/England),
+#@gui : <a href="https://cimg.eu/img/postcard67.jpg">James Jaworski</a> (Winnipeg/Canada),
+#@gui : <a href="https://cimg.eu/img/postcard66.jpg">Powlux</a> (France),
+#@gui : <a href="https://cimg.eu/img/postcard65.jpg">Volker Doebel</a> (Haldern/Germany),
+#@gui : <a href="https://cimg.eu/img/postcard64.jpg">Patrick Wauters</a> (Bilbao/Spain),
+#@gui : <a href="https://cimg.eu/img/postcard63.jpg">Sebastien Fourey</a> (Konstanz/Germany),
+#@gui : <a href="https://cimg.eu/img/postcard62.jpg">David Revoy</a> (Toulouse/France),
+#@gui : <a href="https://cimg.eu/img/postcard61.jpg">Giulio Canevari</a> (Pavia/Italy),
+#@gui : <a href="https://cimg.eu/img/postcard60.jpg">Bruno Steinbach</a> (Pondicherry/India),
+#@gui : <a href="https://cimg.eu/img/postcard59.jpg">Steve Gillow</a> (Fort Worth/Texas/USA),
+#@gui : <a href="https://cimg.eu/img/postcard58.jpg">Peter Neave</a> (Sydney/Australia),
+#@gui : <a href="https://cimg.eu/img/postcard57.jpg">Andrea [Photoflow]</a> (Italy),
+#@gui : <a href="https://cimg.eu/img/postcard56.jpg">Garry R. Osgood</a> (New York/USA),
+#@gui : <a href="https://cimg.eu/img/postcard55.jpg">Justin Pletzfeld</a> (Germany),
+#@gui : <a href="https://cimg.eu/img/postcard54.jpg">Werner Meier</a> (Germany),
+#@gui : <a href="https://cimg.eu/img/postcard53.jpg">Patrick Wauters</a> (Roma/Italy),
+#@gui : <a href="https://cimg.eu/img/postcard52.jpg">Marc Lis</a> (Belgium),
+#@gui : <a href="https://cimg.eu/img/postcard51.jpg">ZondeR</a> (France),
+#@gui : <a href="https://cimg.eu/img/postcard50.jpg">Bill C.</a> (USA),
+#@gui : <a href="https://cimg.eu/img/postcard49.jpg">Michael T.</a> (France),
+#@gui : <a href="https://cimg.eu/img/postcard48.jpg">Patrick Wauters</a> (Lisboa),
+#@gui : <a href="https://cimg.eu/img/postcard47.jpg">Akky [Gimpchat]</a> (Australia),
+#@gui : <a href="https://cimg.eu/img/postcard45.jpg">Michel Thomas</a> (Germany),
+#@gui : <a href="https://cimg.eu/img/postcard44.jpg">Pierre-Yves</a> (Ile de Batz/France),
+#@gui : <a href="https://cimg.eu/img/postcard43.jpg">Family Hamacher</a> (Trier/Germany),
+#@gui : <a href="https://cimg.eu/img/postcard41.jpg">Benoit Gauzere and Francois Lozes</a> (Hokusai/Japan),
+#@gui : <a href="https://cimg.eu/img/postcard40.jpg">Dr. Rainer Teubner</a> (Seligenstadt/Germany),
+#@gui : <a href="https://cimg.eu/img/postcard39.jpg">Mauro Mitrino</a> (Mantova/Italy),
+#@gui : <a href="https://cimg.eu/img/postcard37.jpg">Werner Meier</a> (Mettlach/Germany),
+#@gui : <a href="https://cimg.eu/img/postcard36.jpg">Arto Huotari</a> (Helsinki/Finland),
+#@gui : <a href="https://cimg.eu/img/postcard33.jpg">Benoit Gauzere</a> (California/USA),
+#@gui : <a href="https://cimg.eu/img/postcard30.jpg">Arkadi Gelfond</a> (Foster City - California/USA),
+#@gui : <a href="https://cimg.eu/img/postcard29.jpg">Corinne Masimann</a> (Neuchatel/Switzerland),
+#@gui : <a href="https://cimg.eu/img/postcard27.jpg">Mahvin</a> (Portland/USA),
+#@gui : <a href="https://cimg.eu/img/postcard26.jpg">Vincent Roullier</a> (Caen/France),
+#@gui : <a href="https://cimg.eu/img/postcard24.jpg">M????</a> (Munich/Germany),
+#@gui : <a href="https://cimg.eu/img/postcard23.jpg">F. Albior</a> (Jaca/Spain),
+#@gui : <a href="https://cimg.eu/img/postcard22.jpg">PhotoComIX</a> (Frascati/Italy),
+#@gui : <a href="https://cimg.eu/img/postcard21.jpg">Guy Poizat</a> (Cabestany/France),
+#@gui : <a href="https://cimg.eu/img/postcard20.jpg">Institut for Biomathematik und Biometrie</a> (Neuherberg/Germany),
+#@gui : <a href="https://cimg.eu/img/postcard15.jpg">Jean-Michel Webbe</a> (Guadeloupe/France),
+#@gui : <a href="https://cimg.eu/img/postcard14.jpg">Jaime</a> (Barcelona/Spain).
+#@gui : </i>"}
+#@gui : sep = separator()
+#@gui : note = note{"\nMay the force be with you!"}
+fx_friends :
+  if $! ratio:=w/h else ratio=1 fi
+  rm _heart80x73 scale3x r 150%,150%,1,1,0,0,0.5,0.5
+  +*. 70 +*.. 110 +*... 255 *[-4] 255 a c
+  blur_radial 4 sharpen 300
+  i.. ${fitratio_wh\ {w},{h},$ratio},1,3
+  rand.. 0,255 sh.. 1,2 /. 2 rm.
+  blur_radial.. 20 sharpen.. 50
+  r. ..,..,1,4,0,0,0.5,0.5 blend alpha
+  143,80,1,1,0 t. "Greetings to\n  all G\47MIC\n  friends!",2,-2,27,1,1
+  +dilate. 3 *.. 255 to_rgb.. j... ..,{[w#-3-w#-2,h#-3-h#-2]/2},0,0,1,.
+  rm[-2,-1]
+
+_heart80x73 :
+  40,73,1,1,0 ellipse 22,22,20,20,0,1,1 polygon 3,7,37,42,72,42,27,1,1 +mirror x a x
+
+#@gui Contributors : _none_, _none_
+#@gui : note = note{"
+#@gui : We would like to thank all these people who contributed to <b>G'MIC</b> in one way or another.
+#@gui : A big hug to : \n\n
+#@gui : <b> -</b> <i>Sylvie Alexandre</i> <small>(packaging, testing & filters)</small>
+#@gui : <b> -</b> <i>Partha Bagchi</i> <small>(packaging)</small>
+#@gui : <b> -</b> <i>Daniel P. Berrangé</i> <small>(packaging)</small>
+#@gui : <b> -</b> <i>Sébastien Bougleux</i> <small>(debugging)</small>
+#@gui : <b> -</b> <i>Jérome Boulanger</i> <small>(testing & code)</small>
+#@gui : <b> -</b> <i>Claude Bulin</i> <small>(packaging)</small>
+#@gui : <b> -</b> <i>Aurélien Ceyden</i> <small>(packaging)</small>
+#@gui : <b> -</b> <i>François Collard</i> <small>(testing)</small>
+#@gui : <b> -</b> <i>Patrick David</i> <small>(testing & filters)</small>
+#@gui : <b> -</b> <i>Maxime Daisy</i> <small>(code & testing)</small>
+#@gui : <b> -</b> <i>Frédéric Devernay</i> <small>(code)</small>
+#@gui : <b> -</b> <i>Iain Fergusson</i> <small>(filters)</small>
+#@gui : <b> -</b> <i>Tobias Fleischer</i> <small>(testing & code)</small>
+#@gui : <b> -</b> <i>Roberto Ferramosca</i> <small>(packaging)</small>
+#@gui : <b> -</b> <i>Jérome Ferrari</i> <small>(testing, code & tutorials)</small>
+#@gui : <b> -</b> <i>Andrea Ferrero</i> <small>(testing, code)</small>
+#@gui : <b> -</b> <i>Chris Fiedler</i> <small>(gfx)</small>
+#@gui : <b> -</b> <i>Sébastien Fourey</i> <small>(G'MIC-Qt, ZArt code & G'MIC online)</small>
+#@gui : <b> -</b> <i>Gentlemanbeggar</i> <small>(filters)</small>
+#@gui : <b> -</b> <i>David Gowers</i> <small>(testing)</small>
+#@gui : <b> -</b> <i>Claes Holmerson</i> <small>(tutorials)</small>
+#@gui : <b> -</b> <i>Arto Huotari</i> <small>(filters)</small>
+#@gui : <b> -</b> <i>Dan Leinir Turthra Jensen</i> <small>(debugging)</small>
+#@gui : <b> -</b> <i>Tom Keil</i> <small>(testing, filters & tutorials)</small>
+#@gui : <b> -</b> <i>Andy Kelday</i> <small>(testing & filters)</small>
+#@gui : <b> -</b> <i>Alan Kwan</i> (afre) <small>(testing & filters)</small>
+#@gui : <b> -</b> <i>Angelo Lama</i> <small>(testing & EKD integration)</small>
+#@gui : <b> -</b> <i>John Lakkas</i> <small>(filters)</small>
+#@gui : <b> -</b> <i>Stéphane de la Linuxerie</i> <small>(design)</small>
+#@gui : <b> -</b> <i>Mark</i> <small>(translation)</small>
+#@gui : <b> -</b> <i>Mahvin</i> <small>(testing & design)</small>
+#@gui : <b> -</b> <i>MareroQ</i> <small>(translation)</small>
+#@gui : <b> -</b> <i>Ramon Miranda</i> <small>(translation)</small>
+#@gui : <b> -</b> <i>Tou Omiya</i> <small>(translation)</small>
+#@gui : <b> -</b> <i>Mauro Quercia</i> <small>(translation)</small>
+#@gui : <b> -</b> <i>PhotoComiX</i> <small>(testing, translation & filters)</small>
+#@gui : <b> -</b> <i>Garry Osgood</i> <small>(documentation & filters)</small>
+#@gui : <b> -</b> <i>Jehan Pages</i> <small>(testing & code)</small>
+#@gui : <b> -</b> <i>Andreas Påhlsson</i> <small>(filters)</small>
+#@gui : <b> -</b> <i>James Prichard</i> <small>(testing & filters)</small>
+#@gui : <b> -</b> <i>Guilherme Razgriz</i> <small>(translation)</small>
+#@gui : <b> -</b> <i>Karsten Rodenacker</i> <small>(packaging & code)</small>
+#@gui : <b> -</b> <i>Marc Roovers</i> <small>(clut data)</small>
+#@gui : <b> -</b> <i>Dani Sardà</i> <small>(translation)</small>
+#@gui : <b> -</b> <i>Yuri Shemanin</i> <small>(debugging)</small>
+#@gui : <b> -</b> <i>Silvio Grosso</i> <small>(debugging)</small>
+#@gui : <b> -</b> <i>Stepanekos</i> <small>(translation)</small>
+#@gui : <b> -</b> <i>Thorsten "otto" Stettin</i> <small>(packaging)</small>
+#@gui : <b> -</b> <i>Lukas Tvrdy</i> <small>(Krita integration)</small>
+#@gui : <b> -</b> <i>Martin Wolff</i> <small>(testing & filters)</small>
+#@gui : <b> -</b> <i>Bernd Zeimetz</i> <small>(packaging)</small>
+#@gui : <b> -</b> <i>Matthias Zepper</i> <small>(testing)</small>
+#@gui : <b> -</b>"}
+
 #@gui Krita Helper : fx_krita, fx_krita
 fx_krita :
   text="Krita helper:\n"\
@@ -868,7 +1185,7 @@ gui_layer_info :
 
   repeat $! l[$>]
     0 t. "Layer indice: ""#"$>"\nLayer name: "${-gui_layer_name}"\nBlending mode: "${-gui_layer_mode}"\nOpacity : "${-gui_layer_opacity}"\nPosition: "${-gui_layer_pos},0,0,40,1,255
-    to_rgba[0] expand_xy. 8,0 +dilate. 8 to_colormode[1] {0,s} j[0] [1],20,20,0,0,1,[2],255
+    to_rgba[0] expand. xy,8 +dilate. 8 to_colormode[1] {0,s} j[0] [1],20,20,0,0,1,[2],255
     k[0]
   done done
 
@@ -1913,7 +2230,7 @@ view_surfels3d :
   # Generate volumetric image.
   nm={n}
   +distance. 0 *. -1 +. 1 *. .. +distance.. 1 +[-2,-1] round. 0.1 # Last channel : used for threshold
-  l[0] { expand_xyz. 1,0 b. 4,0 g xyz,0,0 shrink_xyz 1 a c n 0,255 } # RGB colors
+  l[0] { expand. xyz,1 b. 4,0 g xyz,0,0 shrink xyz,1 a c n 0,255 } # RGB colors
   a c
   => img
 
@@ -2954,8 +3271,6 @@ _display3d :
   if narg($disp_normalization) w[] -1,-1,$disp_normalization else w[] 0 fi
   v -1 d[]
 
-
-
 #@cli lezoray3d : out_filename.png,nb_frames>0
 #@cli : Generate a 3D animation from a set of two 3D meshes.
 #@cli : Output frames are 1024x512 RGBA images.
@@ -3043,14 +3358,14 @@ dar_lib :
     _dar_siz>0?--dar_size(#ind);
   );"
 
-#@cli rand_pdf : [probability_density],_min_value,_max_value,_precision[%]
-#@cli : Fill selected images with random values which follow the given probability distribution.
-#@cli : This commands implements the inverse random sampling algorithm, as described in
-#@cli : <https://en.wikipedia.org/wiki/Inverse_transform_sampling>.
-#@cli : The 'precision' argument sets the number of distinct random values that can be generated.
-#@cli : Default values: 'min_value=-1', 'max_value=1' and 'precision=65536'.
-#@cli : $ (1,0.5,1) 50,50 rand_pdf[1] [0],0,255
-#@cli : $ 256 gaussian[-1] 30 line[-1] 47%,0,53%,0,1,0 500,500 rand_pdf[-1] [-2],0,255 +histogram[-1] 256 \
+# rand_pdf : [probability_density],_min_value,_max_value,_precision[%]
+# : Fill selected images with random values which follow the given probability distribution.
+# : This commands implements the inverse random sampling algorithm, as described in
+# : <https://en.wikipedia.org/wiki/Inverse_transform_sampling>.
+# : The 'precision' argument sets the number of distinct random values that can be generated.
+# : Default values: 'min_value=-1', 'max_value=1' and 'precision=65536'.
+# : $ (1,0.5,1) 50,50 rand_pdf[1] [0],0,255
+# : $ 256 gaussian[-1] 30 line[-1] 47%,0,53%,0,1,0 500,500 rand_pdf[-1] [-2],0,255 +histogram[-1] 256 \
 # display_graph[0,2] 640,480,3,0
 rand_pdf : check ${"is_image_arg $1"}" && isnum(${2=-1}) && isnum(${3=1}) && ${4=65536}>=0"
   e[^-1] "Fill image$? with random values in [$2,$3], according to probability distribution $1, with precision $4."
@@ -3066,6 +3381,359 @@ rand_pdf : check ${"is_image_arg $1"}" && isnum(${2=-1}) && isnum(${3=1}) && ${4
 
   # Sample random numbers according to given pdf.
   f[^-1] "ind = lerp(0,w#-1,u); i[#-1,ind,2]" rm.
+
+# r2dx : eq. to 'resize2dx'.
+r2dx :
+  _gmic_s="$?" v + _resize2dx $*
+
+# resize2dx : width[%]>0,_interpolation,_boundary_conditions,_ax,_ay,_az,_ac
+# : Resize selected images along the x-axis, while preserving 2D ratio.
+# : (eq. to 'r2dx').\n
+# : 'interpolation' can be { -1:none (memory content) | 0:none | 1:nearest | 2:average | 3:linear | \
+# 4:grid | 5:bicubic | 6:lanczos }.
+# : 'boundary_conditions' has different meanings, according to the chosen 'interpolation' mode :
+# : . When 'interpolation=={ -1 | 1 | 2 | 4 }', 'boundary_conditions' is meaningless.
+# : . When 'interpolation==0', 'boundary_conditions' can be { 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }.
+# : . When 'interpolation=={ 3 | 5 | 6 }', 'boundary_conditions' can be { 0:none | 1:neumann }.
+# : 'ax,ay,az,ac' set the centering along each axis when 'interpolation=0'
+# : (set to '0' by default, must be defined in range [0,1]).
+# : Default values: 'interpolation=3', 'boundary_conditions=0' and 'ax=ay=az=ac=0'.
+# : $ image.jpg +resize2dx 100,2 append x
+resize2dx :
+  _gmic_s="$?" v + _$0 $*
+
+_resize2dx : check "$1>0 && ${2=3}>=0 && $2<=6 && ${3=0}>=0 && $3<=3 && ${4=0}>=0 && $4<=1 && ${5=0}>=0 && $5<=1 &&
+                    ${6=0}>=0 && $6<=1 && ${7=0}>=0 && $7<=1"
+  e[0--3] "Resize 2D image"$_gmic_s" to $1 pixels along the x-axis, while preserving 2D ratio."
+  foreach {
+    size:=ispercentage($1)?$1*w:$1
+    r {max(1,$size)},{max(1,h*$size/w)},100%,100%,${2-7}
+  }
+
+# r2dy : eq. to 'resize2dy'.
+r2dy :
+  _gmic_s="$?" v + _resize2dy $*
+
+# resize2dy : height[%]>=0,_interpolation,_boundary_conditions,_ax,_ay,_az,_ac
+# : Resize selected images along the y-axis, while preserving 2D ratio.
+# : (eq. to 'r2dy').\n
+# : 'interpolation' can be { -1:none (memory content) | 0:none | 1:nearest | 2:average | 3:linear | \
+# 4:grid | 5:bicubic | 6:lanczos }.
+# : 'boundary_conditions' has different meanings, according to the chosen 'interpolation' mode :
+# : . When 'interpolation=={ -1 | 1 | 2 | 4 }', 'boundary_conditions' is meaningless.
+# : . When 'interpolation==0', 'boundary_conditions' can be { 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }.
+# : . When 'interpolation=={ 3 | 5 | 6 }', 'boundary_conditions' can be { 0:none | 1:neumann }.
+# : 'ax,ay,az,ac' set the centering along each axis when 'interpolation=0'
+# : (set to '0' by default, must be defined in range [0,1]).
+# : Default values: 'interpolation=3', 'boundary_conditions=0' and 'ax=ay=az=ac=0'.
+# : $ image.jpg +resize2dy 100,2 append x
+resize2dy :
+  _gmic_s="$?" v + _$0 $*
+
+_resize2dy : check "$1>=0 && ${2=3}>=0 && $2<=6 && ${3=0}>=0 && $3<=3 && ${4=0}>=0 && $4<=1 && ${5=0}>=0 && $5<=1 &&
+                    ${6=0}>=0 && $6<=1 && ${7=0}>=0 && $7<=1"
+  e[0--3] "Resize 2D image"$_gmic_s" to $1 pixels along the y-axis, while preserving 2D ratio."
+  foreach {
+    size:=ispercentage($1)?$1*h:$1
+    r {max(1,w*$size/h)},{max(1,$size)},100%,100%,${2-7}
+  }
+
+# rr2d : eq. to 'resize_ratio2d'.
+rr2d :
+  _gmic_s="$?" v + _resize_ratio2d $*
+
+# resize_ratio2d : width>0,height>0,_mode={ 0:inside | 1:outside | 2:padded },0=<_interpolation<=6
+# : Resize selected images while preserving their aspect ratio.
+# : (eq. to 'rr2d').
+# : Default values: 'mode=0' and 'interpolation=6'.
+resize_ratio2d :
+  _gmic_s="$?" v + _$0 $*
+
+_resize_ratio2d : check "$1>0 && $2>0 && ${3=0}>=0 && $3<=2 && ${4=6}>=0 && $4<=6"
+  e[0--3] "Resize 2D image"$_gmic_s" to $1x$2 with ratio-"${arg0\ $3,inside,outside,padded}\
+           " mode and interpolation type $4."
+  foreach {
+    ratio:=$3==1?max($1/w,$2/h):min($1/w,$2/h)
+    r {[max(1,round(w*$ratio)),max(1,round(h*$ratio))]},100%,100%,$4
+  }
+  if $3==2 r $1,$2,100%,100%,0,0,0.5,0.5 fi
+
+# r3dx : eq. to 'resize3dx'.
+r3dx :
+  _gmic_s="$?" v + _resize3dx $*
+
+# resize3dx : width[%]>0,_interpolation,_boundary_conditions,_ax,_ay,_az,_ac
+# : Resize selected images along the x-axis, while preserving 3D ratio.
+# : (eq. to 'r3dx').\n
+# : 'interpolation' can be { -1:none (memory content) | 0:none | 1:nearest | 2:average | 3:linear | \
+# 4:grid | 5:bicubic | 6:lanczos }.
+# : 'boundary_conditions' has different meanings, according to the chosen 'interpolation' mode :
+# : . When 'interpolation=={ -1 | 1 | 2 | 4 }', 'boundary_conditions' is meaningless.
+# : . When 'interpolation==0', 'boundary_conditions' can be { 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }.
+# : . When 'interpolation=={ 3 | 5 | 6 }', 'boundary_conditions' can be { 0:none | 1:neumann }.
+# : 'ax,ay,az,ac' set the centering along each axis when 'interpolation=0'
+# : (set to '0' by default, must be defined in range [0,1]).
+# : Default values: 'interpolation=3', 'boundary_conditions=0' and 'ax=ay=az=ac=0'.
+resize3dx :
+  _gmic_s="$?" v + _$0 $*
+
+_resize3dx : check "$1>0 && ${2=3}>=0 && $2<=6 && ${3=0}>=0 && $3<=3 && ${4=0}>=0 && $4<=1 && ${5=0}>=0 && $5<=1 &&
+                    ${6=0}>=0 && $6<=1 && ${7=0}>=0 && $7<=1"
+  e[0--3] "Resize 3D image"$_gmic_s" to $1 pixels along the x-axis, while preserving 3D ratio."
+  foreach {
+    size:=ispercentage($1)?$1*w:$1
+    r {max(1,$size)},{max(1,h*$size/w)},{max(1,d*$size/w)},100%,${2-7}
+  }
+
+# r3dy : eq. to 'resize3dy'.
+r3dy :
+  _gmic_s="$?" v + _resize3dy $*
+
+# resize3dy : height[%]>0,_interpolation,_boundary_conditions,_ax,_ay,_az,_ac
+# : Resize selected images along the y-axis, while preserving 3D ratio.
+# : (eq. to 'r3dy').\n
+# : 'interpolation' can be { -1:none (memory content) | 0:none | 1:nearest | 2:average | 3:linear | \
+# 4:grid | 5:bicubic | 6:lanczos }.
+# : 'boundary_conditions' has different meanings, according to the chosen 'interpolation' mode :
+# : . When 'interpolation=={ -1 | 1 | 2 | 4 }', 'boundary_conditions' is meaningless.
+# : . When 'interpolation==0', 'boundary_conditions' can be { 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }.
+# : . When 'interpolation=={ 3 | 5 | 6 }', 'boundary_conditions' can be { 0:none | 1:neumann }.
+# : 'ax,ay,az,ac' set the centering along each axis when 'interpolation=0'
+# : (set to '0' by default, must be defined in range [0,1]).
+# : Default values: 'interpolation=3', 'boundary_conditions=0' and 'ax=ay=az=ac=0'.
+resize3dy :
+  _gmic_s="$?" v + _$0 $*
+
+_resize3dy : check "$1>0 && ${2=3}>=0 && $2<=6 && ${3=0}>=0 && $3<=3 && ${4=0}>=0 && $4<=1 && ${5=0}>=0 && $5<=1 &&
+                    ${6=0}>=0 && $6<=1 && ${7=0}>=0 && $7<=1"
+  e[0--3] "Resize 3D image"$_gmic_s" to $1 pixels along the y-axis, while preserving 3D ratio."
+  foreach {
+    size:=ispercentage($1)?$1*h:$1
+    r {max(1,w*$size/h)},{max(1,$size)},{max(1,d*$size/h)},100%,${2-7}
+  }
+
+# r3dz : eq. to 'resize3dz'.
+r3dz :
+  _gmic_s="$?" v + _resize3dz $*
+
+# resize3dz : depth[%]>0,_interpolation,_boundary_conditions,_ax,_ay,_az,_ac
+# : Resize selected images along the z-axis, while preserving 3D ratio.
+# : (eq. to 'r3dz').\n
+# : 'interpolation' can be { -1:none (memory content) | 0:none | 1:nearest | 2:average | 3:linear | \
+# 4:grid | 5:bicubic | 6:lanczos }.
+# : 'boundary_conditions' has different meanings, according to the chosen 'interpolation' mode :
+# : . When 'interpolation=={ -1 | 1 | 2 | 4 }', 'boundary_conditions' is meaningless.
+# : . When 'interpolation==0', 'boundary_conditions' can be { 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }.
+# : . When 'interpolation=={ 3 | 5 | 6 }', 'boundary_conditions' can be { 0:none | 1:neumann }.
+# : 'ax,ay,az,ac' set the centering along each axis when 'interpolation=0'
+# : (set to '0' by default, must be defined in range [0,1]).
+# : Default values: 'interpolation=3', 'boundary_conditions=0' and 'ax=ay=az=ac=0'.
+resize3dz :
+  _gmic_s="$?" v + _$0 $*
+
+_resize3dz : check "$1>0 && ${2=3}>=0 && $2<=6 && ${3=0}>=0 && $3<=3 && ${4=0}>=0 && $4<=1 && ${5=0}>=0 && $5<=1 &&
+                    ${6=0}>=0 && $6<=1 && ${7=0}>=0 && $7<=1"
+  e[0--3] "Resize 3D image"$_gmic_s" to $1 pixels along the z-axis, while preserving 3D ratio."
+  foreach {
+    size:=ispercentage($1)?$1*d:$1
+    r[$>] {max(1,w*$size/d)},{max(1,h*$size/d)},{max(1,$size)},100%,${2-7}
+  }
+
+# r2din : eq. to 'resize2din'
+r2din :
+  _gmic_s="$?" v + _resize2din $*
+
+# resize2din : width[%]>0,_height[%]>0,_interpolation,_boundary_conditions,_ax,_ay,_az,_ac
+# : Resize selected images so the size is not larger than 'width'x'height' while preserving 2D ratio.
+# : (eq. to 'r2din').\n
+# : 'interpolation' can be { -1:none (memory content) | 0:none | 1:nearest | 2:average | 3:linear | \
+# 4:grid | 5:bicubic | 6:lanczos }.
+# : 'boundary_conditions' has different meanings, according to the chosen 'interpolation' mode :
+# : . When 'interpolation=={ -1 | 1 | 2 | 4 }', 'boundary_conditions' is meaningless.
+# : . When 'interpolation==0', 'boundary_conditions' can be { 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }.
+# : . When 'interpolation=={ 3 | 5 | 6 }', 'boundary_conditions' can be { 0:none | 1:neumann }.
+# : 'ax,ay,az,ac' set the centering along each axis when 'interpolation=0'
+# : (set to '0' by default, must be defined in range [0,1]).
+# : Default values: 'height=100%', 'interpolation=3', 'boundary_conditions=0' and 'ax=ay=az=ac=0'.
+# : $ image.jpg +resize2din 100,100 append x
+resize2din :
+  _gmic_s="$?" v + _$0 $*
+
+_resize2din : check "$1>0 && ${2=100%}>0 && ${3=3}>=0 && $3<=6 && ${4=0}>=0 && $4<=3 && "\
+                    "${5=0}>=0 && $5<=1 && ${6=0}>=0 && $6<=1 && ${7=0}>=0 && $7<=1 && ${8=0}>=0 && $8<=1"
+  e[0--3] "Resize image"$_gmic_s" so the size is not larger than $1x$2, while preserving 2D ratio."
+  eval "repeat (l,k,
+    W = ispercentage($1)?w#k*$1:$1;
+    H = ispercentage($2)?h#k*$2:$2;
+    dims = round(min(W/w#k,H/h#k)*[w#k,h#k]);
+    resize(#k,max(1,dims[0]),max(1,dims[1]),d#k,s#k,${3-8});
+  )"
+
+# r3din : eq. to 'resize3din'
+r3din :
+  _gmic_s="$?" v + _resize3din $*
+
+# resize3din : width[%]>0,_height[%]>0,_depth[%]>0,_interpolation,_boundary_conditions,_ax,_ay,_az,_ac
+# : Resize selected images so the size is not larger than 'width'x'height'x'depth' while preserving 3D ratio.
+# : (eq. to 'r3din').\n
+# : 'interpolation' can be { -1:none (memory content) | 0:none | 1:nearest | 2:average | 3:linear | \
+# 4:grid | 5:bicubic | 6:lanczos }.
+# : 'boundary_conditions' has different meanings, according to the chosen 'interpolation' mode :
+# : . When 'interpolation=={ -1 | 1 | 2 | 4 }', 'boundary_conditions' is meaningless.
+# : . When 'interpolation==0', 'boundary_conditions' can be { 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }.
+# : . When 'interpolation=={ 3 | 5 | 6 }', 'boundary_conditions' can be { 0:none | 1:neumann }.
+# : 'ax,ay,az,ac' set the centering along each axis when 'interpolation=0'
+# : (set to '0' by default, must be defined in range [0,1]).
+# : Default values: 'height=100%', 'depth=100%', 'interpolation=3', 'boundary_conditions=0' and 'ax=ay=az=ac=0'.
+resize3din :
+  _gmic_s="$?" v + _$0 $*
+
+_resize3din : check "$1>0 && ${2=100%}>0 && ${3=100%}>0 && ${4=3}>=0 && $4<=6 && ${5=0}>=0 && $5<=3 && "\
+                    "${6=0}>=0 && $6<=1 && ${7=0}>=0 && $7<=1 && ${8=0}>=0 && $8<=1 && ${9=0}>=0 && $9<=1"
+  e[0--3] "Resize image"$_gmic_s" so the size is not larger than $1x$2x$3, while preserving 3D ratio."
+  eval "repeat (l,k,
+    W = ispercentage($1)?w#k*$1:$1;
+    H = ispercentage($2)?h#k*$2:$2;
+    D = ispercentage($3)?d#k*$3:$3;
+    dims = round(min(W/w#k,H/h#k,D/d#k)*[w#k,h#k,d#k]);
+    resize(#k,max(1,dims[0]),max(1,dims[1]),max(1,dims[2]),s#k,${4-9});
+  )"
+
+# r2dout : eq. to 'resize2dout'
+r2dout :
+  _gmic_s="$?" v + _resize2dout $*
+
+# resize2dout : width[%]>0,_height[%]>0,_interpolation,_boundary_conditions,_ax,_ay,_az,_ac
+# : Resize selected images so the size is not smaller than 'width'x'height' while preserving 2D ratio.
+# : (eq. to 'r2dout').\n
+# : 'interpolation' can be { -1:none (memory content) | 0:none | 1:nearest | 2:average | 3:linear | \
+# 4:grid | 5:bicubic | 6:lanczos }.
+# : 'boundary_conditions' has different meanings, according to the chosen 'interpolation' mode :
+# : . When 'interpolation=={ -1 | 1 | 2 | 4 }', 'boundary_conditions' is meaningless.
+# : . When 'interpolation==0', 'boundary_conditions' can be { 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }.
+# : . When 'interpolation=={ 3 | 5 | 6 }', 'boundary_conditions' can be { 0:none | 1:neumann }.
+# : 'ax,ay,az,ac' set the centering along each axis when 'interpolation=0'
+# : (set to '0' by default, must be defined in range [0,1]).
+# : Default values: 'height=100%', 'interpolation=3', 'boundary_conditions=0' and 'ax=ay=az=ac=0'.
+# : $ image.jpg +resize2dout 100,100 append x
+resize2dout :
+  _gmic_s="$?" v + _$0 $*
+
+_resize2dout : check "$1>0 && ${2=100%}>0 && ${3=3}>=0 && $3<=6 && ${4=0}>=0 && $4<=3 && "\
+                     "${5=0}>=0 && $5<=1 && ${6=0}>=0 && $6<=1 && ${7=0}>=0 && $7<=1 && ${8=0}>=0 && $8<=1"
+  e[0--3] "Resize image"$_gmic_s" so the size is not larger than $1x$2, while preserving 2D ratio."
+  eval "repeat (l,k,
+    W = ispercentage($1)?w#k*$1:$1;
+    H = ispercentage($2)?h#k*$2:$2;
+    dims = round(max(W/w#k,H/h#k)*[w#k,h#k]);
+    resize(#k,max(1,dims[0]),max(1,dims[1]),d#k,s#k,${3-8});
+  )"
+
+# r3dout : eq. to 'resize3dout'
+r3dout :
+  _gmic_s="$?" v + _resize3dout $*
+
+# resize3dout : width[%]>0,_height[%]>0,_depth[%]>0,_interpolation,_boundary_conditions,_ax,_ay,_az,_ac
+# : Resize selected images so the size is not smaller than 'width'x'height'x'depth' while preserving 3D ratio.
+# : (eq. to 'r3dout').\n
+# : 'interpolation' can be { -1:none (memory content) | 0:none | 1:nearest | 2:average | 3:linear | \
+# 4:grid | 5:bicubic | 6:lanczos }.
+# : 'boundary_conditions' has different meanings, according to the chosen 'interpolation' mode :
+# : . When 'interpolation=={ -1 | 1 | 2 | 4 }', 'boundary_conditions' is meaningless.
+# : . When 'interpolation==0', 'boundary_conditions' can be { 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }.
+# : . When 'interpolation=={ 3 | 5 | 6 }', 'boundary_conditions' can be { 0:none | 1:neumann }.
+# : 'ax,ay,az,ac' set the centering along each axis when 'interpolation=0'
+# : (set to '0' by default, must be defined in range [0,1]).
+# : Default values: 'height=100%', 'depth=100%', 'interpolation=3', 'boundary_conditions=0' and 'ax=ay=az=ac=0'.
+resize3dout :
+  _gmic_s="$?" v + _$0 $*
+
+_resize3dout : check "$1>0 && ${2=100%}>0 && ${3=100%}>0 && ${4=3}>=0 && $4<=6 && ${5=0}>=0 && $5<=3 && "\
+                     "${6=0}>=0 && $6<=1 && ${7=0}>=0 && $7<=1 && ${8=0}>=0 && $8<=1 && ${9=0}>=0 && $9<=1"
+  e[0--3] "Resize image"$_gmic_s" so the size is not larger than $1x$2x$3, while preserving 3D ratio."
+  eval "repeat (l,k,
+    W = ispercentage($1)?w#k*$1:$1;
+    H = ispercentage($2)?h#k*$2:$2;
+    D = ispercentage($3)?d#k*$3:$3;
+    dims = round(max(W/w#k,H/h#k,D/d#k)*[w#k,h#k,d#k]);
+    resize(#k,max(1,dims[0]),max(1,dims[1]),max(1,dims[2]),s#k,${4-9});
+  )"
+
+# expand_x : size,_boundary_conditions={ 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }
+# : Expand selected images along the x-axis.
+# : Default value: 'boundary_conditions=0'.
+# : $ image.jpg expand_x 30,0
+expand_x : check "isint($1) && isint(${2=0},0,3)"
+  e[^-1] "Expand image$? along the x-axis with size $1 and "${"arg0 $2,dirichlet,neumann,periodic,mirror"}"
+          boundary conditions."
+  repeat $! { l[$>] { r {w+2*$1},100%,100%,100%,0,$2,0.5 onfail rm 0 } }
+
+# expand_xy : size,_boundary_conditions={ 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }
+# : Expand selected images along the xy-axes.
+# : Default value: 'boundary_conditions=0'.
+# : $ image.jpg expand_xy 30,0
+expand_xy : check "isint($1) && isint(${2=0},0,3)"
+  e[^-1] "Expand image$? along the xy-axes with size $1 and "${"arg0 $2,dirichlet,neumann,periodic,mirror"}"
+          boundary conditions."
+  repeat $! { l[$>] { r {[w,h]+2*$1},100%,100%,0,$2,0.5,0.5 onfail rm 0 } }
+
+# expand_xyz : size,_boundary_conditions={ 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }
+# : Expand selected images along the xyz-axes.
+# : Default value: 'boundary_conditions=0'.
+expand_xyz : check "isint($1) && isint(${2=0},0,3)"
+  e[^-1] "Expand image$? along the xyz-axes with size $1 and "${"arg0 $2,dirichlet,neumann,periodic,mirror"}"
+          boundary conditions."
+  repeat $! { l[$>] { r {[w,h,d]+2*$1},100%,0,$2,0.5,0.5,0.5 onfail rm 0 } }
+
+# expand_y : size,_boundary_conditions={ 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }
+# : Expand selected images along the y-axis.
+# : Default value: 'boundary_conditions=0'.
+# : $ image.jpg expand_y 30,0
+expand_y : check "isint($1) && isint(${2=0},0,3)"
+  e[^-1] "Expand image$? along the y-axis with size $1 and "${"arg0 $2,dirichlet,neumann,periodic,mirror"}"
+          boundary conditions."
+  repeat $! { l[$>] { r 100%,{h+2*$1},100%,100%,0,$2,0,0.5 onfail rm 0 } }
+
+# expand_z : size_z,_boundary_conditions={ 0:dirichlet | 1:neumann | 2:periodic | 3:mirror }
+# : Expand selected images along the z-axis.
+# : Default value: 'boundary_conditions=0'.
+expand_z : check "isint($1) && isint(${2=0},0,3)"
+  e[^-1] "Expand image$? along the z-axis with size $1 and "${"arg0 $2,dirichlet,neumann,periodic,mirror"}"
+          boundary conditions."
+  repeat $! { l[$>] { r 100%,100%,{d+2*$1},100%,0,$2,0,0,0.5 onfail rm 0 } }
+
+# shrink_x : size
+# : Shrink selected images along the x-axis.
+# : $ image.jpg shrink_x 30
+shrink_x : check "isint($1)"
+  e[^-1] "Shrink image$? along the x-axis with size $1."
+  expand_x {-$1}
+
+# shrink_xy : size
+# : Shrink selected images along the xy-axes.
+# : $ image.jpg shrink_xy 30
+shrink_xy : check "isint($1)"
+  e[^-1] "Shrink image$? along the xy-axes with size $1."
+  expand_xy {-$1}
+
+# shrink_xyz : size
+# : Shrink selected images along the xyz-axes.
+shrink_xyz : check "isint($1)"
+  e[^-1] "Shrink image$? along the xyz-axes with size $1."
+  expand_xyz {-$1}
+
+# shrink_y : size
+# : Shrink selected images along the y-axis.
+# : $ image.jpg shrink_y 30
+shrink_y : check "isint($1)"
+  e[^-1] "Shrink image$? along the y-axis with size $1."
+  expand_y {-$1}
+
+# shrink_z : size
+# : Shrink selected images along the z-axis.
+shrink_z : check "isint($1)"
+  e[^-1] "Shrink image$? along the z-axis with size $1."
+  expand_z {$-1}
 
 # Local Variables:
 # mode: sh
