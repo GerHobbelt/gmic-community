@@ -222,16 +222,16 @@ if $far_mode
  if $cube_size==256
   initial_code=i(#-1,I)=1
   xyz_code=[xM,yM,zM]
-  m "rep_nonexistent_colors_pal_insert_new_color: point 0,$""1,0,1,$""2,$""3,$""4"
+  m "cmd_$0_insert_new_color: point 0,$""1,0,1,$""2,$""3,$""4"
  else
   d_cube_size={$cube_size-1}
   initial_code=i(#-1,I*{$d_cube_size/255})=1
   xyz_code=round([xM,yM,zM])
-  m "rep_nonexistent_colors_pal_insert_new_color: point 0,$""1,0,1,{round([$""2,$""3,$""4]*"{255/$d_cube_size}")}"
+  m "cmd_$0_insert_new_color: point 0,$""1,0,1,{round([$""2,$""3,$""4]*"{255/$d_cube_size}")}"
  fi
 
  if $mask_factor
-  m "rep_nonexistent_colors_pal_generate_pal:
+  m "cmd_$0_generate_pal:
    current_number_of_colors=$""1
 
    if "$append_into_pal"
@@ -252,14 +252,14 @@ if $far_mode
    repeat "$number_of_new_colors" {
     +distance... 1,2 *. .. xyz:="$xyz_code" rm.
     point... $xyz,1,1
-    rep_nonexistent_colors_pal_insert_new_color.. $current_number_of_colors,$xyz
+    cmd_$0_insert_new_color.. $current_number_of_colors,$xyz
     current_number_of_colors+=1
    }
 
    remove[-3,-1]
    "
  else
-  m "rep_nonexistent_colors_pal_generate_pal:
+  m "cmd_$0_generate_pal:
    current_number_of_colors=$""1
 
    if "$append_into_pal"
@@ -275,7 +275,7 @@ if $far_mode
    repeat "$number_of_new_colors" {
     +distance.. 1,2 xyz:="$xyz_code" rm.
     point.. $xyz,1,1
-    rep_nonexistent_colors_pal_insert_new_color. $current_number_of_colors,$xyz
+    cmd_$0_insert_new_color. $current_number_of_colors,$xyz
     current_number_of_colors+=1
    }
 
@@ -295,7 +295,7 @@ foreach { # For each images
 
   {vector3($cube_size)},1
   eval[-2] $initial_code
-  rep_nonexistent_colors_pal_generate_pal $current_number_of_colors
+  cmd_$0_generate_pal $current_number_of_colors
 
  else
 
@@ -473,7 +473,7 @@ foreach { # For each images
  fi
 }
 
-um rep_nonexistent_colors_pal_insert_new_color,rep_nonexistent_colors_pal_generate_pal
+um cmd_$0_insert_new_color,cmd_$0_generate_pal
 #@cli rep_van_neumann_condition_tiling: width,height,whole_number_count_starting_from_zero>=4
 #@cli : Generate random tiles which meets van neumann condition.
 +rep_van_neumann_condition_tiling:
@@ -1021,10 +1021,10 @@ res,sep=
 
 if $mode_unicode
     n0,n1:='01'
-    str_code=<begin(m=0;n=0;);n|=(i==$n1)<<m;++m;end(set('\{\}',v2s(n)););
+    bin=t
 else
     n0,n1=0,1
-    str_code=<begin(m=0;n=0;);n|=i<<m;++m;end(set('\{\}',v2s(n)););
+    bin=`crop(#-1)+$n0`
 fi
 
 foreach {
@@ -1122,7 +1122,7 @@ foreach {
             fi
     else
 
-        eval[-1] $str_code rm.
+        eval 0b{$bin}
 
         if $preserve_base10_dynamic_array_image
             1,{1+int(log(${})/log(1e7))},1,1,<"begin(
@@ -1141,6 +1141,7 @@ foreach {
             if $unicode_out
                 res.=$sep${}
                 sep=,
+                remove.
             else
                 ('${}') -. $n0 => bin2dec_result_img
             fi
@@ -1596,7 +1597,7 @@ vibrance_factor_ych={cut($1,-1,1)}
 if !$vibrance_factor_ych return fi
 
 if $vibrance_factor_ych>0
- m "vibrance_ych_adj:
+ m "cmd_$0_adj:
   f \"begin(
      const vibrance_factor="$vibrance_factor_ych";
     );
@@ -1607,7 +1608,7 @@ if $vibrance_factor_ych>0
   "
 else
  vibrance_factor_ych={1-abs($vibrance_factor_ych)}
- m "vibrance_ych_adj: * "$vibrance_factor_ych""
+ m "cmd_$0_adj: * "$vibrance_factor_ych""
 fi
 
 m "cmd_vibrance:
@@ -1617,7 +1618,7 @@ m "cmd_vibrance:
  shared. 1,2
  f. [norm(I),atan2(i1,i0)] # Result into i0 is r and i1 is ang
  shared. 0
- vibrance_ych_adj.
+ cmd_$0_adj.
  rm.
  f. [i0*cos(i1),i0*sin(i1)] # Utilize the fact that i0 is r and i1 is ang
  rm.
@@ -1641,7 +1642,7 @@ foreach {
  fi
 }
 
-uncommand cmd_vibrance,vibrance_ych_adj
+uncommand cmd_vibrance,cmd_$0_adj
 #@cli rep_import_pdn_txt: file_a...file_z...,_discard_alpha={ 0=keep | 1=discard_alpha | 2=auto }
 #@cli : Import PDN Palette (.txt)
 #@cli : There can be as many files. This import file relative to your current directory.
@@ -3370,7 +3371,7 @@ $=argpos
 pixel_size,colors_a,colors_b,use_remove_image={max(int($3)*100,100)}%,${4-5},1
 use_rescale={$pixel_size!=1}
 
-command "generate_border :
+command "cmd_$0_border :
  if narg($""*)>1 out_color=[$""*]
  else out_color=$""1
  fi
@@ -3440,7 +3441,7 @@ command "generate_border :
 # );
    \""
 
-command "generate_border_depth :
+command "cmd_$0_border_depth :
  if narg($""*)>1 out_color=[$""*]
  else out_color=$""1
  fi
@@ -3521,8 +3522,8 @@ if ${is_image_arg\ $colors_a}||${is_image_arg\ $colors_b}
   r. {w#-1*$pixel_size},{h#-1*$pixel_size},{d#-1},{s#-1},1
 
   if $_border_size
-   if $depth>1 generate_border_depth $border_color
-   else generate_border $border_color
+   if $depth>1 cmd_$0_border_depth $border_color
+   else cmd_$0_border $border_color
    fi
   fi
 
@@ -3534,8 +3535,8 @@ if ${is_image_arg\ $colors_a}||${is_image_arg\ $colors_b}
   r. {w#-1*$pixel_size},{h#-1*$pixel_size},{d#-1},{s#-1},1
 
   if $_border_size
-   if $depth>1 generate_border_depth $border_color
-   else generate_border $border_color
+   if $depth>1 cmd_$0_border_depth $border_color
+   else cmd_$0_border $border_color
    fi
   fi
 
@@ -3560,7 +3561,7 @@ elif narg($colors_a)||narg($colors_b)
 
   if $_border_size
    v=$8
-   generate_border $v
+   cmd_$0_border $v
   fi
 
  elif $wave_mode==1
@@ -3572,7 +3573,7 @@ elif narg($colors_a)||narg($colors_b)
 
   if $_border_size
    v=$8
-   generate_border $v
+   cmd_$0_border $v
   fi
 
  else
@@ -3589,7 +3590,7 @@ elif narg($colors_a)||narg($colors_b)
 
    if $_border_size
     vc=${8--1}
-    generate_border $vc
+    cmd_$0_border $vc
    fi
 
   else
@@ -3601,7 +3602,7 @@ elif narg($colors_a)||narg($colors_b)
 
    if $_border_size
     vc=${8--1}
-    generate_border $vc
+    cmd_$0_border $vc
    fi
 
   fi
@@ -3619,7 +3620,7 @@ fi
 
 if $use_remove_image rm.. fi
 
-uncommand generate_border,generate_border_depth
+uncommand cmd_$0_border,cmd_$0_border_depth
 +_rep_colorize_binary_hitomezashi:
 skip "${1=}","${2=}","${3=0}","${4=0}","${5=}","${6=}"
 
@@ -3930,26 +3931,26 @@ radius,angle,sigma,scale,relief_mode,gray_mode,bias,max_alp_ind=${1-5},{!$6},$7,
 convolution_main_setting=$radius,$angle,$sigma,$scale,$gray_mode
 
 if $gray_mode
- command "process_emboss_alpha_case : split_opacity process_emboss_filter.. a c"
- command "end_relief : +.. . rm."
+ command "cmd_$0_process_emboss_alpha_case : split_opacity cmd_$0_process_emboss_filter.. a c"
+ command "cmd_end_relief : +.. . rm."
 else
- command "process_emboss_alpha_case : sh 0,{s-2} process_emboss_filter. rm."
- command "end_relief : add"
+ command "cmd_$0_process_emboss_alpha_case : sh 0,{s-2} cmd_$0_process_emboss_filter. rm."
+ command "cmd_end_relief : add"
 fi
 
 if $relief_mode
- command "process_emboss_filter : +_rep_steerable_gaussian_convolve "$convolution_main_setting" end_relief"
+ command "cmd_$0_process_emboss_filter : +_rep_steerable_gaussian_convolve "$convolution_main_setting" cmd_end_relief"
 else
- command "process_emboss_filter : +_rep_steerable_gaussian_convolve "$convolution_main_setting" +. "$bias" k."
+ command "cmd_$0_process_emboss_filter : +_rep_steerable_gaussian_convolve "$convolution_main_setting" +. "$bias" k."
 fi
 
 foreach {
- if s==2||s>$max_alp_ind process_emboss_alpha_case
- else process_emboss_filter
+ if s==2||s>$max_alp_ind cmd_$0_process_emboss_alpha_case
+ else cmd_$0_process_emboss_filter
  fi
 }
 
-uncommand process_emboss_alpha_case,process_emboss_filter,end_relief
+uncommand cmd_$0_process_emboss_alpha_case,cmd_$0_process_emboss_filter,cmd_end_relief
 +_rep_steerable_gaussian_convolve:
 
 sg,theta,sigma,M={max(5,int(abs($1)))},{deg2rad($2)},$3,{3*$3}
@@ -4305,7 +4306,7 @@ if $animation_mode
  rescale_back={$6>0}
 
  __sub={abs($6)+1}
- command "generate_three_coupled: +_rep_three_coupled_oscillators_animation $1,$__k_a_1,$__k_b_1,$__k_a_2,$__k_b_2,$__sub,${7-14}"
+ command "cmd_$0_generate: +_rep_three_coupled_oscillators_animation $1,$__k_a_1,$__k_b_1,$__k_a_2,$__k_b_2,$__sub,${7-14}"
 
 else
  if narg($2) __k_a=$2
@@ -4319,13 +4320,13 @@ else
  rescale_back={$4>0}
  __sub={abs($4)+1}
 
- command "generate_three_coupled: +_rep_three_coupled_oscillators_static_out $1,$__k_a,$__k_b,$__sub,${5-8}"
+ command "cmd_$0_generate: +_rep_three_coupled_oscillators_static_out $1,$__k_a,$__k_b,$__sub,${5-8}"
 
 fi
 
 foreach {
 
- generate_three_coupled
+ cmd_$0_generate
 
  if $rescale_back r. {w#0},{h#0},100%,100%,6 fi
 
@@ -4333,7 +4334,7 @@ foreach {
 
 }
 
-uncommand generate_three_coupled
+uncommand cmd_$0_generate
 +_rep_three_coupled_oscillators_animation:
 check "$13!=0&&$14!=0"
 
@@ -6851,12 +6852,12 @@ foreach {
  if s==4 sh 0,2 fi
 
  if s<3
-  command "rainbowify : {w},{h},100%,{s==2?4:3},\"$""1\""
-  command "end_out : k."
+  command "cmd_rainbowify : {w},{h},100%,{s==2?4:3},\"$""1\""
+  command "cmd_$0_end_out : k."
   calc_v="i(#0,x,y,z,0)"
  else
-  command "rainbowify : fill. \"$""1\""
-  command "end_out : k[0]"
+  command "cmd_rainbowify : fill. \"$""1\""
+  command "cmd_$0_end_out : k[0]"
   calc_v=avg(I)
  fi
 
@@ -6864,7 +6865,7 @@ foreach {
  else calc_rainbow=hue2rgb(fmod(v+pos+shift_hue))
  fi
 
- rainbowify. "begin(
+ cmd_rainbowify. "begin(
   const shift_hue=$1+180;
   const ang=($2/180)*pi;
   const cos_ang=cos(ang);
@@ -6895,9 +6896,9 @@ foreach {
  "$calc_rainbow";
  "
 
- end_out
+ cmd_$0_end_out
 
- uncommand rainbowify,end_out
+ uncommand cmd_rainbowify,cmd_$0_end_out
 
 }
 #@cli rep_w_rgb82gray: eq. to 'rep_weighted_rgb82gray'
@@ -6927,13 +6928,13 @@ foreach {
  fi
 
  if s==1
-  command "calc_gray_image : fill. \"$""1\""
+  command "cmd_$0_calc_gray_image : fill. \"$""1\""
   single_channel_mode=1
  else
-  command "calc_gray_image : {w},{h},100%,1,\"$""1\""
+  command "cmd_$0_calc_gray_image : {w},{h},100%,1,\"$""1\""
  fi
 
- calc_gray_image "
+ cmd_$0_calc_gray_image "
   begin(
    const red_weight_init=$1;
    const green_weight_init=$2;
@@ -7006,7 +7007,7 @@ foreach {
 
  use_merge_back=0
 
- uncommand calc_gray_image
+ uncommand cmd_$0_calc_gray_image
 }
 #@cli rep_hex8args2pal: hex_a,hex_b...
 #@cli : Convert 8-bit hexadecimal arguments into palette representation.
@@ -7310,11 +7311,11 @@ if narg($9)||narg($10)
    use_double_u=1
    if narg($11)&&narg($12)
     if narg($13)
-     if ($13%3)==2 command "cs_out: lch82rgb"
-     elif ($13%3)==1 command "cs_out: lab82rgb"
-     else command "cs_out: hsl82rgb"
+     if ($13%3)==2 cs_out=lch82rgb
+     elif ($13%3)==1 cs_out=lab82rgb
+     else cs_out=hsl82rgb
      fi
-    else command "cs_out: hsl82rgb"
+    else cs_out=hsl82rgb
     fi
     $11,1,1,3,u(0,255)
     $12,1,1,3,u(0,255)
@@ -7328,11 +7329,11 @@ if narg($9)||narg($10)
    if ('$9'=='u')||('$10'=='u')
     mode=3
     if narg($11)
-     if ($11%3)==2 command "cs_out: lch82rgb"
-     elif ($11%3)==1 command "cs_out: lab82rgb"
-     else command "cs_out: hsl82rgb"
+     if ($11%3)==2 cs_out=lch82rgb
+     elif ($11%3)==1 cs_out=lab82rgb
+     else cs_out=hsl82rgb
      fi
-    else command "cs_out: hsl82rgb"
+    else cs_out=hsl82rgb
     fi
     if narg($12) srand $12 fi
     if '$9'=='u'
@@ -7480,8 +7481,6 @@ fi
 k.
 
 s z r $ow,$oh,1,100%,6
-
-uncommand cs_out
 #@cli rep_mlfrac: eq. to 'rep_markus_lyapunov_fractal'.
 rep_mlfrac: rep_markus_lyapunov_fractal $*
 #@cli rep_markus_lyapunov_fractal: abc_string,abc_string_repeats,_sublevel>=0,0%<_view_size[%]<=100%,0%<=_pos_x[%]<=100%,0%<=_pos_y[%]<=100%,0%<=_pos_z[%]<=100%,additional_arguments(see below)
@@ -7688,11 +7687,11 @@ if narg($8)||narg($9)
 
    if narg($10)&&narg($11)
     if narg($12)
-     if ($12%3)==2 command "cs_out: lch82rgb"
-     elif ($12%3)==1 command "cs_out: lab82rgb"
-     else command "cs_out: hsl82rgb"
+     if ($12%3)==2 cs_out=lch82rgb
+     elif ($12%3)==1 cs_out=lab82rgb
+     else cs_out=hsl82rgb
      fi
-    else command "cs_out: hsl82rgb"
+    else cs_out=hsl82rgb
     fi
 
     $10,1,1,3,u(0,255)
@@ -7711,11 +7710,11 @@ if narg($8)||narg($9)
     mode=3
 
     if narg($10)
-     if ($10%3)==2 command "cs_out: lch82rgb"
-     elif ($10%3)==1 command "cs_out: lab82rgb"
-     else command "cs_out: hsl82rgb"
+     if ($10%3)==2 cs_out=lch82rgb
+     elif ($10%3)==1 cs_out=lab82rgb
+     else cs_out=hsl82rgb
      fi
-    else command "cs_out: hsl82rgb"
+    else cs_out=hsl82rgb
     fi
 
     if narg($11) srand $11 fi
@@ -7899,8 +7898,6 @@ foreach {
  const_iz_text=""
 
 }
-
-uncommand cs_out
 
 status {$include_c+1}
 #@cli rep_randgradbar : eq. to 'rep_random_gradient_bars'
@@ -14663,15 +14660,15 @@ command "axis_func: f \"begin(
   const hh=h-1;
   const cx=ww/2;
   const cy=hh/2;
-  const ang=$""1°;
+  const ang=$""1°; # angle
   const cos_ang=cos(ang);
   const sin_ang=sin(ang);
-  const axis_mode=$""2;
-  const sublevel=$""3;
+  const axis_mode=$""2; # axis _mode
+  const sublevel=$""3;  # sublevel
   const value_shift=$""5*($""6?1:-1);
   rot_x(a,b)=a*cos_ang-b*sin_ang;
   rot_y(a,b)=a*sin_ang+b*cos_ang;
-  $""4?(
+  $""4?( # center
    calc_ix(a)=($""6?ww-a:a)-cx+value_shift;
    calc_iy(a)=($""6?hh-a:a)-cy+value_shift;
   ):(
@@ -17557,7 +17554,7 @@ fill[0-$max_images_index] "begin(
    multispectrum_mode?(
     multiplier()=(
      channels_values=I#channel_values_reference;
-     nonzero_values=!!channels_values;
+     nonzero_values=bool(channels_values);
      zero_values=!channels_values;
      channels_values+=zero_values;
      result_multiplier();
@@ -17573,7 +17570,7 @@ fill[0-$max_images_index] "begin(
     multispectrum_mode?(
      modular_output()=(
       channels_values=abs(I#channel_values_reference);
-      multiplier=!!channels_values;
+      multiplier=bool(channels_values);
       (I%(channels_values+epsilon)*multiplier)%max_channel_mod;
      );
     ):(
@@ -17587,7 +17584,7 @@ fill[0-$max_images_index] "begin(
     multispectrum_mode?(
      modular_output()=(
       channels_values=I#channel_values_reference;
-      multiplier=!!channels_values;
+      multiplier=bool(channels_values);
       channels_values+=epsilon*(1-multiplier);
       a=I%(channels_values*2)%max_channel_mod;
       multiplier*(channels_values-abs(channels_values-a));
