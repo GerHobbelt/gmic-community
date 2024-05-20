@@ -88,12 +88,8 @@ souphead_droste10_preview :
   _souphead_droste10 ${1--1}
 
 _souphead_droste10 :
-  repeat $! l[$>]
-    to_a       # Add an alpha channel if not there
-    +f. 0      # Create blank image of same size
-    sh. 0      # Work with just 1 channel to save time
-    f. "*
-begin(InnerRadius = $1;
+  to_a foreach {
+    f "begin(InnerRadius = $1;
      OuterRadius = $2;
      Periodicity = $3;
      Strands = $4;
@@ -344,10 +340,10 @@ begin(InnerRadius = $1;
         );
      );
 
-     ColorOutR=i(#0,realx,realy,0,0,Antialias,0)/255;
-     ColorOutG=i(#0,realx,realy,0,1,Antialias,0)/255;
-     ColorOutB=i(#0,realx,realy,0,2,Antialias,0)/255;
-     ColorOutA=i(#0,realx,realy,0,3,Antialias,0)/255;
+     ColorOutR=i(realx,realy,0,0,Antialias,0)/255;
+     ColorOutG=i(realx,realy,0,1,Antialias,0)/255;
+     ColorOutB=i(realx,realy,0,2,Antialias,0)/255;
+     ColorOutA=i(realx,realy,0,3,Antialias,0)/255;
 
      colorSoFarR=colorSoFarR+(ColorOutR*ColorOutA*alphaRemaining);
      colorSoFarG=colorSoFarG+(ColorOutG*ColorOutA*alphaRemaining);
@@ -438,10 +434,10 @@ begin(InnerRadius = $1;
 
         sign=0;
 
-        ColorOutR=i(#0,realx,realy,0,0,Antialias)/255;
-        ColorOutG=i(#0,realx,realy,0,1,Antialias)/255;
-        ColorOutB=i(#0,realx,realy,0,2,Antialias)/255;
-        ColorOutA=i(#0,realx,realy,0,3,Antialias)/255;
+        ColorOutR=i(realx,realy,0,0,Antialias)/255;
+        ColorOutG=i(realx,realy,0,1,Antialias)/255;
+        ColorOutB=i(realx,realy,0,2,Antialias)/255;
+        ColorOutA=i(realx,realy,0,3,Antialias)/255;
 
         if(tileBasedOnTransparency,
 
@@ -521,13 +517,9 @@ begin(InnerRadius = $1;
 
      if(!DoNotFlattenTransparency,ColorOutA=1);
 
-     i(#1,x,y,0,1)=ColorOutG*255;
-     i(#1,x,y,0,2)=ColorOutB*255;
-     i(#1,x,y,0,3)=ColorOutA*255;
+     255*[ ColorOutR,ColorOutG,ColorOutB,ColorOutA ]"
+  }
 
-ColorOutR*255"
-    k..  # Only second to last image should be kept
-  done done
 #@gui _<b>Testing</b>
 
 #@gui <i>Souphead</i>

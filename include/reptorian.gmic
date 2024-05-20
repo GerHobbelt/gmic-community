@@ -48,29 +48,204 @@
 #
 #-------------------------------
 
+#@cli rep_mode_type_int: _use_16_bit_mode={ 0=false | 1= true },_fill_with_mode_color={ 0=false | 1=true }
+#@cli : Finds mode color of 8-bit images.
+#@cli : Note: You can use 8 or 16 as first argument to reflect the number of bits to use instead of 0,1 for self-documentation purpose.
+#@cli : Default values: '_use_16_bit_mode=0','_fill_with_mode_color=0'
+#@cli : Author : Reptorian.
+rep_mode_type_int:
+skip ${1=0},${2=0}
+
+original_status=${}
+
+use_16_bit:=$1==16?1:$1?$1!=8
+max_value,max_spec_size:=mv=(1<<($use_16_bit?(ms=4;16):(ms=7;8)))-1;[mv,ms]
+
+foreach {
+ if im<0||iM>$max_value error exc_val_det@[$>] fi
+ if s>$max_spec_size error exc_chans fi
+ 
+ if $2 od:=w,h,d,s 
+ else  od=1,1,1,{s}
+ fi
+ 
+ eval[-1] >"begin(
+    if($use_16_bit
+    ,bitshift_factors=expr('x<<4',s);
+    ,bitshift_factors=expr('x<<3',s);
+    );
+   
+    convert_color2int(color_values)=sum(color_values<<bitshift_factors);
+    convert_int2color(counting_num)=(counting_num>>bitshift_factors)&$max_value;
+    nan_vector=vector(#s,nan);
+    list_of_colors=vector(#whd);
+    p=0;
+  );
+  list_of_colors[p++]=convert_color2int(I);
+  I;
+  end(
+    count=maximum_count=old_maximum_count=0;
+    old_color=maximum_freq_color=nan;
+    
+    list_of_colors=sort(list_of_colors);
+    
+    repeat(whd,p,
+        list_of_colors[p]!=old_color?(
+            count=1;
+        ):(
+            ++count;
+            count>maximum_count?(
+                maximum_count=count;
+                maximum_freq_color=old_color;
+            ):
+            count==maximum_count?(
+                old_maximum_count=maximum_count;
+            );
+        );
+        old_color=list_of_colors[p];
+    );
+ 
+    set('mode_color',v2s(if(maximum_count==1||(maximum_count==old_maximum_count),nan_vector,convert_int2color(maximum_freq_color););););
+  );
+  "
+ rm.
+ 
+ $od,[$mode_color]
+
+}
+
+status $original_status
+#@cli rep_blend_mode_type_int: _use_16_bit_mode={ 0=false | 1= true }
+#@cli : Blend Layers via statistical mode of colors. Optimized and coded with 8-bit and 16-bit positive integer images in mind.
+#@cli : Note: You can use 8 or 16 as argument to reflect the number of bits to use instead of 0,1 for self-documentation purpose.
+#@cli : Default values: '_use_16_bit_mode=0'
+#@cli : Author : Reptorian.
+rep_blend_mode_type_int:
+skip ${1=0}
+
+if $!<=1 return fi
+use_16_bit:=$1==16?1:$1?$1!=8
+
+all_values_in_ranges,dimension_valid={"
+ const max_value=(1<<($use_16_bit?16:8))-1;
+ v=[w#0,h#0,d#0,s#0];
+ all_values_in_ranges=1;
+ dimension_valid=1;
+ !same(v[0,3],[0,0,0])?(
+  for(p=1,p<$!,++p,
+    nv=[w#p,h#p,d#p,s#p];
+    if(!inrange(im#p,0,max_value,1,1),all_values_in_ranges=0;break(););
+    if(!inrange(iM#p,0,max_value,1,1),all_values_in_ranges=0;break(););
+    if(same(v[0,3],[0,0,0]),dimension_valid=0;break(););
+    if(!same(nv,v),dimension_valid=0;break(););
+   );
+ ):(
+  p=dimension_valid=0;
+ );
+ set('img_checked',p);
+ [all_values_in_ranges,dimension_valid]"}
+ 
+if !$all_values_in_ranges error exc_val_det@[$img_checked]
+elif !$dimension_valid    error dif_dim_det@[$img_checked]
+fi
+
+if $!==2 100%,100%,100%,100%,I#-2==I#-1?I#-1:vector(#s,nan) rm[-3,-2] return fi
+
+if s>($use_16_bit?4:7) error exc_chans fi
+
+spectrum_size,number_of_images:=s,$!
+append c
+
+100%,100%,100%,$spectrum_size,"begin(
+  const use_16_bit=$use_16_bit;
+  const number_of_images=$number_of_images;
+  const spec_ref_img=s#-1;
+  const max_value=use_16_bit?0xffff:0xff;
+  
+  nan_vector=vector(#s,nan);
+  
+  if(use_16_bit
+  ,bitshift_factors=expr('x<<4',s);
+  ,bitshift_factors=expr('x<<3',s);
+  );
+  
+  convert_color2int(color_values)=sum(color_values<<bitshift_factors);
+  convert_int2color(counting_num)=(counting_num>>bitshift_factors)&max_value;
+ );
+ 
+ values_of_colors=I#-1;
+ list_of_colors=vector(#number_of_images,nan);
+ count=maximum_count=old_maximum_count=0;
+ old_color=maximum_freq_color=nan;
+ 
+ q=0;
+ repeat(number_of_images,p,
+  list_of_colors[p]=convert_color2int((values_of_colors)[q,s]);
+  q+=s;
+ );
+ list_of_colors=sort(list_of_colors);
+ 
+ repeat(number_of_images,p,
+    list_of_colors[p]!=old_color?(
+        count=1;
+    ):(
+        ++count;
+        count>maximum_count?(
+            maximum_count=count;
+            maximum_freq_color=old_color;
+        ):
+        count==maximum_count?(
+            old_maximum_count=maximum_count;
+        );
+    );
+    old_color=list_of_colors[p];
+ );
+ 
+ if(maximum_count==1||(maximum_count==old_maximum_count),nan_vector,convert_int2color(maximum_freq_color););
+ "
+
+rm..
 #@cli rep_extract_unique_values_and_count:
 #@cli : Extract Unique values from a image starting from 0,0,0,0, and then outputs unique values only with the count.
 rep_extract_unique_values_and_count:
+m $0_a_nums:"100%,1,1,1,x a c"
+
+max_dim:=1<<24
 foreach {
-  current_img_ind=key_{$>}_
+ if whds>$max_dim error lim_dim_exc fi
   
-  {whds#-1},1,1,2
-  
-  eval[-2] >"begin(
-    key='"$current_img_ind"';
-    mi=0;
-   );
-   isnan(value=get([key,v2s(i-im#-2,16,16)]))?(
-    I[#-1,mi]=[i,1];
-    set([key,v2s(i-im#-2,16,16)],mi);
-    ++mi;
-   ):(
-    ++i(#-1,value,0,0,1);
-   );
-   end(resize(#-1,mi,1,1,2,0););"
-  
-  rm..
+ unroll x +$0_a_nums pixelsort[-1] +,x,[-2] rm..
+ 100%,100%,100%,3
+ 
+ eval[-2] >"begin(
+   count=started=uniques=0;
+   min_value=old_number=nan;
+  );
+  i0==old_number?(
+   ++count;
+   if(i1<min_value,min_value=i1;);
+  ):(
+   if(started,I[#-1,uniques-1]=[old_number,count,min_value];);
+   ++uniques;
+   min_value=i1;
+   count=1;
+  );
+  old_number=i0;
+  started=1;
+  I;
+  end(
+   I[#-1,uniques-1]=[old_number,count,min_value];
+   set('end',uniques-1);
+  );
+  "
+ rm.. 
+ crop. 0,$end
+ s. c,-2
+ pixelsort[-2] +,x,[-1] rm.
+ 
 }
+
+um $0_a_nums
 #@cli rep_cbsoo: eq. to 'rep_channels_overblur_overline_blur_sharpen'.
 rep_cbsoo: rep_channels_blur_sharpen_overblur_overline $*
 #@cli rep_channels_overblur_overline_blur_sharpen: method_a={ 0=blur | 1=sharpen | 2=overblur | 3=overline },0%<_effect_factor_a[%]<=100%,_multiplication_factor>0,_blending_mode,0<_blending_opacity[%]<=100%...
@@ -79,7 +254,7 @@ rep_cbsoo: rep_channels_blur_sharpen_overblur_overline $*
 #@cli : - Note on 3 Channels Color Spaces (RGB, HSV...) input -
 #@cli : If you want to perform the same setting on all channel at once, simply use 5 arguments.
 #@cli : If you want to perform same setting on all color channel at once, but separate for gray and alpha. Use 5*(contain_gray+contain_color+contain_alpha) arguments.
-#@cli : If you want to perform separate setting on different channels. You can use '-' to disable individual channel, or empty space to skip color channels altogether. If you have enabled support for manipulating color channel, yes, you must consider the number of arguments. 
+#@cli : If you want to perform separate setting on different channels. You can use '-' to disable individual channel, or empty space to skip color channels altogether. If you have enabled support for manipulating color channel, yes, you must consider the number of arguments.
 #@cli : Special note: You can make this filter operate on CMYK space by writing cmyk as last argument.
 #@cli : Author : Reptorian.
 #@cli : Default values: '_effect_factor=100%','_multiplication_factor=100%','_blending_mode=21','_blending_opacity=100%','_effect_boundary=1'
@@ -102,7 +277,7 @@ m $0_bsoo_edit:"
 
  if $use_char char=+ fi
 
- $char${arg\\ $pos,blur,sharpen} $""2 
+ $char${arg\\ $pos,blur,sharpen} $""2
 
  if $""1>1
   +-[-2,-1] abs[-1]
@@ -111,11 +286,11 @@ m $0_bsoo_edit:"
   +[-2,-1]
  fi
  "
- 
+
 m +$0_bsoo_edit:"
  pos={$""1>1?$""1-1:$""1+1}
  +${arg\\ $pos,blur,sharpen} $""2
- 
+
  if $""1>1
   +-[-2,-1] abs[-1]
   *[-1] $""3
@@ -123,14 +298,14 @@ m +$0_bsoo_edit:"
   +[-1] [-2]
  fi
  "
- 
+
 m $0_process_individual_channel_section:"
   method,effect_factor,multiplication,opacity:=[$""{2-5}]
   use_output=0
-  
+
   blending_id=$""6
   use_blend_str:=!isnum($blending_id)
-  
+
   if $effect_factor||$opacity>0
    use_output=1
    if ($use_blend_str?same('$blending_id','normal')||same('$blending_id','alpha'):$blending_id=="$normal"||$blending_id=="$alpha")&&($opacity==1)
@@ -142,7 +317,7 @@ m $0_process_individual_channel_section:"
   fi
 
   status $use_output"
-  
+
 cmyk_mode,max_col_spec_size={m=same('$-1','cmyk');[m,3+(m?1)]}
 user_cmyk_mode=$cmyk_mode
 
@@ -195,8 +370,8 @@ if same('$_host','cli')&&!narg($_pasted_from_gui)
    set('continue_analyzing_color_space',continue_analyzing_color_space);"
 
  while $continue_analyzing_color_space
- 
- 
+
+
 else
  contain_gray,contain_alpha=$_gui_analysis_gray,$_gui_analysis_alpha
  contain_cmy=0
@@ -239,13 +414,13 @@ if $cmyk_mode
   effect_factor,multiplication,opacity:=[${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity}]
 
   method,blending_id=${arg$var_method},${arg$var_blending}
-  
+
   if !isint($method)&&('$method'!='-') method=${$method} fi
 
   if !$effect_factor||$opacity<=0 return fi
   use_blend_str:=!isint($blending_id)
   if !$use_blend_str blending_id=${arg\ $blending_id+1,$list_of_blending_modes} fi
-  
+
   if $effect_factor||$opacity>0
    if $opacity==1?(same('$blending_id','normal')||same('$blending_id','alpha'))
     foreach {
@@ -265,12 +440,12 @@ if $cmyk_mode
   fi
  else
   use_gray,use_cmy,use_cmyk,use_alpha,use_cmy_channel_0,use_cmy_channel_1,use_cmy_channel_2,use_cmyk_channel_0,use_cmyk_channel_1,use_cmyk_channel_2,use_cmyk_channel_3=0
-  
+
   if $contain_gray
    current_method=${arg$var_method}
-   
+
    if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
-   
+
    if narg($current_method)?'$current_method'!='-'
      use_gray=${$0_process_individual_channel_section\ gray,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
      var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
@@ -278,7 +453,7 @@ if $cmyk_mode
     var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
    fi
   fi
-  
+
   if $contain_cmy
    current_method=${arg$var_method}
    if narg($current_method)
@@ -318,7 +493,7 @@ if $cmyk_mode
     var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
    fi
   fi
-  
+
   if $contain_alpha
    current_method=${arg$var_method}
    if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
@@ -326,17 +501,17 @@ if $cmyk_mode
     use_alpha=${$0_process_individual_channel_section\ alpha,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
    fi
   fi
-  
+
   foreach {
    contain_color,contain_alpha:=[s>2,s==2||s>4]
-   
+
    if $use_alpha?$contain_alpha
     s c,-{s-1}
     if $use_alpha $0_process_alpha[-1] fi
    fi
-   
+
    if $contain_color
-    if s#0>3 
+    if s#0>3
      if $use_cmyk
       s[0] c
       foreach[0-3] { if ${use_cmyk_channel_$>} $0_process_cmyk_channel_$> fi }
@@ -352,20 +527,20 @@ if $cmyk_mode
      $0_process_gray[0]
     fi
    fi
-   
+
    a c
   }
-  
+
  fi
 else
- 
+
  num_of_contains,num_of_set_args,gray_start={[sum($contain_gray,$contain_color,$contain_alpha),ceil($#/5)]},$contain_gray
-  
+
  if $num_of_set_args!=$num_of_contains||(($#-$num_of_set_args*5)>0)
   use_gray,use_color,use_alpha,\
   use_channel_0,use_channel_1,use_channel_2=0
-  
-  if $contain_gray 
+
+  if $contain_gray
    current_method=${arg$var_method}
    if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
    if narg($current_method)?'$current_method'!='-'
@@ -375,7 +550,7 @@ else
     var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
    fi
   fi
-  
+
   if $contain_color
    current_method=${arg$var_method}
    if narg($current_method)
@@ -395,7 +570,7 @@ else
     var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
    fi
   fi
-  
+
   if $contain_alpha
    current_method=${arg$var_method}
    if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
@@ -403,40 +578,40 @@ else
     use_alpha=${$0_process_individual_channel_section\ alpha,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
    fi
   fi
-  
+
   if !sum($use_gray,$use_color,$use_alpha) return fi
-  
+
   foreach {
    contain_color,contain_alpha:=[s>2,!(s&1)]
-   
-   if $use_alpha?$contain_alpha 
+
+   if $use_alpha?$contain_alpha
     s c,-{s-1}
     if $use_alpha $0_process_alpha[-1] fi
    fi
-   
+
    if $contain_color?$use_color
     s[0] c
     foreach[0-2] {
      if ${use_channel_$>}
       $0_process_channel_$>
-     fi 
+     fi
     }
    elif $use_gray $0_process_gray[0]
    fi
-   
+
    a c
   }
  elif $num_of_set_args==1
   effect_factor,multiplication,opacity:=[${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity}]
 
   method,blending_id=${arg$var_method},${arg$var_blending}
-  
+
   if !isint($method)&&('$method'!='-') method=${$method} fi
 
   if !$effect_factor||$opacity<=0 return fi
   use_blend_str:=!isint($blending_id)
   if !$use_blend_str blending_id=${arg\ $blending_id+1,$list_of_blending_modes} fi
-  
+
   if $effect_factor||$opacity>0
    if $opacity==1?(same('$blending_id','normal')||same('$blending_id','alpha'))
     foreach {
@@ -454,7 +629,7 @@ else
     }
    fi
   fi
-  
+
  elif !$num_of_set_args
   error needs_at_least_5_for_one_arg_set
  else
@@ -472,18 +647,18 @@ else
     method=${arg$var_method} if !isint($method)&&('$method'!='-') method=${$method} fi
     use_alpha=${$0_process_individual_channel_section\ alpha,$method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
   fi
-  
+
   if !sum($use_gray,$use_color,$use_alpha) return fi
-  
+
   foreach {
    contain_color,contain_alpha:=[s>2,!(s&1)]
-   
+
    if $use_alpha?$contain_alpha
     shared[-1] {s-1}
     $0_process_alpha[-1]
     rm.
    fi
-   
+
    if $contain_color?$use_color
     if $contain_alpha shared[-1] 0,{s-2} fi
     $0_process_color[-1]
@@ -495,7 +670,7 @@ else
    fi
   }
  fi
- 
+
 fi
 
 um $0_bsoo_edit,+$0_bsoo_edit,$0_process_individual_channel_section,$0_process_gray,$0_process_color,$0_process_channel_0,$0_process_channel_1,$0_process_channel_1,$0_process_channel_2,$0_process_cmy_channel_0,$0_process_cmy_channel_1,$0_process_cmy_channel_2,$0_process_cmyk_channel_0,$0_process_cmyk_channel_1,$0_process_cmyk_channel_2,$0_process_cmyk_channel_3,$0_process_alpha
@@ -506,17 +681,15 @@ um $0_bsoo_edit,+$0_bsoo_edit,$0_process_individual_channel_section,$0_process_g
 rep_decompose_bitplanes:
 l[] {
   check "${1=8}>1 && isint(${1=8})"
-  $=arg
+  d_bpi={$1-1}
 
   onfail
     if isnum($1)
-      if !isint($1)||$1<1 error inv_num_inp fi
+      if !isint($1)||$1<2 error inv_num_inp fi
     else
-      noarg arg1=8
+      noarg d_bpi=7
     fi
  }
-
-d_bpi={$arg1-1}
 
 foreach { repeat $d_bpi { +>>[-1] 1 &[-2] 1 } &[-1] 1 }
 #@cli rep_compose_bitplanes: _number_of_bits>0
@@ -526,17 +699,15 @@ foreach { repeat $d_bpi { +>>[-1] 1 &[-2] 1 } &[-1] 1 }
 rep_compose_bitplanes:
 l[] {
   check "${1=8}>1 && isint(${1=8})"
-  $=arg
+  d_bpi={$1-1}
 
   onfail
     if isnum($1)
-      if !isint($1)||$1<1 error inv_num_inp fi
+      if !isint($1)||$1<2 error inv_num_inp fi
     else
-      noarg arg1=8
+      noarg d_bpi=7
     fi
  }
-
-d_bpi={$arg1-1}
 
 P,Q=-1,-2
 repeat inf {
@@ -1026,7 +1197,7 @@ do
 
   if $stack_point<$max_stack_size?($in_char_set_1||$in_char_set_2||$is_letter||$is_num_range||$is_space)
    stack_point+=1
-   
+
    if $shift_pressed
     if $in_char_set_1   o.={`(':+<_>?~')[$key-186]`}
     elif $in_char_set_2 o.={`('\{|\}\"')[$key-219]`}
@@ -1424,7 +1595,7 @@ I={$!}
 repeat $# { p:=$>+1 ('${arg$p}') }
 rep_binimg2dec_base[$I--1] 1
 #@cli rep_binimg2dec_base: '_mode_unicode={ 0=false | 1=true }','_preserve_base10M_dynamic_array={ 0=false | 1=true },'_unicode_img_out={ 0=false | 1=true }
-#@cli : Used as base command to process binary-value images and to output decimal or base-10M images. 
+#@cli : Used as base command to process binary-value images and to output decimal or base-10M images.
 #@cli : Schönhage-Strassen multiplication was used as basis for multiplication part of the binary to decimal, in addition to using base 10M for easy output of decimal image.
 #@cli : In addition, chqrlie's code in StackOverflow has been used as part of this code - https://stackoverflow.com/questions/55385984/how-can-i-calculate-2n-for-large-n
 #@cli : Default values: '_mode_unicode=0','_preserve_base10M_dynamic_array=0','_unicode_img_out=_mode_unicode'
@@ -1467,20 +1638,20 @@ foreach {
             start_point = max_ind - ( y * bits ) ;
             end_block= max( -1 , start_point - bits ) ;
             bitshift_factor = output_value = 0 ;
-    
+
             for ( ind = start_point , ind > end_block , --ind ,
                 output_value |= is_one() << bitshift_factor ;
                 bitshift_factor++;
             );
-    
+
             [ output_value , y ] ;"
-          
-        rm.. 
+
+        rm..
         start_value:=i[#-1,0]
         crop 0,1,0,100%
-        ({h}) append[-2,-1] y 
+        ({h}) append[-2,-1] y
         ref_img:=$!-1
-        
+
         eval "
             current_ind=da_size(#-1);
             while(current_ind>=0,
@@ -1490,7 +1661,7 @@ foreach {
             da_freeze(#-1);"
 
         number_of_resulting_decimals:=ceil($num_of_binaries*$Ldb)
-        
+
         multithreading={h>1024}
 
         if $multithreading
@@ -1500,12 +1671,12 @@ foreach {
             symbol_to_use=>
             num_of_chans=1
         fi
-        
+
         decimal_conversion_array_size,result_conversion_array_size:=[ceil(ceil((i(#$ref_img,0,h#$ref_img-1,0,1)*24-1)*$Ldb)/7)+1,ceil($number_of_resulting_decimals/7)]
-        
+
         1,$result_conversion_array_size,1,$num_of_chans                      # Result conversion of binary to decimal conversion
         set[-1] $start_value,0,100%,0,100%
-        
+
         eval[-2] $symbol_to_use"
             begin(
                 const base_10M = 1e7;
@@ -1517,13 +1688,13 @@ foreach {
                 const dec_two_to_the_power_of_24_n_array_size = two_to_the_power_of_24_n_array_size - 1;
                 number_of_decimals = old_power = started = 0;
                 calc_min_decimal_length(binary_digits_count) = ceil( (binary_digits_count-1) * log_10_2 );
-                
+
                 destination_two_to_the_power_24_n_array = vector(#two_to_the_power_of_24_n_array_size,0);
                 source_two_to_the_power_24_n_array = destination_two_to_the_power_24_n_array;
                 auxillary_two_to_the_power_24_n_array = source_two_to_the_power_24_n_array;
                 empty_result_conversion_array = vector(#result_conversion_size,0);
                 result_conversion_array = empty_result_conversion_array;
-                
+
                 convert_power_of_24_into_decimal(n)=(
                     blen = n + 1;
                     number_of_decimals = ceil( calc_min_decimal_length( n*24+1 ) / 7 );
@@ -1537,8 +1708,8 @@ foreach {
                             num %= base_10M;
                         );
                         destination_two_to_the_power_24_n_array[insert_pos++] = num;
-                        while( blen && !source_two_to_the_power_24_n_array[blen-1] , 
-                            blen--; 
+                        while( blen && !source_two_to_the_power_24_n_array[blen-1] ,
+                            blen--;
                         );
                     );
                 );
@@ -1547,25 +1718,25 @@ foreach {
             if( !started || ( i1-old_power>1 ),
                 convert_power_of_24_into_decimal(i1);
             );
-            
+
             remainder_new_power_24 = remainder_value_of_bin2dec = 0;
-            
+
             min_copy_count = min(number_of_decimals,dec_two_to_the_power_of_24_n_array_size);
             auxillary_two_to_the_power_24_n_array[0] = 0;
             copy(auxillary_two_to_the_power_24_n_array[1],destination_two_to_the_power_24_n_array[0],min_copy_count,1,1);
-            
+
             if(i0>=base_10M
             ,result_conversion_array[0]=0;copy(result_conversion_array[1],destination_two_to_the_power_24_n_array[0],number_of_decimals,1,1);
             ,result_conversion_array = empty_result_conversion_array;0;
             );
-            
+
             multiplicant = - ( i0 % base_10M );
             if(multiplicant,
                 copy(result_conversion_array[0],destination_two_to_the_power_24_n_array[0],number_of_decimals,1,1,multiplicant);
             );
             copy(auxillary_two_to_the_power_24_n_array[0],destination_two_to_the_power_24_n_array[0],number_of_decimals,1,1,power_24_second_digit);
-            
-            
+
+
             repeat(number_of_decimals,pos,
                 result_pos = end_ind - pos;
                 value_of_bin2dec = i(#-1,0,result_pos,0,t) + result_conversion_array[pos] + remainder_value_of_bin2dec ;
@@ -1573,34 +1744,34 @@ foreach {
                 remainder_new_power_24 = int ( value_of_new_power_24_n / base_10M );
                 remainder_value_of_bin2dec = int ( value_of_bin2dec / base_10M );
                 destination_two_to_the_power_24_n_array[pos] = value_of_new_power_24_n % base_10M ;
-                i(#-1,0,result_pos,0,t) = value_of_bin2dec % base_10M ;   
+                i(#-1,0,result_pos,0,t) = value_of_bin2dec % base_10M ;
             );
-            
+
             value_of_bin2dec = remainder_value_of_bin2dec + result_conversion_array[pos];
             remainder_bin2dec = int ( value_of_bin2dec / base_10M );
             i(#-1,0,result_pos - 1,0,t) = value_of_bin2dec % base_10M;
             if( remainder_bin2dec ,
                 i(#-1,0,result_pos - 2,0,t) = remainder_bin2dec;
             );
-            
+
             value_of_new_power_24_n = remainder_new_power_24 + ( number_of_decimals < two_to_the_power_of_24_n_array_size ? auxillary_two_to_the_power_24_n_array[number_of_decimals] );
             remainder_new_power_24 = int( value_of_new_power_24_n / base_10M );
             destination_two_to_the_power_24_n_array[number_of_decimals++] = value_of_new_power_24_n % base_10M;
             if( remainder_new_power_24,
                 destination_two_to_the_power_24_n_array[number_of_decimals++] = remainder_new_power_24;
             );
-            
+
             old_power=i1;
             started=1;
             I;
             "
 
         remove[-2]
-        
+
         if $multithreading
 
             100%,100%,100%,1
- 
+
             eval.. <"begin(
                     const base_10M = 1e7;
                     remainder = 0;
@@ -1610,26 +1781,26 @@ foreach {
                 remainder = int( total_value / base_10M );
                 I;"
             rm..
-    
+
         fi
-        
+
         if !i[#-1,0] crop. 0,1,0,100% fi
-        
+
         name[-1] bin2dec_result_img
-        
+
         if !$preserve_base10_dynamic_array_image
-            
+
             _$0 $unicode_out
             if $unicode_out
                 res.=$sep{t} rm.
                 sep=,
             fi
-        else 
-            ({h}) 
+        else
+            ({h})
             append[-2,-1] y
             name[-1] bin2dec_result_img_base_10M
         fi
-        
+
     else
 
         eval 0b{$bin}
@@ -1991,14 +2162,14 @@ f. "begin(
 
 if $act_arr_sortclass
 
- if $shift 
-  shared. 0 
-  -. {im} 
-  rm. 
+ if $shift
+  shared. 0
+  -. {im}
+  rm.
  fi
- 
+
  $length,1,1,1,x rv[-2,-1]
- 
+
  +channels. 0 # Create copy as we will preserve the the generated output as lookup table
 
  # Pixel sort integer by count sort
@@ -2009,7 +2180,7 @@ if $act_arr_sortclass
  eval[-3] i(#-1,i)=i(#-5,x);
  rm[-5,-3,-2]
  a[-2,-1] c
- 
+
 fi
 
 if !$mode str_code..=ix=max_index-x;iy=max_index-y; fi
@@ -3513,62 +3684,67 @@ number,base={int(abs([$1,$2]))}
 #@cli rep_int2roman: 1<=num<=3999
 #@cli : Return integer number as Roman Numberal
 rep_int2roman:
-check "($1>=1&&$1<=3999)&&($1==int($1))"
+check "isint($1,1,3999)"
+# Metric Units
+K,H,D,U={int($1%[inf,1000,100,10]/[1000,100,10,1])+1}
 
-thousands:=int($1/1000)
-hundreds:=int($1%1000/100)
-tens:=int($1%100/10)
-ones:=int($1%10)
-
-u ${arg\ $thousands+1,,M,MM,MMM}${arg\ $hundreds+1,,C,CC,CCC,CD,D,DC,DCC,DCCC,CM}${arg\ $tens+1,,X,XX,XXX,XL,L,LX,LXX,LXXX,XC}${arg\ $ones+1,,I,II,III,IV,V,VI,VII,VIII,IX}
+u ${arg\ $K,,M,MM,MMM}\
+  ${arg\ $H,,C,CC,CCC,CD,D,DC,DCC,DCCC,CM}\
+  ${arg\ $D,,X,XX,XXX,XL,L,LX,LXX,LXXX,XC}\
+  ${arg\ $U,,I,II,III,IV,V,VI,VII,VIII,IX}
 #@cli rep_roman2int: roman_numeral_string,is_strict={ 0=false | 1= true }
 #@cli : Return Roman Numeral as integer number.
 rep_roman2int:
 skip ${2=1}
 struppercase $1
-roman_num=${}
 
 eval "
- started=char_changed=old_char=old_pos=ans=num=0;
- const is_strict=$2?1;
- roman_chars=['IVXLCDM'];
+ started=char_changed=pos=old_pos=ans=num=0;
+ old_relative_pos=-1;
+ const _H=_'H';
+
+ roman_chars='IVXLCDM';
+ roman_num='"${}"';
  const chars_count=size(roman_chars);
+
+ const is_strict=$2;
  num_vals=expr('(x&1?5:1)*10^(x>>1)',chars_count);
  char_freq_list=vector(#chars_count,0);
- roman_num='"${}"';
+ ref_num_vals=[2,0,3,4,5,6,1];
+
  const roman_num_length=size(roman_num);
  const dec_roman_num_length=roman_num_length-1;
- last_char=roman_num[dec_roman_num_length];
 
  repeat(roman_num_length,p,
-  char=roman_num[dec_roman_num_length-p];
+  relative_pos=roman_num[dec_roman_num_length-p];
 
-  if(started&&!char_changed,char_changed=char!=old_char;);
-
-  old_char=char;
-
-  pos=find(roman_chars,char,0,1);
-
-  if(is_strict,
-   if(pos-old_pos<-2,
-    run('error inv_char_gap');
+  if(changed_pos=(relative_pos!=old_relative_pos),
+   if(started&&!char_changed,char_changed=changed_pos);
+   sel=relative_pos&0b111;
+   if(sel==4,sel>>=relative_pos>_H;);
+   pos=ref_num_vals[sel];
+   if(relative_pos!=roman_chars[pos],run('error inv_char_det'););
+   if(is_strict,
+    if(pos-old_pos<-2,
+     run('error inv_char_gap');
+    );
    );
+   num=num_vals[pos];
   );
 
-  old_pos=pos;
-
-  if(pos==-1,run('error inv_char'));
+  if(pos<old_pos,last_relevant_pos=old_pos);
+  if(!changed_pos?pos<last_relevant_pos,
+   run('error excess_char');
+  );
 
   encounters=++char_freq_list[pos];
-
   if(encounters>(3+char_changed),
    run('error excess_char');
   );
 
-  num=num_vals[pos];
-
   if(num<<2<ans,ans-=num,ans+=num);
-
+  old_relative_pos=relative_pos;
+  old_pos=pos;
   started=1;
  );
 
@@ -8176,7 +8352,7 @@ if narg($8)||narg($9)
   store. ref_gradient
 
  else
-  
+
   if same('$8','u')&&same('$9','u')
 
    mode=3
@@ -8775,142 +8951,6 @@ if $1!=0
 else
 
  f. 0
-
-fi
-#@cli rep_mode_color: _outmode={ 0=blend | 1=mode_per_layer },_color_position
-#@cli : Fill image with mode of colors.
-#@cli :
-#@cli : 'outmode' determines whether to blend images or fill images with mode of itself. If images are to be blended, then it is possible nan values will occur due to the absence of mode or more than one mode.
-#@cli : '_color_position' determines the mode to use if it is 0 or over
-#@cli :
-#@cli : Author: Reptorian.
-#@cli : Default values: '_outmode=0','_color_position=-1'
-rep_mode_color:
-skip ${1=0},${2=-1}
-
-if $!>2&&!$1
-
- +a z colormap. 0
- a[^-1] c
-
- {w#0},{h#0},{d#0},{s#1},"begin(
-   const vs=w#1;
-   const ss=s#1;
-   const css=s#0/ss;
-   endnan=vectors(nan);
-  );
-  nmaxfreq=0;
-  vfreq=vectorvs(-1);
-  vp=I#0;
-  repeat(css,pos,
-   curcol=vp[pos*ss,ss];
-   repeat(vs,posfreq,
-    coltestpos=I(#1,posfreq,0,0);
-    if(curcol==coltestpos,++vfreq[posfreq];);
-   );
-  );
-  maxfreqcount=max(vfreq);
-  if(maxfreqcount+1,
-   posmaxfreqcol=find(vfreq,maxfreqcount,0,1);
-   repeat(vs,fs,if(vfreq[fs]==maxfreqcount,++nmaxfreq;););
-   if(nmaxfreq==1,I(#1,posmaxfreqcol,0,0);,endnan);
-  ,endnan;
-  );"
-
- k.
-elif $!==2&&!$1
- f. "begin(endnan=vectors(nan););I==I#0?I:endnan;" rm..
-else
- foreach {
-  if s>4 error "Unsupported number of channels" fi
-
-  ls={s}
-
-  minv={im}
-  - $minv
-
-  repeat s {
-   sh. $>
-   bsize$>={iM+1}
-   rm.
-  }
-
-  if s==1
-   $bsize0,1,1,1 eval.. ++i(#-1,i,0,0,0) {w},1,1,1,x
-
-   u {"freq=0;
-    repeat(w#-2,n,
-    if(i(#-2,n)==iM#-2,++freq;);
-    );
-    (freq)"}
-
-   maxfreq={${}}
-
-   echo $maxfreq
-
-   +.. $minv
-
-   pixelsort. -,x,[-2]
-
-   if $1<0
-    if $maxfreq==1
-     f... i(#-1,0,0,0)
-    fi
-    k...
-   else
-    pos={$1%$maxfreq}
-    f... i(#-1,$pos,0,0)
-    k...
-   fi
-
-  else
-
-   if s==2 $bsize0,$bsize1,1,1 eval.. ++i(#-1,[I,0]) dins=[x,y]
-   elif s==3 $bsize0,$bsize1,$bsize2,1 eval.. ++i(#-1,I) dins=[x,y,z]
-   elif s==4 $bsize0,$bsize1,$bsize2,$bsize3 eval.. ++i(#-1,I) dins=[x,y,z,c]
-   fi
-
-   1,1,1,$ls 1,1,1,1
-
-   eval... :${-math_lib}${-dar_lib}"begin(
-     const ls=$ls;
-    );
-    if(i,
-     dar_insert(#-2,"$dins");
-     dar_insert(#-1,i-1);
-    );
-    end(
-     resize(#-2,1,dar_size(#-2),1,s(#-2),0);
-     resize(#-1,1,dar_size(#-1),1,s(#-1),0);
-    );
-    "
-
-   +.. $minv
-
-   pixelsort.. -,y,[-1]
-   sort. -
-
-   u {"freq=0;
-    repeat(h#-1,n,
-     if(i(#-1,0,n)==iM,++freq,break(););
-     );
-     (freq)"}
-
-   maxfreq={${}}
-
-   if $2<0
-    if $maxfreq==1
-     f[-4] I(#-2,0,0,0)
-    fi
-   else
-    pos={int($2)%$maxfreq}
-    f[-4] I(#-2,0,$posfreq,0)
-   fi
-   k[-4]
-
-  fi
-
- }
 
 fi
 #@cli rep_dynamic_contrast: -64<=amount<=64,0<=_threshold<=255,0<=_intensity<=255
@@ -18233,52 +18273,6 @@ fill[0-$max_images_index] "begin(
  "
 
 keep[0-$max_images_index]
-#@cli rep_bchstatfunc: eq. to 'rep_by_channel_statistical_function'.
-rep_bchstatfunc : rep_by_channel_statistical_function $*
-#@cli rep_by_channel_statistical_function: _variable,_resize_bool={ 0=Do not resize | 1= Resize to 1x1 }
-#@cli : Creates 1x1 image based on defined variables that depends on image value (minimum, maximum, average, variance, sum, product and median)
-#@cli : (eq. to 'rep_bchstatfunc').\n
-#@cli : Default value: 'resize_bool=0'
-rep_by_channel_statistical_function:
-v - _gmic_s="$?" v +
-_$0 $"*"
-_rep_by_channel_statistical_function:
-
-skip ${2=1}
-
-v - mvcma="$1"
-
-if isnum("$1") if isint("$1") mvcma=${arg\ 1+$1,min,max,avg,var,sum,pro,med} fi fi
-
-foreach { v - _rep_bchstatfunc_$mvcma $2 }
-
-_rep_bchstatfunc_im : _rep_bchstatfunc_min $1
-_rep_bchstatfunc_minimum : _rep_bchstatfunc_min $1
-_rep_bchstatfunc_min : repeat s sh $> f. im#-1 rm. done if $1 r 1,1,1,{s},0 fi
-_rep_bchstatfunc_iM : _rep_bchstatfunc_max $1
-_rep_bchstatfunc_maximum : _rep_bchstatfunc_max $1
-_rep_bchstatfunc_max : repeat s sh $> f. iM#-1 rm. done if $1 r 1,1,1,{s},0 fi
-_rep_bchstatfunc_ia : _rep_bchstatfunc_avg $1
-_rep_bchstatfunc_average : _rep_bchstatfunc_avg $1
-_rep_bchstatfunc_avg : repeat s sh $> f. ia#-1 rm. done if $1 r 1,1,1,{s},0 fi
-_rep_bchstatfunc_iv : _rep_bchstatfunc_var $1
-_rep_bchstatfunc_variance : _rep_bchstatfunc_var $1
-_rep_bchstatfunc_var : repeat s sh $> f. iv#-1 rm. done if $1 r 1,1,1,{s},0 fi
-_rep_bchstatfunc_is : _rep_bchstatfunc_sum $1
-_rep_bchstatfunc_total : _rep_bchstatfunc_sum $1
-_rep_bchstatfunc_sum : repeat s sh $> f. is#-1 rm. done if $1 r 1,1,1,{s},0 fi
-_rep_bchstatfunc_ip : _rep_bchstatfunc_pro $1
-_rep_bchstatfunc_product : _rep_bchstatfunc_pro $1
-_rep_bchstatfunc_pro : repeat s sh $> f. ip#-1 rm. done if $1 r 1,1,1,{s},0 fi
-_rep_bchstatfunc_ic : _rep_bchstatfunc_med $1
-_rep_bchstatfunc_median : _rep_bchstatfunc_med $1
-_rep_bchstatfunc_med : repeat s sh $> f. ic#-1 rm. done if $1 r 1,1,1,{s},0 fi
-#@cli rep_lbchstatfunc_to_pal: eq. to 'rep_layers_by_channel_statistical_function_to_palette'.
-rep_lbchstatfunc_to_pal: rep_layers_by_channel_statistical_function_to_palette $*
-#@cli rep_layers_by_channel_statistical_function_to_palette: _variable
-#@cli : Converts layers to palette using statistical function by channels per layers into 1x1 tile, then append them.
-#@cli : (eq. to 'rep_layers_by_channel_statistical_function_to_palette').
-rep_layers_by_channel_statistical_function_to_palette: rep_bchstatfunc $1 a x
 #@cli rep_photomosaic : {foldername|[images_arg]},_tile_width>=0,_tile_height>=0,_dithering<=1,0<=_interpolation<=5,_palette={ 0=average, 1=median},_autocrop,_maxalp
 #@cli : Generates mosaic using multiple pictures using indexing methodology, and uses either average or median to determine the mapping based on colors. Tile_Width and Tile_Height cannot be both zero!\n
 #@cli : Author: Reptorian.
@@ -20914,10 +20908,10 @@ convert_colors_bwd=${arg\ $cs_choice+1,,ryb2rgb,error,hsi82rgb,hsl82rgb,hsv82rgb
 cmyk_mode,contain_persistent,filter_parameters_changed={[$cs_choice==2,narg($_persistent),$84]}
 list_of_images_to_display=gray_preview,gray_alpha_preview,color_preview,color_alpha_preview
 
-if $contain_persistent 
+if $contain_persistent
  rm $_persistent
-else to_automode 
- name[0--1] auto 
+else to_automode
+ name[0--1] auto
 fi
 
 if $contain_persistent
@@ -20928,7 +20922,7 @@ if $contain_persistent
  use_link,display_link_checkbox,old_link,\
  display_color_space_options,last_visible_option\
  =${23-24},${74-75},$78,$79,$83
- 
+
  color_space_switched={[$1,$2]!=[$76,$77]}
 
  display_make_same_vars_button=$display_link_checkbox
@@ -21002,7 +20996,7 @@ else
    fi
    um _$0_check_variance_{$>+1}
   }
-  
+
   rm[-4--1]
 
   if sum($gray_alpha_preview==-1,$color_alpha_preview==-1)==1
@@ -21197,9 +21191,9 @@ if $use_link
   fi
 
   sep=,
-  
+
   if !$at_least_one_bool?$37 at_least_one_bool=1 fi
-  
+
  fi
 
  if $_gui_analysis_color
@@ -21226,7 +21220,7 @@ if $use_link
    else
     t_filter_args.=-
    fi
-   
+
    t_filter_args.=$t_sep
 
    if $58
@@ -21249,9 +21243,9 @@ if $use_link
    if $color_channels_checkbox_count==(3+$include_k)
     t_filter_args=$link_args
    fi
-   
+
    if !$at_least_one_bool?($44||$51||$58||$64) at_least_one_bool=1 fi
-   
+
    if same('$t_filter_args','-,-,-') t_filter_args= fi
 
    checked_box+=$color_channels_checkbox_count
@@ -21269,14 +21263,14 @@ if $use_link
 
    t_sep=,
    t_filter_args.=$t_sep
-   
+
    if $50
     t_filter_args.=$link_args
     color_channels_checkbox_count+=1
    else
     t_filter_args.=-
    fi
-   
+
    t_filter_args.=$t_sep
 
    if $57
@@ -21289,9 +21283,9 @@ if $use_link
    if $color_channels_checkbox_count==3
     t_filter_args=$link_args
    fi
-   
+
    if !$at_least_one_bool?($43||$50||$57) at_least_one_bool=1 fi
-   
+
    if same('$t_filter_args','-,-,-') t_filter_args= fi
 
    checked_box+=$color_channels_checkbox_count
@@ -21310,11 +21304,11 @@ if $use_link
    filter_args.=$sep
    filter_args.=-
   fi
-  
+
   if !$at_least_one_bool?$70 at_least_one_bool=1 fi
 
  fi
- 
+
  link_effect_visibility:=1+$at_least_one_bool
  link_visibility:=bool($at_least_one_bool?$link_effect)+1
 
@@ -21323,7 +21317,7 @@ else
  all_args_same=1
  previous_args=n/a
  sep=
- 
+
  if $_gui_analysis_gray
   if $37
    previous_args=$gray_method,$gray_effect,$gray_multiplication,$gray_blend,$gray_opacity%
@@ -21336,7 +21330,7 @@ else
   gray_args=$previous_args
   filter_args=$previous_args
   sep=,
-  
+
   current_args=$previous_args
 
   if $use_section?same('$section_space','gray'):1
@@ -21409,9 +21403,9 @@ else
     fi
    else all_args_same=0
    fi
-   
+
    if same('$t_filter_args','-,-,-') t_filter_args= fi
-   
+
    filter_args.=$sep$t_filter_args
 
    if $use_section?same('$section_space','cmy')||same('$section_space','cmyk'):1
@@ -21472,9 +21466,9 @@ else
     t_filter_args=$previous_args
    else all_args_same=0
    fi
-   
+
    if same('$t_filter_args','-,-,-') t_filter_args= fi
-   
+
    filter_args.=$sep$t_filter_args
 
    if $use_section?same('$section_space','color'):1
@@ -21537,7 +21531,7 @@ if same('$_host','cli')
  fi
 
  rep_channels_blur_sharpen_overblur_overline $filter_args
- 
+
  if $cs_choice?$_gui_analysis_color
   if $cmyk_mode&&$include_k
    foreach[$list_of_color_images] {
@@ -21549,14 +21543,14 @@ if same('$_host','cli')
    $convert_colors_bwd[$list_of_color_images]
   fi
  fi
- 
+
 else
 
  if !$contain_persistent||$color_space_switched||!same('$filter_args','$stored_variables')
   rmn filtered
-  
+
   if $cs_choice
-  
+
    if $cmyk_mode
     +foreach {
      if s<3 continue fi
@@ -21570,9 +21564,9 @@ else
      $convert_colors_fwd
     }
    fi
-   
+
    rep_channels_blur_sharpen_overblur_overline[$num_of_imgs--1] $filter_args
-   
+
    if $cmyk_mode
     foreach[$num_of_imgs--1] {
      if s<4 continue fi
@@ -21586,17 +21580,17 @@ else
      $convert_colors_bwd
     }
    fi
-   
+
   else
-   +rep_channels_blur_sharpen_overblur_overline $filter_args 
+   +rep_channels_blur_sharpen_overblur_overline $filter_args
   fi
-  
+
   name[$num_of_imgs--1] filtered
   +store _persistent
  fi
- 
+
  if narg($_gui_reapply)||narg($_pasted_from_gui) keep[filtered] return fi
- 
+
  if $use_section&&($!>2)
   if $previous_image_preview&1
    if $use_only_alpha_to_preview
@@ -29420,8 +29414,10 @@ if $contain_persistent
   name[-2,-1] rgb,ryb
   move[rgb,ryb] 0
   console_mode={!$change_only_color_wheel}
- elif $hsl_changed console_mode=1
- else console_mode=0
+ elif $hsl_changed
+  generate_palette,generate_points,console_mode=1
+ else
+  console_mode=0
  fi
 else
  +_fx_rep_color_harmonies_tool_create_color_wheel
@@ -29486,8 +29482,8 @@ fi
 
 display_boxes_a,display_boxes_b,display_boxes_c,display_boxes_d={([3,4,5,6]<=$number_of_points)<<1}
 
-_fx_rep_color_harmonies_tool_console_message
 +store _persistent
+_fx_rep_color_harmonies_tool_finalize
 keep[$ryb_mode]
 
 u "{"$hue"}"\
@@ -29526,10 +29522,10 @@ u "{"$hue"}"\
 "{"$number_of_points"}"\
 "{"$_preview_area_width"}"\
 "{"$_preview_area_height"}"
-_fx_rep_color_harmonies_tool_console_message:
+_fx_rep_color_harmonies_tool_finalize:
 if $export
  format_output=${arg\ $format_choice+1,gpl,pdn_pal,jasc} => "Generated by G'MIC Color Harmonies"
- +rep_output_$format_output. $folder_name/$file_name
+ rep_output_$format_output. $folder_name/$file_name
  console_mode=2
 fi
 
@@ -29548,14 +29544,14 @@ _fx_rep_color_harmonies_tool_change_colors:
 old_saturation=$saturation
 
 hue,saturation,shade_tint={"
-  
+
   const old_hue=$hue;
   const old_saturation=$saturation;
   const old_shade_tint=$shade_tint;
-  
+
   const ryb_mode=$ryb_mode;
   const number_of_points=$number_of_points;
-  
+
   rgb2hsl(rgb)=(
     m=min(rgb);
     M=max(rgb);
@@ -29565,18 +29561,18 @@ hue,saturation,shade_tint={"
     S=L==1||!L?0:C/(1-abs(2*L-1))/255;
     [H,S*100,L*200-100];
   );
-  
+
   colors_collection_a=(["$colors_collection_a"])[0,number_of_points*3];
   colors_collection_b=(["$colors_collection_b"])[0,number_of_points*3];
-  
+
   repeat(number_of_points,position_of_differences,
    new_color=(colors_collection_a)[position_of_differences*3,3];
    old_color=(colors_collection_b)[position_of_differences*3,3];
    if(new_color!=old_color,break(););
   );
-  
+
   if(ryb_mode,
-  
+
    rgb2ryb(rgb)=(
      white=min(rgb);
      rgb-=white;
@@ -29602,21 +29598,21 @@ hue,saturation,shade_tint={"
      rgb[2]+=white;
      [rgb[0],yellow,rgb[2]];
    );
-   
+
    new_color=rgb2ryb(new_color);
    old_color=rgb2ryb(old_color);
   );
-  
+
   new_color=rgb2hsl(new_color);
   old_color=rgb2hsl(old_color);
   diff_color=new_color-old_color;
-  
+
   new_hsl=[old_hue,old_saturation,old_shade_tint]+diff_color;
-  
+
   new_hsl[0]=round(new_hsl[0]%360,0.01);
   new_hsl[1]=round(cut(new_hsl[1],0,100),0.1);
   new_hsl[2]=round(cut(new_hsl[2],-100,100),0.1);
-  
+
   new_hsl;
  "}
 
@@ -29633,33 +29629,33 @@ hue,shade_tint={_"
  const old_hue=$hue;
  const area_width=$_preview_area_width;
  const area_height=$_preview_area_height;
- 
+
  const center_x=area_width/2;
  const center_y=area_height/2;
- 
+
  const number_of_points=$number_of_points;
  const coordinates=number_of_points<<1;
- 
+
  const end_radius=min(center_x,center_y)*($color_wheel_scaling%);
  const start_radius=end_radius*($color_wheel_black_point%);
  difference_radius=end_radius-start_radius;
- 
+
  new_points=(["$list_of_points"])[0,coordinates];
  old_points=("$list_of_old_points")[0,coordinates];
- 
+
  repeat(number_of_points,position_of_differences,
   xy_new=(new_points)[position_of_differences<<1,2];
   xy_old=(old_points)[position_of_differences<<1,2];
   if(xy_new!=xy_old,break(););
  );
- 
+
  xy_new_hue_at_changed_point=180+rad2deg(atan2(xy_new[0]-50,xy_new[1]-50));
  xy_old_hue_at_changed_point=180+rad2deg(atan2(xy_old[0]-50,xy_old[1]-50));
  diff=xy_new_hue_at_changed_point-xy_old_hue_at_changed_point;
- 
+
  radius_of_current_point=norm([area_width*xy_new[0]/100,area_height*xy_new[1]/100]-[center_x,center_y]);
  new_shade_tint=lerp(-100,100,(cut(radius_of_current_point,start_radius,end_radius)-start_radius)/difference_radius);
- 
+
  [round((old_hue+diff)%360,0.01),round(new_shade_tint,0.1)];
  "}
 _fx_rep_color_harmonies_tool_generate_points:
@@ -29751,7 +29747,7 @@ $_preview_area_width,$_preview_area_height,2,3,"begin(
   const res_atan_end=(2*pi)/360;
   rescale_radial(value)=(value-internal_cut_point)*reciprocal_internal_cut_point;
   rescale_atan2(value)=(value+pi)/res_atan_end;
-  
+
   hsl2rgb(hue,saturation,lightness)=(
    H=(hue/60)%6;
    C=(1-abs(2*lightness-1))*saturation;
@@ -29800,14 +29796,14 @@ $_preview_area_width,$_preview_area_height,2,3,"begin(
 
   ev_light=vector(#3,255);
   ev_dark=vector(#3,0);
-  
+
  );
- 
+
  xx=(x-cx)/cxsx;
  yy=(y-cy)/cysy;
- 
+
  radial_gradient=rescale_radial(norm(xx,yy));
- 
+
  inrange(radial_gradient,0,1,1,1)?(
   conical_gradient=rescale_atan2(atan2(xx,yy));
   if(z
@@ -32173,6 +32169,62 @@ u "{$1}"\
 "{$3}"\
 "{$7}"\
 "{$8,$9}"
+#@gui Statistical Mode: fx_rep_mode_type_int, fx_rep_mode_type_int_preview(1)*:*
+#@gui:_=note("This filter finds the most common color. If there are 2 colors with the same number of colors or if every colors are unique, then some or all pixels will return nan. When every pixels are nan, then this filter will return a error.")
+#@gui:_=separator(),_=note("<b>Main</b>")
+#@gui:Depth=choice(0,"8-Bit","16-Bit")
+#@gui:Output=choice(0,"Blended","Per-Layer")
+#@gui:_=separator(),_=note("<b>Miscellaneous</b>")
+#@gui:NAN Replacement Color=color(0,255,0,255)
+#@gui:Old Main=value(-1,-1)
+#@gui:Old Color=value(-1)
+fx_rep_mode_type_int:
+if narg($_persistent) rm $_persistent keep[result]
+else fx_rep_mode_type_int_preview $*
+fi
+fx_rep_mode_type_int_preview:
+skip $*
+contain_persistent:=narg($_persistent)
+
+if ([${1-2}]!=[$7])||!$contain_persistent
+ to_rgba
+ if $1 * 257 fi
+ 
+ if $2
+  rep_mode_type_int $1,1
+ else  
+  rep_blend_mode_type_int $1
+ fi
+ 
+ foreach { if isnan(im) error all_nan@[$>] fi }
+ 
+ if $1 / 257 fi
+ 
+ name[0--1] result
+ 
+ if !$2
+  +f isnan(i0)?[${3-6}]:I
+  name[-2,-1] temp_result,result
+ fi
+ 
+ +store _persistent
+elif $contain_persistent?!$1&&([${3-6}]!=[$8])
+ rm $_persistent rm[result]
+ +f isnan(i0)?[${3-6}]:I
+ name[-2,-1] temp_result,result
+ +store _persistent
+else rm $_persistent
+fi
+
+rmn temp_result
+
+display_color:=1+!$1
+
+u "{$1}"\
+"{$2}"\
+"{${3-6}}_"$display_color\
+"{${1-2}}"\
+"{${3-6}}"
 ######################
 
 # Local Variables:
