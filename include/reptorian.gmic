@@ -873,6 +873,8 @@ skip ${1=1}
 
 n0={'0'}
 
+out,sep=
+
 foreach {
 
  if !(s&1) to_graya s c /. 255 *
@@ -896,31 +898,26 @@ foreach {
 
  rotate 90
  unroll x
- crop {xM},100%
- rep_binimg2decimg
 
- fill <"begin(
-   const height=$height;
+ rep_binimg2dec_base 0,1
+
+ eval "begin(
+   const=height=$height;
    carry_over=0;
   );
-  n=carry_over+i*height;
-  carry_over=int(n/10);
-  n%10;
-  end(
-    set('carry_over',carry_over);
-  );"
+  current_digit_pos=da_size(#-1);
+  while(current_digit_pos--,
+   n=carry_over+i[#-1,current_digit_pos]*height;
+   carry_over=int(n/1e7);
+   i[#-1,current_digit_pos]=n%1e7;
+  );
+  if(carry_over,da_insert(#-1,0,carry_over););
+  "
 
- + $n0
+ _rep_binimg2dec_base 1
 
- if $carry_over
-  ('$carry_over')
-  reverse
-  append x
- fi
-
- if $> out.=,{t}
- else out={t}
- fi
+ out.=$sep{t}
+ sep=,
 
  rm $image
 
@@ -959,66 +956,264 @@ if $1>=h
 else fill 0
 fi
 if $2 negate fi
-#@cli rep_bin2dec:
-#@cli : Convert binary numbers to digit representation using the carry-over method. Large binary number is supported here.
-#@cli : $ echo ${rep_bin2dec_dd\ 111111111111000000000001011111111111111100000000000011111111111111111111111111111111111111111111100000000000000000000000000001111111111111111111111111110000000000000000}
+#@cli rep_bin2dec: binary_a,binary_b,....
+#@cli : Return the converted binary numbers to decimal representating using an algorithm that use base-10M and Schönhage-Strassen multiplication algorithm. Large binary number is supported here.
 rep_bin2dec:
+check "$#>0"
 $=arg
-n0={_'0'}
+I={$!}
+repeat $# { p:=$>+1 ('${arg$p}') }
+rep_binimg2dec_base[$I--1] 1
+#@cli rep_binimg2dec_base: '_mode_unicode={ 0=false | 1=true }','_preserve_base10M_dynamic_array={ 0=false | 1=true },'_unicode_img_out={ 0=false | 1=true }
+#@cli : Used as base command to process binary-value images and to output decimal or base-10M images. Schönhage-Strassen multiplication was used as basis for multiplication part of the binary to decimal, in addition to using base 10M for easy output of decimal image.
+#@cli : Note : Arguments can also be strings such as true,false,TRUE,FALSE. In addition, 'int','unicode','dec','decimal','integer' can be used as argument for $1 and $3.
+#@cli : Default values: '_mode_unicode=0','_preserve_base10M_dynamic_array=0','_unicode_img_out=_mode_unicode'
+#@cli : Author : Reptorian.
+rep_binimg2dec_base:
+skip ${2=0}
+
+false,true,FALSE,TRUE={expr('x&1',4)}
+unicode=1
+dec,decimal,int,integer=0
+
+if $#>3 error exc_num_args fi
+
+l[] {
+  check "isnum($1)"
+  $=arg
+
+  if $#==3
+    if !isnum($-1)
+      arg3=$$-1
+    fi
+  else arg3=$arg1
+  fi
+
+  dec,decimal,int,integer,unicode=
+
+  if !isnum($arg2)
+    arg2=$$2
+  fi
+
+  onfail
+
+    missing_arg3=0
+    if $#==3
+        if isnum($-1)
+          arg3=$-1
+        else
+          arg3=$$-1
+        fi
+    else missing_arg3=1
+    fi
+
+    if narg($$1)||isnum($1)
+
+      if isnum($1)
+        arg1=$1
+      else
+        arg1=$$1
+      fi
+
+      if $missing_arg3
+        arg3=$arg1
+      fi
+
+      dec,decimal,int,integer,unicode=
+
+      if isnum($2)
+        arg2=$2
+      else
+        arg2=$$2
+      fi
+
+    else noarg arg1,arg2,arg3=0,0,0
+    fi
+ }
+
+mode_unicode,preserve_base10_dynamic_array_image,unicode_out=$arg1,$arg2,$arg3
 
 res,sep=
 
-repeat $# {
- p:=$>+1
- ('${arg$p}')
- if im<_'0'||iM>_'1' error inv_char_det fi
- crop. {xM},100%
- -. {'0'}
- 
- if w<=53
-  eval[-1] <begin(m=0;n=0;);n|=i<<m;++m;end(set('\{\}',n););
- else
-  rep_binimg2decimg[-1]
-  +. $n0
-  status {t}
- fi
-  
- res.=$sep${}
- sep=,
- rm.
-}
+if $mode_unicode
+    n0,n1:='01'
+    str_code=<begin(m=0;n=0;);n|=(i==$n1)<<m;++m;end(set('\{\}',v2s(n)););
+else
+    n0,n1=0,1
+    str_code=<begin(m=0;n=0;);n|=i<<m;++m;end(set('\{\}',v2s(n)););
+fi
 
-status $res
-#@cli rep_binimg2decimg: [image_0],[image_1]....
-#@cli : Convert image representing a binary number as a image representing the decimal represntation of the binary number within image(s).
-rep_binimg2decimg:
 foreach {
- if im<0||iM>1 error not_bin fi
- 1
+    if im<$n0||iM>$n1 error no_binary_image fi
 
- eval[-2] >"begin(
-   da_push(#-1,0);
-  );
+    crop {xM},100%
 
-  max_index=da_size(#-1)-1;
-  carry_over=0;
+    name binary_image
 
-  repeat(da_size(#-1),pos,
-   dec_digit_pos=max_index-pos;
-   new_number=(i[#-1,dec_digit_pos]<<1)+carry_over;
-   carry_over=int(new_number/10);
-   i[#-1,dec_digit_pos]=new_number%10;
-  );
+    if w>53
 
-  if(carry_over,da_insert(#-1,0,1););
-  if(i,++i[#-1,da_size(#-1)-1]);
+        {ceil(w/24)},1,1,1,"begin(
+                const max_x = w#-1-1;
+                const bits = 24;
+                const mode_unicode=$mode_unicode;
+                mode_unicode?(
+                   is_one()=i[#-1,ind]==$n1;
+                ):(is_one()=i[#-1,ind];);
+            );
+            start_point = max_x-(x*bits);
+            end_block = max(-1,start_point-bits);
+            bitshift_factor = output_value = 0;
+            for(ind = start_point, ind>end_block, --ind,
+                output_value |= is_one() << bitshift_factor;
+                bitshift_factor++;
+            );
+            output_value;" => base_float_ref_img
 
-  end(
-   resize(#-1,da_size(#-1),1,1,1,-1);
-  );"
+        remove[binary_image]
 
-  rm..
+        bool_v10M={i[#-1,0]>=1e7}
+        1,1,1,{2+$bool_v10M},v=i[#-1,0];$bool_v10M?[1,v%1e7,2]:[v,1]; permute. xcyz => bin2dec_result_img
+        crop[base_float_ref_img] 1,100%
+        (1;6777216;2) => mult_ref
+
+        eval[base_float_ref_img] >"
+            begin(
+                const base_10M = 1e7;
+                const multiplier_reference = $mult_ref;
+                const bin2dec_result_img = $bin2dec_result_img;
+                const second_digit = 6777216;
+                const mx = w-1;
+            );
+            if(i,
+                current_second_digit = i%base_10M;
+                use_first_digit = i>=base_10M;
+                result_remainder = remainder = old_value = t_old_value = 0;
+                repeat_factor = da_size(#multiplier_reference);
+                result_digit_pos = da_size(#bin2dec_result_img)-1;
+                while( repeat_factor--,
+                    t_old_value = i[#multiplier_reference, repeat_factor];
+                    reference_value =  t_old_value*current_second_digit+old_value+remainder;
+                    target_value = ( reference_value % base_10M ) + result_remainder + i[#bin2dec_result_img,result_digit_pos] ;
+                    if(result_digit_pos>-1
+                    ,i[#bin2dec_result_img,result_digit_pos--] = target_value % base_10M ;
+                    ,da_insert(#bin2dec_result_img,0,target_value % base_10M);
+                    );
+                    if(use_first_digit , old_value = t_old_value );
+                    result_remainder = int ( target_value / base_10M );
+                    remainder        = int ( reference_value / base_10M ) ;
+                );
+                result_remainder+=remainder;
+                if(use_first_digit, result_remainder+= old_value);
+                while(result_remainder,
+                    da_insert(#bin2dec_result_img,0, (result_remainder ) % base_10M );
+                    result_remainder = int ( result_remainder / base_10M );
+                );
+            );
+            if(x<mx,
+                remainder=old_value=0;
+                repeat_factor = da_size(#multiplier_reference);
+                while( repeat_factor--,
+                    t_old_value = i[#multiplier_reference,repeat_factor];
+                    result = t_old_value*second_digit+old_value+remainder;
+                    i[#multiplier_reference,repeat_factor] = result % base_10M;
+                    remainder = int( result / base_10M );
+                    old_value = t_old_value;
+                );
+                remainder+=old_value;
+                while( remainder,
+                    da_insert(#multiplier_reference,0,remainder%base_10M);
+                    remainder = int ( remainder / base_10M );
+                );
+            );"
+
+            keep[bin2dec_result_img]
+
+            if !$preserve_base10_dynamic_array_image
+                _$0 $unicode_out
+                if $unicode_out
+                    res.=$sep{t} rm.
+                    sep=,
+                fi
+            else name[-1] bin2dec_result_img_base_10M
+            fi
+    else
+
+        eval[-1] $str_code rm.
+
+        if $preserve_base10_dynamic_array_image
+            1,{1+int(log(${})/log(1e7))},1,1,<"begin(
+                    n=${};
+                );
+                remainder=n%1e7;
+                n=int(n/1e7);
+                remainder;
+                "
+            ({h})
+
+            append y
+
+            name[-1] bin2dec_result_img_base_10M
+        else
+            if $unicode_out
+                res.=$sep${}
+                sep=,
+            else
+                ('${}') -. $n0 => bin2dec_result_img
+            fi
+        fi
+
+
+    fi
 }
+
+if !$preserve_base10_dynamic_array_image?$unicode_out
+    status $res
+fi
+_rep_binimg2dec_base:
+da_freeze[-1]
+number_of_digits_for_first_digit={int(log10(i[#-1,0]))+1}
+name={n}
+
+length_of_output={$number_of_digits_for_first_digit+(h-1)*7}
+$length_of_output
+
+if w>1024 ps=:
+else      ps=>
+fi
+
+eval[-2] $ps"
+    begin(
+        const unicode_out=$1;
+        const number_of_digits_for_first_digit=$number_of_digits_for_first_digit;
+        const _0=_'0';
+        unicode_out?(
+            format_output()=(shift(tv,shift_factor,0);tv+=!tv*_0);
+            insert2first(value)=value%10+_0;
+        ):(
+            format_output()=(tv-=_0;shift(tv,shift_factor,0));
+            insert2first(value)=value%10;
+        );
+    );
+    y?(
+        insertion_pos=((y-1)*7)+number_of_digits_for_first_digit;
+        i?(
+            shift_factor=6-int(log10(i));
+            tv=v2s(i,0,7);
+            format_output();
+            copy(i[#-1,insertion_pos],tv[0],7,1,1);
+            0;
+        );
+    ):(
+        n=i;
+        insertion_pos=number_of_digits_for_first_digit;
+        while(insertion_pos--,
+            i[#-1,insertion_pos]=insert2first(n);
+            n=int(n/10);
+        );
+        0;
+    );"
+
+remove.. => $name
 #@cli rep_nearest_ratio: value_a>0,value_b>0,_maximum_proposition_number>0,_output_whether_true_ratio={ 0=False | 1=True }
 #@cli : Return nearest ratio from 2 different values
 #@cli : Default value: '_maximum_divisor=0'
@@ -3610,11 +3805,11 @@ rm[-4--2] # Keep only the Hitomezashi Pattern
 #@cli : Return whether it contains a wave at end.
 #@cli : Author: Reptorian.
 rep_contains_wave_at_end: skip "${1=}" if narg($1) u {a=['$1'];(a)[size(a)-1]==_'~'} else u 0 fi
-#@cli rep_random_binary: num_of_chars
-#@cli : Return randomly generated binary number based on number of characters.
+#@cli rep_random_bits: num_of_chars>0
+#@cli : Return randomly generated string of bits.
 #@cli :
 #@cli : Author : Reptorian.
-rep_random_binary: {max(2,abs($1))},1,1,1,int(u(0,2,1,0))+_'0' u {t} rm.
+rep_random_bits: u {`[expr('int(u(_'0',_'2',1,0))',$1)]`}
 #@cli rep_sym_xy: eq. to 'rep_symmetrize_xy'.
 rep_sym_xy: rep_symmetrize_xy $1
 #@cli rep_symmetrize_xy: 0<=mode<=3
@@ -4288,9 +4483,9 @@ $out_dim,$1,$mode"
   const max_index=s-1;
   const dec_max_index=max_index-1;
   const axis=$axis;
-  axis==2?(index()=z;):
-  axis==1?(index()=y;):
-           index()=x;
+  axis==2?(iter_index()=z;):
+  axis==1?(iter_index()=y;):
+           iter_index()=x;
   reverse_array_starting_from(a)=(
    start=a;
    end=max_index;
@@ -4310,7 +4505,7 @@ $out_dim,$1,$mode"
   reverse_array_starting_from(fn);
  ):(
 
-  index=index();
+  index=iter_index();
 
   if(index,
 
@@ -4416,7 +4611,7 @@ check "($1>=$2&&$1>0&&isint($1))&&($2>0&&isint($2))&&inrange(_'$3',_'x',_'z',1,1
 
 if [${1-2}]==[1,1] 1 return fi
 
-num_of_combinations,axis={permut($2,$1,1)},{_'$3'-_'x'}
+num_of_combinations,axis={perm($2,$1,1)},{_'$3'-_'x'}
 
 if $axis==2   out_dim=1,1,$num_of_combinations
 elif $axis==1 out_dim=1,$num_of_combinations,1
@@ -4485,7 +4680,7 @@ if $1==1 status 0
 elif $2==1 status {$3%$1}
 else
 
- permutation_number={$3%permut($2,$1,1)}
+ permutation_number={$3%perm($2,$1,1)}
 
  1,{$1+1},1,1,y
 
@@ -4590,9 +4785,9 @@ $out_dim,$ss,$p_mode"
    v=reverse(expr('$2^x',abs($1)));
   );
   const d_mode_factor=mod_factor-1;
-  axis==2?(index()=z;):
-  axis==1?(index()=y;):
-           index()=x;
+  axis==2?(iter_index()=z;):
+  axis==1?(iter_index()=y;):
+           iter_index()=x;
   started=0;
  );
  started?(
@@ -4603,7 +4798,7 @@ $out_dim,$ss,$p_mode"
   );
   ++v[p];
  ):(
-  v=int(index()/v)%mod_factor;
+  v=int(iter_index()/v)%mod_factor;
   started=1;
  );
  v;"
@@ -4655,7 +4850,7 @@ fi
 
 if $choices==1 $n_items,1,1,1,x return fi
 
-num_combs,axis={permut($choices,$n_items,0)},{_'$3'-_'x'}
+num_combs,axis={perm($choices,$n_items,0)},{_'$3'-_'x'}
 
 if $num_combs>33554432 error excess_combs fi
 
@@ -4674,10 +4869,10 @@ $out_dim,$choices,$mode"
   const axis=$axis;
   const max_index=s-1;
   const dec_max_index=max_index-1;
-  const IR=permut(max_index,n_items-1,0);
-  axis==2?(index()=z;):
-  axis==1?(index()=y;):
-           index()=x;
+  const IR=perm(max_index,n_items-1,0);
+  axis==2?(iter_index()=z;):
+  axis==1?(iter_index()=y;):
+           iter_index()=x;
   started=0;
   comb=vector(#s,0);
   ref_comb=expr('x+1',n_items-1);
@@ -4691,7 +4886,7 @@ $out_dim,$choices,$mode"
    copy(comb[R],ref_comb[comb[R]],s-R);
   ):(++comb[max_index];);
  ):(
-  index=index();
+  index=iter_index();
 
   if(index,
 
@@ -4701,7 +4896,7 @@ $out_dim,$choices,$mode"
 
    while(K<=index,
     ++V;
-    R=permut(max_index,n_items-V,0);
+    R=perm(max_index,n_items-V,0);
     K+=R;
    );
 
@@ -4711,11 +4906,11 @@ $out_dim,$choices,$mode"
    for(p=2,p<s,++p,
     sp=s-p;
     ++V;
-    R=permut(sp,n_items-V,0);
+    R=perm(sp,n_items-V,0);
     K+=R;
     while(K<=index,
      ++V;
-     R=permut(sp,n_items-V,0);
+     R=perm(sp,n_items-V,0);
      K+=R;
     );
     K-=R;
@@ -4742,7 +4937,7 @@ if $1>$2 n_items,choices=$1,$2
 else n_items,choices=$2,$1
 fi
 
-num_combs={permut($choices,$n_items,0)}
+num_combs={perm($choices,$n_items,0)}
 index={$3%$num_combs}
 
 eval "
@@ -4752,12 +4947,12 @@ eval "
 
  comb=vector(#choices,0);
  V=1;
- R=permut(choices-1,n_items-V,0);
+ R=perm(choices-1,n_items-V,0);
  K=R;
 
  while(K<=index,
   ++V;
-  R=permut(choices-1,n_items-V,0);
+  R=perm(choices-1,n_items-V,0);
   K+=R;
  );
  K-=R;
@@ -4765,11 +4960,11 @@ eval "
 
  for(p=2,p<choices,++p,
   ++V;
-  R=permut(choices-p,n_items-V,0);
+  R=perm(choices-p,n_items-V,0);
   K+=R;
   while(K<=index,
    ++V;
-   R=permut(choices-p,n_items-V,0);
+   R=perm(choices-p,n_items-V,0);
    K+=R;
   );
   K-=R;
@@ -4807,7 +5002,7 @@ eval "
 
  repeat(v_size,ind,
   c=v_pos_args[ind];
-  idx+=permut(k,n-1,0)-permut(k,n-c+last_c,0);
+  idx+=perm(k,n-1,0)-perm(k,n-c+last_c,0);
   n-=c-last_c;
   --k;
   last_c=c;
@@ -4824,7 +5019,7 @@ skip ${3=x}
 check "($1>0&&$2>0)&&(isint($1)&&isint($2))&&inrange(_'$3',_'x',_'z',1,1)"
 
 n_items,choices=$1,$2
-num_combs,axis={permut($choices,$n_items+$choices-1,0)},{_'$3'-_'x'}
+num_combs,axis={perm($choices,$n_items+$choices-1,0)},{_'$3'-_'x'}
 
 if $axis==2   out_dim=1,1,$num_combs
 elif $axis==1 out_dim=1,$num_combs,1
@@ -4838,9 +5033,9 @@ $out_dim,$choices,$mode"
   const n_items=$n_items;
   const max_ind=s-1;
   const axis=$axis;
-  axis==2?(index()=z;):
-  axis==1?(index()=y;):
-           index()=x;
+  axis==2?(iter_index()=z;):
+  axis==1?(iter_index()=y;):
+           iter_index()=x;
   comb=vector(#s,0);
   started=0;
  );
@@ -4854,11 +5049,11 @@ $out_dim,$choices,$mode"
    copy(comb[p+1],comb[p],max_ind-p,1,0);
   );
  ):(
-  index()?(
+  iter_index()?(
    m_items=n_items;
    m_choices=$choices;
-   m_index=index();
-   temp=permut(m_choices-1,m_items+m_choices-2,0);
+   m_index=iter_index();
+   temp=perm(m_choices-1,m_items+m_choices-2,0);
    --m_choices;
    item_choice=0;
    repeat($choices,k,
@@ -4888,9 +5083,9 @@ check "sum(isint([${1-2}]))==2&&$1>1&&$2>0&&$#==3"
 eval "
  m_items=$1;
  m_choices=$2;
- m_index=$3%permut(m_choices,m_items+m_choices-1,0);
+ m_index=$3%perm(m_choices,m_items+m_choices-1,0);
  output_list=vector(#$2,0);
- temp=permut(m_choices-1,m_items+m_choices-2,0);
+ temp=perm(m_choices-1,m_items+m_choices-2,0);
  --m_choices;
  item_choice=0;
  repeat($2,k,
@@ -4929,15 +5124,15 @@ eval "
  series_of_indexes=sort([${2--1}]);
  Tc=kv;
  index=0;
- a=permut(kv,n_items+kv-1,0);
+ a=perm(kv,n_items+kv-1,0);
  repeat(kv-1,p,
   v_ind_p=series_of_indexes[p];
   diff=kv-v_ind_p;
   sum_nd=n_items+diff-p;
-  b=permut(Tc,sum_nd-1,0);
+  b=perm(Tc,sum_nd-1,0);
   index+=a-b;
   if(v_ind_p==max_ind,break(););
-  a=b-permut(Tc,sum_nd-2,0);
+  a=b-perm(Tc,sum_nd-2,0);
   --Tc;
  );
  index+=series_of_indexes[kv-1]-series_of_indexes[kv-2];
@@ -4986,9 +5181,9 @@ $dims,$s_size,$p_mode"
   repeat(d_s,p,
    div_list[dec_d_s-p]=tv*=items_list[d_s-p];
   );
-  axis==2?(index()=z;):
-  axis==1?(index()=y;):
-           index()=x;
+  axis==2?(iter_index()=z;):
+  axis==1?(iter_index()=y;):
+           iter_index()=x;
   started=0;
   v=vector(#s,0);
  );
@@ -5000,7 +5195,7 @@ $dims,$s_size,$p_mode"
   );
   ++v[p];
  ):(
-  v=int(index()/div_list)%(items_list--);
+  v=int(iter_index()/div_list)%(items_list--);
   started=1;
  );
  v;"
@@ -28520,10 +28715,10 @@ if $1
     bin_str_a="$11"
    fi
   else
-   bin_str_a=${rep_random_binary\ $length_w}
+   bin_str_a=${rep_random_bits\ $length_w}
   fi
  else
-  bin_str_a=${rep_random_binary\ $length_w}
+  bin_str_a=${rep_random_bits\ $length_w}
  fi
 
  if !$15&&!$16
@@ -28537,10 +28732,10 @@ if $1
     bin_str_b="$12"
    fi
   else
-   bin_str_b=${rep_random_binary\ $length_h}
+   bin_str_b=${rep_random_bits\ $length_h}
   fi
  else
-  bin_str_b=${rep_random_binary\ $length_h}
+  bin_str_b=${rep_random_bits\ $length_h}
  fi
 
  if !$4
@@ -28573,10 +28768,10 @@ else
     bin_str_0="$10"
    fi
   else
-   bin_str_0=${rep_random_binary\ $max_length}
+   bin_str_0=${rep_random_bits\ $max_length}
   fi
  else
-  bin_str_0=${rep_random_binary\ $max_length}
+  bin_str_0=${rep_random_bits\ $max_length}
  fi
 
  if !$4
