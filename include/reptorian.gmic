@@ -546,7 +546,7 @@ repeat $! {
 rep_python_print_files_dir:
 exec 1,"python -c \"import os; d=os.listdir(); c=','; print(f'\\n[gmic][python]-"$^"./ {c.join(d)}')\""
 #@cli rep_cin: '_message'
-#@cli : Allows users to type output number into status. Only numbers, A-Z english letters, comma, period, minus sign, and space are accepted!
+#@cli : Allows users to type output number into status. Only numbers, A-Z english letters, comma, period, minus sign, and space are accepted! Maximum string length is 1024!
 #@cli : Default values: '_message=G'MIC rep_cin output:'
 rep_cin:
 skip "${1=}"
@@ -555,6 +555,7 @@ screen_h>>=1
 
 started,stack_point=0
 current_str_0=""
+max_stack_size:=(1<<10)+1
 
 if narg("$1")
  message="$1"
@@ -579,20 +580,18 @@ do
  else
   key={*,k}
 
-  is_comma={$key==188}
-  is_negative={$key==189}
-  is_period={$key==190}
+  in_char_set:=inrange($key,188,190,1,1)
 
-  if inrange($key,_'0',_'9',1,1)||inrange($key,_'A',_'Z',1,1)||$key==_'\ '||$is_comma||$is_period||$is_negative
-   stack_point+=1
+  if $stack_point<$max_stack_size
+   if inrange($key,_'0',_'9',1,1)||inrange($key,_'A',_'Z',1,1)||$key==_'\ '||$in_char_set
+    stack_point+=1
 
-   if $is_comma o.=,
-   elif $is_negative o.=-
-   elif $is_period o.=.
-   else o.={`$key`}
+    if $in_char_set o.={`(',-.')[$key-188]`}
+    else            o.={`$key`}
+    fi
+
+    current_str_$stack_point=$o
    fi
-
-   current_str_$stack_point=$o
   fi
 
   if $started w[] $screen_w,1,0,0,$message$o
@@ -866,64 +865,6 @@ else
  remove[-1]
 
 fi
-#@cli rep_num2base_float_max: number
-#@cli : Create a image which represent a positive integer number in base 16777216. Used for emulating BIGINT process.
-+rep_num2base_float_max:
-user_number,base_float=$1,{"1<<24"}
-
-('$1') fill[-1] inrange(i,_'0',_'9',1,1) if !im error inv_char_det fi rm.
-
-1
-
-for $user_number>9007199254740992 # The number seen here is equal to 1<<53
-
- eval "
-  const _0=_'0';
-  dividend='"$user_number"';
-  res=0;
-  repeat(size(dividend),p,
-   res=(res*10+(dividend[p]-_0))%$base_float;
-  );
-  da_push(#-1,res);
-  "
-
- 1
-
- eval "
-  number='"$user_number"';
-  const divisor=$base_float;
-  const n_size=size(number);
-  const _0=_'0';
-  index=0;
-  dividend=number[index]-_0;
-
-  while(dividend<divisor,
-   dividend=dividend*10+(number[++index]-_0);
-  );
-
-  while(n_size>index,
-   da_push(#-1,int(dividend/divisor)+_0);
-   dividend=(dividend%divisor)*10+(number[++index]-_0);
-  );
-
-  da_freeze(#-1);
-  "
-
- user_number={t}
- remove[-1]
-
-done
-
-eval "
- const base_float=$base_float;
- user_number=$user_number;
-
- do(
-  da_push(#-1,user_number%base_float);
-  user_number=int(user_number/base_float);
- ,user_number);
-
- resize(#-1,da_size(#-1),1,1,1,-1);"
 #@cli rep_tuppers_self_K: apply_pre_negation={ 0=false | 1=true }
 #@cli : Generate K values from images. Also, threshold image for users to check what it would look like.
 #@cli : Default values: 'apply_pre_negation=1'
@@ -932,16 +873,17 @@ skip ${1=1}
 
 n0={'0'}
 
-foreach
+foreach {
 
  if !(s&1) to_graya s c /. 255 *
  else to_gray
  fi
 
- if !iv
+ if !iv?($1?im:!im)
   if $> out.=,0
   else out=0
   fi
+  continue
  fi
 
  height={h}
@@ -950,16 +892,112 @@ foreach
 
  gt {(im+iM)/2}
  +store. image
- if $1 negate fi
+ if $1 xor 1 fi
 
  rotate 90
  unroll x
- crop {xM+1},100%
+ crop {xM},100%
+ rep_binimg2decimg
 
+ fill <"begin(
+   const height=$height;
+   carry_over=0;
+  );
+  n=carry_over+i*height;
+  carry_over=int(n/10);
+  n%10;
+  end(
+    set('carry_over',carry_over);
+  );"
+
+ + $n0
+
+ if $carry_over
+  ('$carry_over')
+  reverse
+  append x
+ fi
+
+ if $> out.=,{t}
+ else out={t}
+ fi
+
+ rm $image
+
+}
+
+status $out
+#@cli rep_tuppers_self: _K>=h,_apply_negate={ 0=false | 1=true }
+#@cli : Generates output of K onto a single image.
+#@cli : Note: _K must be a integer number equal or greater to the height of image.
+#@cli : Default values: '_K=96093937991.....','apply_negate=1'
+rep_tuppers_self:
+skip ${1=960939379918958884971672962127852754715004339660129306651505519271702802395266424689642842174350718121267153782770623355993237280874144307891325963941337723487857735749823926629715517173716995165232890538221612403238855866184013235585136048828693337902491454229288667081096184496091705183454067827731551705405381627380967602565625016981482083418783163849115590225610003652351370343874461848378737238198224849863465033159410054974700593138339226497249461751545728366702369745461014655997933798537483143786841806593422227898388722980000748404719},${2=1}
+
+if $!!=1 error n_imgs_inv fi
+if d>1 error imgs_dims_inv fi
+if $1<h&&$1 error inv_inp fi
+
+if $1>=h
+ fill y+x*h mirror. x
+
+ +rep_posdec2base_img ${rep_BIGINT_division\ $1,{h}},base_float
+ {24*(w-1)+int(log2(i[#-1,0]))+1}
+ eval[-2] "
+  const mx=w-1;
+  xp=mx-x;
+  point=xp*24;
+  digit=i;
+  while(digit,
+   i(#-1,point++)=digit&1;
+   digit>>=1;
+  );
+  i;
+  "
+
+ map[-3] [-1] rm[-2,-1]
+else fill 0
+fi
+if $2 negate fi
+#@cli rep_bin2dec:
+#@cli : Convert binary numbers to digit representation using the carry-over method. Large binary number is supported here.
+#@cli : $ echo ${rep_bin2dec_dd\ 111111111111000000000001011111111111111100000000000011111111111111111111111111111111111111111111100000000000000000000000000001111111111111111111111111110000000000000000}
+rep_bin2dec:
+$=arg
+n0={_'0'}
+
+res,sep=
+
+repeat $# {
+ p:=$>+1
+ ('${arg$p}')
+ if im<_'0'||iM>_'1' error inv_char_det fi
+ crop. {xM},100%
+ -. {'0'}
+ 
+ if w<=53
+  eval[-1] <begin(m=0;n=0;);n|=i<<m;++m;end(set('\{\}',n););
+ else
+  rep_binimg2decimg[-1]
+  +. $n0
+  status {t}
+ fi
+  
+ res.=$sep${}
+ sep=,
+ rm.
+}
+
+status $res
+#@cli rep_binimg2decimg: [image_0],[image_1]....
+#@cli : Convert image representing a binary number as a image representing the decimal represntation of the binary number within image(s).
+rep_binimg2decimg:
+foreach {
+ if im<0||iM>1 error not_bin fi
  1
 
  eval[-2] >"begin(
-   da_push(#-1,1);
+   da_push(#-1,0);
   );
 
   max_index=da_size(#-1)-1;
@@ -977,113 +1015,10 @@ foreach
 
   end(
    resize(#-1,da_size(#-1),1,1,1,-1);
-  );
-  "
-
- remove[-2]
-
- fill <"begin(
-   const height=$height;
-   carry_over=0;
-  );
-  n=carry_over+i*height;
-  carry_over=int(n/10);
-  n%10;
-  end(
-   if(carry_over,
-    set('carry_over',carry_over);
-   );
   );"
 
- + $n0
-
- if $carry_over
-  ('{$carry_over}')
-  reverse
-  append x
- fi
-
- if $> out.=,{t}
- else out={t}
- fi
-
- rm $image
-
-done
-
-status $out
-#@cli rep_tuppers_self: _K>=h,_apply_negate={ 0=false | 1=true }
-#@cli : Generates output of K onto a single image.
-#@cli : Note: _K must be a integer number equal or greater to the height of image.
-#@cli : Default values: '_K=96093937991.....','apply_negate=1'
-rep_tuppers_self:
-skip ${1=960939379918958884971672962127852754715004339660129306651505519271702802395266424689642842174350718121267153782770623355993237280874144307891325963941337723487857735749823926629715517173716995165232890538221612403238855866184013235585136048828693337902491454229288667081096184496091705183454067827731551705405381627380967602565625016981482083418783163849115590225610003652351370343874461848378737238198224849863465033159410054974700593138339226497249461751545728366702369745461014655997933798537483143786841806593422227898388722980000748404719},${2=1}
-
-if $!!=1 error n_imgs_inv fi
-if d>1 error imgs_dims_inv fi
-if $1<h error inv_inp fi
-
-fill "y+x*h" mirror. x
-
-decimal_number=$1
-
-('$decimal_number')
-
-if im<_'0'||iM>_'9' error inv_text_\$1 fi
-
-if w#-1<h#-2?$1<h#-2
- fill[-2] {$2?1}
- remove[-1]
- return
-fi
-
-remove[-1]
-
-1
-
-eval "
- number='$1';
- const divisor=h#0;
- const n_size=size(number);
- const _0=_'0';
- const _9=_'9';
-
- if(find(inrange(number,_0,_9,1,1),0,0,1)+1,
-  run('error inv_char_det');
- );
-
- index=0;
- dividend=number[index]-_0;
-
- while(dividend<divisor,
-  dividend=dividend*10+(number[++index]-_0);
- );
-
- while(n_size>index,
-  da_push(#-1,int(dividend/divisor)+_0);
-  dividend=(dividend%divisor)*10+(number[++index]-_0);
- );
-
- da_freeze(#-1);
- "
-
-+rep_num2base_float_max {t} remove[-2]
-
-{24*(w-1)+int(log2(i(#-1,w-1)))+1}
-
-eval[-2] "
- point=x*24;
- digit=i;
- while(digit,
-  i(#-1,point++)=digit&1;
-  digit>>=1;
- );
- "
-
-map[-3] [-1]
-remove[-2,-1]
-
-if $2 negate fi
+  rm..
+}
 #@cli rep_nearest_ratio: value_a>0,value_b>0,_maximum_proposition_number>0,_output_whether_true_ratio={ 0=False | 1=True }
 #@cli : Return nearest ratio from 2 different values
 #@cli : Default value: '_maximum_divisor=0'
@@ -2720,9 +2655,181 @@ repeat h#0 {
 }
 
 rm[-3--1]
+#@cli rep_BIGINT_division: decimal_number>=0,1<=divisor<=9007199254740992
+#@cli : Perform division on decimal number, then return the value. Supports 1000+ digits positive integer number for decimal_number only!
+rep_BIGINT_division:
+check "isint($2)&&$1>=0&&inrange($2,1,1<<53,1,1)"
+
+if $1<(1<<53) status {int($1/$2)}
+else
+ if $2>$1 status 0 return
+ elif $2==1
+  if v='$1';min(v)<_'0'||max(v)>_'9'; error inv_char_det fi
+  status $1
+ else
+  ('$1')
+  if im<_'0'||iM>_'9' error inv_char_det fi
+
+  eval "
+   const _0=_'0';
+   const divisor=$2;
+   const init_shift_num=int(log10(divisor));
+   const start_digits_count=init_shift_num+1;
+   const LenDecStr=w#-1;
+   start_num=0;
+   repeat(start_digits_count,p,
+    start_num=start_num*10+i[#-1,p]-_0;
+   );
+   start_num>=divisor?(
+    tmp=int(start_num/divisor);
+    i[#-1,0]=tmp+_0;
+    remainder=start_num-tmp*divisor;
+    shift_num=init_shift_num;
+   ):(
+    shift_num=init_shift_num+1;
+    remainder=start_num;
+   );
+   for(p,p<LenDecStr,++p,
+    tmp=remainder*10+i[#-1,p]-_0;
+    new_num=int(tmp/divisor);
+    remainder=tmp-new_num*divisor;
+    i[#-1,p-shift_num]=new_num+_0;
+   );
+   set('trim_end_point',LenDecStr-shift_num-1);
+   "
+
+  crop. 0,$trim_end_point status {t} rm.
+ fi
+fi
+#@cli rep_posdec2base_img: decimal_number>=0,1<base<=16777216
+#@cli : Output numberical representation of a decimal number in given base as a image. Each pixels are digit representation of a number. This can also be used to represent really huge decimal number. 1000+ digits decimal number is supported.
+#@cli :
+#@cli : 'base' can be a integer number between 2 to 16777216 (Inclusive for both). In addition, you can use the following string as argument for 'base': bin,oct,dec,base_float.
++rep_posdec2base_img:
+check "isint($2)?inrange($2,2,16777216,1,1):isnum($2)?0:1"
+
+if !isint($2)
+ bin,oct,dec,hex,base_float=2,8,10,16,16777216
+ base:=$$2
+else base=$2
+fi
+
+if $base==10
+ ('$1')
+ if im<_'0'||iM>_'9' error inv_char_det fi
+ -. {_'0'}
+ return
+fi
+
+if $1<(1<<53)
+ {1+int(log($1)/log($base))},1,1,1,<"begin(
+   const base=$base;
+   n=$1;
+  );
+  remainder=n%base;
+  n=int(n/base);
+  remainder;
+  "
+else
+ if $base>10
+  ('$1') -. {_'0'}
+  if im#-1<0||iM#-1>9 error inv_char_det fi
+
+  eval "
+   const base=$base;
+   const init_shift_num=int(log10(base));
+   const start_digits_count=init_shift_num+1;
+   const start_LenDecStr=w#-1;
+   LenDecStr=start_LenDecStr;
+   remainders_count=0;
+   while(LenDecStr>15,
+    start_num=0;
+    repeat(start_digits_count,p,
+     start_num=start_num*10+i[#-1,p];
+    );
+    start_num>=base?(
+     i[#-1,0]=int(start_num/base);
+     remainder=start_num-i[#-1,0]*base;
+     shift_num=init_shift_num;
+    ):(
+     shift_num=init_shift_num+1;
+     remainder=start_num;
+    );
+    for(p,p<LenDecStr,++p,
+     tmp=remainder*10+i[#-1,p];
+     new_num=int(tmp/base);
+     remainder=tmp-new_num*base;
+     i[#-1,p-shift_num]=new_num;
+    );
+    ++remainders_count;
+    i[#-1,start_LenDecStr-remainders_count]=remainder;
+    LenDecStr-=shift_num;
+   );
+   n=0;
+   repeat(LenDecStr,p,
+    n=n*10+i[#-1,p];
+   );
+   while(n,
+    remainder=n%base;
+    remainders_count++;
+    i[#-1,start_LenDecStr-remainders_count]=remainder;
+    n=int(n/base);
+   );
+   remainders_count;
+   "
+
+  crop. {w#-1-${}},100%
+ else
+  ('$1') -. {_'0'} => input
+  if im#-1<0||iM#-1>9 error inv_char_det fi
+
+  1
+
+  eval "
+   const base=$base;
+   const input=$input;
+   LenDecStr=w#input;
+   while(LenDecStr>15,
+    shift_num=i[#input,0]<base;
+    remainder=shift_num?i[#input,0];
+    for(p=shift_num,p<LenDecStr,++p,
+     tmp=remainder*10+i[#input,p];
+     new_num=int(tmp/base);
+     remainder=tmp-new_num*base;
+     i[#input,p-shift_num]=new_num;
+    );
+    da_insert(#-1,0,remainder);
+    if(shift_num,--LenDecStr);
+   );
+   resize(#-1,da_size(#-1),1,1,1,-1);
+   resize(#input,LenDecStr,1,1,1,-1);
+   "
+
+  n={`crop(#$input)+_'0'`} rm[$input]
+
+  {1+int(log($n)/log($base))},1,1,1,<"begin(
+    const base=$base;
+    n=$n;
+   );
+   remainder=n%base;
+   n=int(n/base);
+   remainder;
+   "
+
+  rv[-2,-1] a[-2,-1] x
+ fi
+fi
 #@cli rep_num2altbase: abs_num,base
 #@cli : Insert number in bases other than 10. Each numbers are represented as digits by themselves.
 +rep_num2altbase:
+
+####################################################################################
+# Dear Reptorian,                                                                  #
+# When you're done refactoring Mitchell Concatenation, please retire this command. #
+# It is to be replaced with +rep_posdec2base_img command.                          #
+# Thank you for reading your self-note,                                            #
+# Reptorian                                                                        #
+####################################################################################
 
 number,base={int(abs([$1,$2]))}
 
@@ -5040,7 +5147,7 @@ channels[-2] 0
 map[-1] [-2]
 remove[-2]
 #@cli rep_string_permutation_index2str: reference_string,index,_sort_reference_string={ 0=do_not_sort_string | 1=sort_string | 2=logical_sort_string }
-#@cli Return the string which is of the lexicographic index given reference string. The index is based on character appearance order unless sorting is activated. This is the first time an algorithm has been made to address this.
+#@cli : Return the string which is of the lexicographic index given reference string. The index is based on character appearance order unless sorting is activated. This is the first time an algorithm has been made to address this.
 #@cli : Author : Reptorian.
 #@cli : Default values: '_sort_reference_string=0'
 rep_string_permutation_index2str:
@@ -6822,22 +6929,14 @@ status {t} rm.
 #@cli :
 #@cli : Author: Reptorian.
 rep_hex2int8:
-strlowercase $1
-
-('${}')
-
-if (w&1) error is_even(str_size)==F fi
-
-{w>>1},1,1,1,"begin(
-  const _0=_'0';
-  const _9=_'9';
-  const char_ref_val=_'a'-10;
-  from_char(v)=if(inrange(v,_0,_9,1,1),v-_0,v-char_ref_val);
+eval "
+ str_hex='$1';
+ const s_str_hex=size(str_hex);
+ if(min(str_hex)==_'-'||s_str_hex&1,
+  run('error inv_inp');
  );
- p=x*2;
- from_char(i(#-1,p))*16+from_char(i(#-1,p+1));"
-
-u {crop(#-1)} rm[-2,-1]
+ bitshift_factors=reverse(expr('x*8',s_str_hex>>1));
+ (0x$1>>bitshift_factors)&0xff;"
 #@cli rep_int82hex: 0<=8-bit_value<=255...
 #@cli : Convert 8-bit numberical argument(s) into hexadecimal representation.
 #@cli :
@@ -16324,56 +16423,6 @@ repeat $# {
 
 v + e[^-1] "Create palette(s) '"$out"'." v -
 status $out
-#@cli rep_hex8args2pal: hex_a,hex_b...
-#@cli : Convert 8-bit hexadecimal arguments into palette representation.
-+rep_hex8args2pal:
-if size('$-1')==1
- axis,axis_arg={_'$-1'-_'x'},1
- if $#==1 error no_hex_arg fi
-else
- axis,axis_arg=0,0
-fi
-
-('$*')
-
-{L=$#-$axis_arg;v=[1,1,1];v[$axis]=L;[v,size('$1')>>1]},>"begin(
-  const length_of_hex_str=s<<1;
-  const separator_point=length_of_hex_str+1;
-  const _0=_'0';
-  const _9=_'9';
-  const _a=_'a';
-  const _f=_'f';
-  const _A=_'A';
-  const _F=_'F';
-  const sub_a=_a-10;
-  const sub_A=_A-10;
-  color=vector(#3,0);
-  position()="${arg\ $axis+1,x,y,z}";
- );
- str=crop(#-1,separator_point*position(),0,0,0,length_of_hex_str,1,1,1);
- repeat(length_of_hex_str,ind,
-  channel=ind>>1;
-  char=str[ind];
-  inrange(char,_0,_9,1,1)?(
-   v=char-_0;
-  ):
-  inrange(char,_a,_f,1,1)?(
-   v=char-sub_a;
-  ):
-  inrange(char,_A,_F,1,1)?(
-   v=char-sub_A;
-  ):(
-   run('error inv_args');
-  );
-  ind&1?(
-   color[channel]+=v;
-  ):(
-   color[channel]=v<<4;
-  );
- );
- color;"
-
-remove[-2]
 #@cli rep_transfer_color_reduced: [palette],0<=_dither<=1,_pixel_ratio_w>=0,_pixel_ratio_h>=0,_windows_width>=0,_window_height>=0,_color_restriction_per_window>=0,_color_restriction_per_whole>=0,_number_of_alpha>=0,_alpha_dithering>=0,_alpha_mode={ 0=index | 1=window-index | 2=ordered },_alpha_restrict>=0 : { bit_depth | bit_a:...:bit_z | :[palette] },0<=_dither<=1,_pixel_ratio_w>=0,_pixel_ratio_h>=0,_color_restriction_per_whole>=0,_number_of_alpha>=0,_alpha_dithering>=0,_alpha_mode={ 0=index | 1=ordered }
 #@cli : Change images to look as if it was reduced. Can be used to emulate old hardware.
 rep_transfer_color_reduced:
