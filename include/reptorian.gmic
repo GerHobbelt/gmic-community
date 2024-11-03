@@ -48,6 +48,194 @@
 #
 #-------------------------------
 
+#@cli rep_freq_sortvals: string
+#@cli : Input into frequency of sorted values. If you use image next to command, it will convert into image representing frequency of sorted value.
+rep_freq_sortvals:
+skip "${1=}"
+
+if narg($1)
+	({'$*'})
+else
+	old_status=${}
+fi
+
+if narg($old_status)
+	foreach { _rep_freq_order }
+	u $old_status
+else
+	_rep_freq_order
+	u {crop(#-1)}
+	rm.
+fi
+_rep_freq_order:
+sort.
+0
+eval.. >"begin(
+		compare_num=i[#-2,0];
+		da_push(#-1,0);
+		pos=0;
+	);
+
+	if(i==compare_num
+	,++i[#-1,pos];
+	,da_push(#-1,1);++pos;compare_num=i;
+	);
+	i;
+
+	end(da_freeze(#-1););
+	"
+rm..
+#@cli rep_mode: _fill_with_mode_color={ 0=false | 1=true }
+#@cli : Transform image to the most common color of images.
+#@cli : Note: Code adapted from G'MIC Standard Library colormap code.
+#@cli : Default values: '_fill_with_mode_color=1'
+rep_mode:
+skip ${1=1}
+
+original_status=${}
+
+foreach {
+	# Prepare dimensions for output
+	output_dimensions:=$1?[w#-1,h#-1,d#-1,s#-1]:[1,1,1,s#-1]
+
+	# Compute hashcode map.
+	+n. 0,255 f. "ret = vectors(); H = 0; repeat (s,p,(H*=31)+=j(0,0,0,p)); ret[0] = H%2048; ret"
+	channels. 0 equalize. 2048 n. 0,2047 round. 1
+
+	# Find single occurrence of each color/vector.
+	0x2048
+	eval[0] ">
+		begin(sizes = vector2048(); ret = vectors());
+		col_s = I;
+		H = i#1; indH = H + 2;
+		sH = sizes[H];
+		!sH || find(#indH,col_s,s#0*(sH - 1),-s#0)<0?( # Color not found
+			sH>=h(#indH)?resize(#indH,s#0,max(8,2*h#indH),1,1,0);
+			copy(i(#indH,0,sH,0,0),col_s);
+			++sizes[H];
+		);
+		ret;
+		end(fill(sizes,k,resize(#k + 2,s#0,sizes[k],1,1,0)));"
+
+	a[2--1] y permute. yzcx rm..
+
+	index.. .,0,0
+	histogram.. {[w,0,w-1]}
+
+	# Compare frequency to check
+	eval.. >"begin(
+			count_and_place=vector(#3);
+		);
+		if(i>count_and_place[0],
+			count_and_place[1]=count_and_place[0];
+			count_and_place[0]=i;
+			count_and_place[2]=x;
+		);
+		end(
+			set('{}',v2s(count_and_place););
+		);"
+
+	# Transform image into most common color
+	maximal_a,maximal_b,max_pos=${}
+
+	if $maximal_a==$maximal_b
+		color=[{vector(#s#-1,nan)}]
+		rm
+	else
+		color=[{I[#-1,$max_pos]}]
+		rm
+	fi
+
+	$output_dimensions,$color
+}
+
+status $original_status
+#@cli rep_mode_blend
+#@cli : Blend Layers via statistical mode of colors.
+#@cli : Author : Reptorian.
+rep_mode_blend:
+
+is_dimensions_valid={"
+		v=[w#0,h#0,d#0,s#0];
+		dimension_valid=1;
+		!same(v[0,3],[0,0,0])?(
+			for(p=1,p<$!,++p,
+				nv=[w#p,h#p,d#p,s#p];
+				if(same(v[0,3],[0,0,0]),dimension_valid=0;break(););
+				if(!same(nv,v),dimension_valid=0;break(););
+			);
+		):(
+			p=dimension_valid=0;
+		);
+		set('img_checked',p);
+		dimension_valid
+	"}
+
+if !$is_dimensions_valid    error inv_dim_det@[$img_checked] fi
+if $!==1 return fi
+if $!==2 100%,100%,100%,100%,I#-2==I#-1?I#-1:vector(#s,nan) rm[-3,-2] return fi
+
+spectrum_size,number_of_images:=s,$!
+
+a c
+
+100%,100%,100%,$spectrum_size,"begin(
+		const S=$spectrum_size;
+		const layers=$number_of_images;
+		init_new_counts=vector(#layers);
+		init_new_counts[0]=1;
+
+		v_NaN=vector(#S,nan);
+	);
+
+	colors=I#-1;
+	counts=init_new_counts;
+	last_nonduplicate_pos=S;
+	found_at_least_one_duplicate=0;
+	old_color=v_NaN;
+
+	for(pos=S,pos<s#-1,pos+=S,
+		current_color=(colors)[pos,S];
+		same(current_color,old_color)?(
+			found_duplicate=1;
+		):(
+			found_duplicate=0;
+			for(q_pos=[0,0],q_pos[0]<last_nonduplicate_pos,q_pos+=[S,1],
+				if( same( current_color , (colors)[q_pos[0],S] ),
+					found_duplicate=1;
+					break();
+				);
+			);
+		);
+		old_color=current_color;
+		++counts[q_pos[1]];
+		found_duplicate?(
+			found_at_least_one_duplicate=1;
+		):(
+			copy(colors[q_pos[0]],current_color);
+			last_nonduplicate_pos+=S;
+		);
+	);
+
+	found_at_least_one_duplicate?(
+		current_maxima=old_maxima=maxima_pos=0;
+		for(r=[0,0],r[0]<last_nonduplicate_pos,r+=[S,1],
+			if(counts[r[1]]>=current_maxima,
+				old_maxima=current_maxima;
+				current_maxima=counts[r[1]];
+				maxima_pos=r[0];
+			);
+		);
+		current_maxima!=old_maxima?(
+			(colors)[maxima_pos,S];
+		):(
+			v_NaN;
+		);
+	):(
+		v_NaN;
+	)"
+
+rm..
 #@cli rep_mode_type_int: _use_16_bit_mode={ 0=false | 1= true },_fill_with_mode_color={ 0=false | 1=true }
 #@cli : Finds mode color of 8-bit images.
 #@cli : Note: You can use 8 or 16 as first argument to reflect the number of bits to use instead of 0,1 for self-documentation purpose.
@@ -59,7 +247,7 @@ skip ${1=0},${2=0}
 original_status=${}
 
 use_16_bit:=$1==16?1:$1?$1!=8
-max_value,max_spec_size:=mv=(1<<($use_16_bit?(ms=4;16):(ms=7;8)))-1;[mv,ms]
+max_value,max_spec_size:=mv=(1<<($use_16_bit?(ms=3;16):(ms=6;8)))-1;[mv,ms]
 
 foreach {
 	if im<0||iM>$max_value
@@ -70,53 +258,148 @@ foreach {
 		error exc_chans
 	fi
 
-	if $2 od:=w,h,d,s
-	else  od=1,1,1,{s}
+	s:=s#0
+	output_dimension:=$2?[w#0,h#0,d#0,$s]:[vector(#3,1),$s];
+	length,use_mt:=length=ceil(whd/$_cpus);[length,length>0x1000]
+
+	{whd#0},1,1,4,inf
+
+	if $use_mt
+		$_cpus
+		mode=:
+	else
+		mode=>
+		1
 	fi
 
-	eval[-1] >"begin(
+	eval[-1] $mode"
+		begin(
+			const number_of_pixels=whd#0;
+			const length=$length;
+			const bit_mask=(1<<24)-1;
+			const max_value=$max_value;
+			const use_mt=$use_mt;
+			const cpus=use_mt?$_cpus:1;
+			const d_cpus=cpus-1;
+
+			current_vector=vector(#length,inf);
+			uniques_info=vector(#cpus,0);
+			init_current_pixel_vector=vector(#cpus);
+
+
+			if(!use_mt,maximum_count_and_place=vector(#3););
+
+
 			if($use_16_bit
-			,bitshift_factors=expr('x<<4',s);
-			,bitshift_factors=expr('x<<3',s);
+			,bitshift_factors=expr('x<<4',s#0);
+			,bitshift_factors=expr('x<<3',s#0);
 			);
 
 			convert_color2int(color_values)=sum(color_values<<bitshift_factors);
-			convert_int2color(counting_num)=(counting_num>>bitshift_factors)&$max_value;
-			nan_vector=vector(#s,nan);
-			list_of_colors=vector(#whd);
-			p=0;
+			convert_int2color(counting_num)=(counting_num>>bitshift_factors)&max_value;
+			convert_int2base_float(integer)=[integer>>48,(integer>>24)&bit_mask,integer&bit_mask];
 		);
-		list_of_colors[p++]=convert_color2int(I);
-		I;
-		end(
-			count=maximum_count=old_maximum_count=0;
-			old_color=maximum_freq_color=nan;
 
-			list_of_colors=sort(list_of_colors);
+		init_current_pixel_vector[t]=t*length;
+		init_current_pixel=t*length;
 
-			repeat(whd,p,
-				list_of_colors[p]!=old_color?(
-					count=1;
-				):(
-					++count;
-					count>maximum_count?(
-						maximum_count=count;
-						maximum_freq_color=old_color;
-					):
-					count==maximum_count?(
-						old_maximum_count=maximum_count;
-					);
+		current_pixel=init_current_pixel;
+
+		rf=min(length,number_of_pixels-current_pixel);
+		repeat(rf,idx,
+			current_vector[idx]=convert_color2int(I[#0,current_pixel++]);
+		);
+
+		current_vector=sort(current_vector);
+
+		old_number=nan;
+		uniques=0;
+		repeat(rf,idx,
+			current_number=current_vector[idx];
+			current_number!=old_number?(
+				draw(#1,convert_int2base_float(current_number),init_current_pixel+uniques,0,0,0,1,1,1,3);
+				i(#1,init_current_pixel+uniques,0,0,3)=1;
+				counts=++uniques;
+			):(
+				counts=++i(#1,init_current_pixel+uniques-1,0,0,3);
+			);
+			if(!use_mt,
+				if(counts>maximum_count_and_place[0],
+					maximum_count_and_place[2]=maximum_count_and_place[0];
+					maximum_count_and_place[0]=counts;
+					maximum_count_and_place[1]=uniques-1;
 				);
-				old_color=list_of_colors[p];
+			);
+			old_number=current_number;
+		);
+
+		uniques_info[t]=uniques;
+		end(
+			merge(uniques_info,+);
+			merge(init_current_pixel_vector,+);
+
+			if(use_mt,maximum_count_and_place=vector(#3););
+
+
+			for(p=1,p<cpus,++p,
+
+				start_pos=init_current_pixel_vector[p];
+				end_pos=start_pos+uniques_info[p];
+
+				for(q=start_pos,q<end_pos,++q,
+					pixel=I[#1,q];
+					current_color=(pixel)[0,3];
+					counts=pixel[3];
+
+					found_color=0;
+
+					repeat(uniques_info[0],r,
+						if(same((I[#1,r])[0,3],current_color),
+							i(#1,r,0,0,3)+=counts;
+							counts=i(#1,r,0,0,3);
+							found_color=1;
+							break();
+						);
+					);
+
+					if(counts>maximum_count_and_place[0],
+						maximum_count_and_place[2]=maximum_count_and_place[0];
+						maximum_count_and_place[0]=counts;
+						maximum_count_and_place[1]=r;
+					);
+
+					if(found_color,continue(););
+					I[#1,uniques_info[0]++]=pixel;
+				);
 			);
 
-			set('mode_color',v2s(if(maximum_count==1||(maximum_count==old_maximum_count),nan_vector,convert_int2color(maximum_freq_color););););
+			resize(#1,uniques_info[0],1,1,4,0,0);
+			set('{}',v2s(maximum_count_and_place));
+
+		);"
+
+	rm[0,-1]
+
+	maximum_a,place,maximum_b=${}
+	color=[{"
+		$maximum_a!=$maximum_b?(
+			const max_value=$max_value;
+
+			if($use_16_bit
+			,bitshift_factors=expr('x<<4',$s);
+			,bitshift_factors=expr('x<<3',$s);
+			);
+
+			convert_basefloat2int(vector_number)=(vector_number[0]<<48)|(vector_number[1]<<24)|vector_number[2];
+			convert_int2color(counting_num)=(counting_num>>bitshift_factors)&max_value;
+
+			convert_int2color(convert_basefloat2int((I[#0,$place])[0,3]));
+		):(
+			vector(#$s,nan);
 		);
-		"
-	rm.
+	"}]
 
-	$od,[$mode_color]
-
+	$output_dimension,$color rm..
 }
 
 status $original_status
@@ -210,94 +493,145 @@ append c
 	"
 
 rm..
-#@cli rep_extract_unique_values_and_count
-#@cli : Extract Unique values from a image starting from 0,0,0,0, and then outputs unique values only with the count.
-rep_extract_unique_values_and_count:
-m $0_a_nums:"100%,1,1,1,x a c"
+#@cli rep_val2order: map_2_img={ 0=no | 1=yes},_keep_set_vals={ 0=no | 1=values | 2=values+count | 3=values+status_counts | 4=status_counts }
+#@cli : Change images to order of appearance representation(s). map_2_img simply convert values to the order of their appearance starting from zero. set_vals can contain unique values with optional count of unique values.
+#@cli : Default values: '_seed=0x10eab'
+rep_val2order:
+check "$! && $#<4"
 
-max_dim:=1<<24
+if $#==3
+	map_2_img,set_val_mode,seed:=$*
+else
+	seed:=0x10eab
+	map_2_img,set_val_mode:=$#==2?vector2($*):[$1,!$1]
+fi
+
+check "$map_2_img || $set_val_mode"
+
+output_status_mode:=$!>1
+
+set_val_mode:=min(abs($set_val_mode),4)
+use_count:=$set_val_mode>1
+use_values:=isint($set_val_mode,1,3)
+use_status:=$set_val_mode>=3
+mode_4:=$set_val_mode==4
+max_spec_size:=1+isint($set_val_mode,2,3)
+
+if $use_status
+	status_out,end=
+else
+	original_status=${}
+fi
+
+if $mode_4
+	map_2_img=0
+fi
+
+remove_primary_image:=!$map_2_img&&!$mode_4
+
+bitshift_factor=10
+dictionary_size,end_hash_image_index,max_index={(1<<$bitshift_factor)+[0,1,-1]}
+
 foreach {
-	if whds>$max_dim error lim_dim_exc fi
+	# Compute Hash Map
+	+f ${arg\ 1+(whds>0xffff),>,:}"begin(
+			const seed=$seed;
+			const bitshift_factor=$bitshift_factor;
+			const bit_mask=$max_index;
+			const prime=31;
 
-	unroll x +$0_a_nums pixelsort[-1] +,x,[-2] rm..
-	100%,100%,100%,3
-
-	eval[-2] >"begin(
-			count=started=uniques=0;
-			min_value=old_number=nan;
+			n_start(n)=n>bit_mask?xor(n<<1,seed):n&bit_mask;
+			hash_value(n)=(
+				N=n_start(n);
+				hash_value=0;
+				while(N,
+					hash_value=(hash_value*prime+N)&bit_mask;
+					N>>=bitshift_factor;
+				);
+				hash_value+2;
+			);
 		);
-		i0==old_number?(
-			++count;
-			if(i1<min_value,min_value=i1;);
-		):(
-			if(started,I[#-1,uniques-1]=[old_number,count,min_value];);
-			++uniques;
-			min_value=i1;
-			count=1;
-		);
-		old_number=i0;
-		started=1;
-		I;
-		end(
-			I[#-1,uniques-1]=[old_number,count,min_value];
-			set('end',uniques-1);
-		);
-		"
+		hash_value(i);"
 
-	rm..
-	crop. 0,$end
-	s. c,-2
-	pixelsort[-2] +,x,[-1] rm.
-}
+	# Create Hash Table
+	0 [-1]x$max_index
 
-um $0_a_nums
-#@cli rep_val_ord_id
-#@cli : Change images value into the order of appearance starting from 0,0,0,0
-rep_val_ord_id:
-foreach {
-	eval "
-		const ref_vector_size=whds<<1;
-		ref_vector=expr('p=x>>1;x&1?p:i[#-1,p];',ref_vector_size);
-		ref_vector=sort(ref_vector,1,whds,2);
+	# Optional image to store uniques values or counts of uniques values or both
+	if $set_val_mode
+		1,1,1,$max_spec_size
+	fi
 
-		count=last_p=0;
-		min_value=current_number=old_number=nan;
-		for(p=0,p<ref_vector_size,p+=2,
-			current_number=ref_vector[p];
-			current_number==old_number?(
-				++count;
-				value=ref_vector[p+1];
-				if(value<min_value,
-					min_value=value;
+	# One or two Actions: Convert values into order of appearance ; Store uniques values with optional count inputs
+	f[0] >"begin(
+			const map_2_img=$map_2_img;
+			if(map_2_img
+			,result_value()=v;
+			,result_value()=i;
+			);
+
+			const set_val_mode=$set_val_mode;
+			set_val_mode?(
+				const use_values=$use_values;
+				const use_count=$use_count;
+				use_values&&use_count?(
+					action_1()=da_push(#-1,[i,1]);
+					action_2()=++i(#-1,0,v,0,1);
+				):
+				use_values?(
+					action_1()=da_push(#-1,i);
+					action_2()=0;
+				):
+				use_count?(
+					action_1()=da_push(#-1,1);
+					action_2()=++i[#-1,v];
 				);
 			):(
-				if(count,
-					copy(ref_vector[last_p],min_value,count,2,0);
-				);
-				min_value=ref_vector[p+1];
-				count=1;
-				last_p=p;
+				action_1()=0;
+				action_2()=0;
 			);
-			old_number=current_number;
+
+			id=0;
 		);
-
-		ref_vector=sort(ref_vector,1,whds,2);
-
-		id=-1;
-		old_number=nan;
-		for(p=0,p<ref_vector_size,p+=2,
-			ref_vector[p]!=old_number?(
-				++id;
-			);
-			old_number=ref_vector[p];
-			ref_vector[p]=id;
+		key=i#1;
+		if(da_size(#key),p=find(#key,i,0,2)+1;)?(
+			v=i[#key,p];
+			action_2();
+		):(
+			da_push(#key,i,v=id++);
+			action_1();
 		);
-
-		ref_vector=shift(ref_vector,-1,2);
-		ref_vector=sort(ref_vector,1,whds,2);
-		copy(i[#-1,0],ref_vector[1],whds,1,2);
+		result_value();
+		end(da_freeze(#-1););
 		"
+	rm[1-$end_hash_image_index]
+
+	# Remove if not used
+	if $remove_primary_image
+		rm[0]
+	fi
+
+	# Status output
+	if $use_status
+		part_status={crop(#-1,0,0,0,$set_val_mode&1,1,h#-1,1,1)}
+
+		if $set_val_mode==4 rm.
+		else channels. 0
+		fi
+
+		if $output_status_mode
+			status_out.=$end\"$part_status\"
+			end=,
+		else
+			status_out=$part_status
+		fi
+	fi
 }
+
+if $use_status
+	status $status_out
+else
+	status $original_status
+fi
 #@cli rep_cbsoo: eq. to 'rep_channels_overblur_overline_blur_sharpen'.
 rep_cbsoo: rep_channels_blur_sharpen_overblur_overline $*
 #@cli rep_channels_overblur_overline_blur_sharpen: method_a={ 0=blur | 1=sharpen | 2=overblur | 3=overline },0%<_effect_factor_a[%]<=100%,_multiplication_factor>0,_blending_mode,0<_blending_opacity[%]<=100%...
@@ -840,7 +1174,7 @@ l[] {
 		else
 			noarg d_bpi=7
 		fi
-	}
+}
 
 foreach {
 	repeat $d_bpi {
@@ -867,7 +1201,7 @@ l[] {
 		else
 			noarg d_bpi=7
 		fi
-	}
+}
 
 P,Q=-1,-2
 
@@ -6413,6 +6747,156 @@ check "
 			valid;
 		);
 	);
+	"
+#@cli rep_sum_permutations: size>0,limit>=0,_axis={x,y,z}
+#@cli : Create a image representing every possible fixed-size vector which sum of non-negative integers is up to integer limit.
++rep_sum_permutations:
+check "isint($1,1)&&isint($2,0)&&$#>3?inrange(_'$-1',_'x',_'z',1,1):1"
+sum_permutations_size:=$2?perm($1,$2+$1,0):$1
+
+if $sum_permutations_size>(1<<24) exc_size fi
+
+if $#>2
+	axis={_'$-1'-_'x'}
+else
+	axis=0
+fi
+
+dims={v=vector(#3,1);v[$axis]=$sum_permutations_size;v;}
+
+if !$2
+	$dims
+	return
+fi
+
+$dims,$1,>"begin(
+	v=vectors();
+	const max_sum=$2;
+	const dec_max_sum=max_sum-1;
+	const end_pos=s-1;
+	scanline_pos=end_pos;
+	const dec_end_pos=end_pos-1;
+	mode=1;
+	p=0;
+	started=0;
+	limit=max_sum;
+	old_mode=1;
+ );
+ started?(
+	mode?(
+		if((++v[end_pos]) == limit,
+			mode=0;
+		);
+	):(
+		v[scanline_pos] == max_sum?(
+			copy(v[scanline_pos],0,s-scanline_pos,1,0);
+			v[--scanline_pos] = 1;
+			mode = 1;
+			limit = dec_max_sum;
+		):(
+			boundary = inf;
+			mode = found_number_pos = previous_numbers_sum = 0;
+
+			# The for loop is used to find the sum of previous numbers before modified numbers. It is also used to scan where to modify the number.
+			for( p = end_pos , p>=scanline_pos, --p,
+				if(!found_number_pos?v[p],
+					found_number_pos = p;
+					boundary = p-1;
+				);
+				if(p<boundary,
+					previous_numbers_sum += v[p];
+				);
+			);
+
+			# This section modifies the first and second last number.
+			v[found_number_pos--]=0;
+			( total = (++v[found_number_pos])+previous_numbers_sum ) != max_sum ?(
+				mode = 1;
+				limit = max_sum-total;
+			);
+		);
+	);
+ );
+ started=1;
+ v;"
+#@cli rep_sum_permutation_index2list: size>0,limit>=0,index
+#@cli : Return the list of non-negative integers values which adds up to limit at lexicographic index.
+#@cli : Note: Code was generated via ChatGPT, and yes it has been tested. No, I can't think of any better solution, so I do not recommend this code.
+rep_sum_permutation_index2list:
+check "isint($1,1)&&isint($2,0)"
+
+if !$2 u {vector($#1)} return fi
+
+eval "
+	const size=$1;
+	const d_size=size-1;
+	const level_length=perm($1,$2+$1,0);
+	index=$3%level_length;
+	sections_count=$2;
+	level_id=$1-1;
+	output=vector(#size);
+
+	use_index=1;
+	repeat(d_size,p,
+		left_blocks_group_size=total_block_length=0;
+
+		repeat(sections_count,q,
+			left_blocks_group_size=total_block_length;
+			total_block_length+=perm(level_id,level_id+(sections_count-q),0);
+			if(total_block_length>index,break(););
+		);
+
+		--level_id;
+		index-=left_blocks_group_size;
+		sections_count-=q;
+		output[p]=q;
+
+		if(!sections_count,
+			use_index=0;
+			break();
+		);
+	);
+
+	if(use_index,
+		output[d_size]=index;
+	);
+
+	output;
+	"
+#@cli rep_sum_permutation_list2index: limit,number_a,number_b,...
+#@cli : Return the lexicographic index in which the list of number is found within the list of  arrays which sums up to the limit.
+#@cli : Note: Code was generated from ChatGPT, and modified from it. So, I do not know who the source is, nor do I see a better alternative in terms of efficiency. So, beware if you want to use this code for your coding project. It does work, however.
+rep_sum_permutation_list2index:
+check "isint($1,0)?(
+		v=[${2--1}];
+		sum(isint(v),0)==($#-1)?(
+			sum(v)<=$1;
+		);
+	);"
+
+eval "
+	const size_of_arr=$#-1;
+	const dec_size_of_arr=size_of_arr-1;
+	const max_int_sum=$1;
+	list_of_num=[${2--1}];
+
+	total=0;
+	current_sum=0;
+
+	repeat(size_of_arr,p,
+		repeat(list_of_num[p],q,
+			remaining_sum=max_int_sum-current_sum-q;
+			remaining_sum?(
+				r=size_of_arr-p-1;
+				total+=perm(r,remaining_sum+r,0);
+			):(
+				break();
+			);
+		);
+		current_sum+=list_of_num[p];
+	);
+
+	total;
 	"
 #@cli rep_string_permutations: string,_axis,_sort_string={ 0=do_not_sort_string | 1=sort_string | 2=logical_sort_string }
 #@cli : Return all the unique permutations of characters of string as a image with values representing the unicode representation of characters in input string. Permutations is dependent on character appearance order.
