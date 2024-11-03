@@ -152,7 +152,7 @@ foreach {
 status $original_status
 #@cli rep_mode_blend
 #@cli : Blend Layers via statistical mode of colors.
-#@cli : Author : Reptorian.
+#@cli : Author: Reptorian.
 rep_mode_blend:
 
 is_dimensions_valid={"
@@ -176,66 +176,176 @@ if $!==1 return fi
 if $!==2 100%,100%,100%,100%,I#-2==I#-1?I#-1:vector(#s,nan) rm[-3,-2] return fi
 
 spectrum_size,number_of_images:=s,$!
+use_hashmap_processing:=$number_of_images>20
+d_s:=$spectrum_size-1
 
-a c
+if $use_hashmap_processing
+	dictionary_buckets:=$_cpus<<8
 
-100%,100%,100%,$spectrum_size,"begin(
-		const S=$spectrum_size;
-		const layers=$number_of_images;
-		init_new_counts=vector(#layers);
-		init_new_counts[0]=1;
+	# Create Hash Values
+	100%,100%,100%,2,:"begin_t(
+			srand(date(7)*t+t);
+			k=v(0x1b3d,0xf1c3ef)|0b101;
+			m=2+(t<<8);
+		);
+		[k,m];"
+	s. c
 
-		v_NaN=vector(#S,nan);
-	);
+	repeat $number_of_images {
+		+s[$>] c
+		&[-1] 0xff
+		repeat $d_s {
+			[-2]
+			<<[-2] 1
+			rv[-3,-2]
+			-[-3,-2]
+			*[-2] [$number_of_images] &[-2] 0xff
+			xor[-2,-1]
+		}
+	}
 
-	colors=I#-1;
-	counts=init_new_counts;
-	last_nonduplicate_pos=S;
-	found_at_least_one_duplicate=0;
-	old_color=v_NaN;
+	# Merge set of images
+	rm[$number_of_images]
+	a[-$number_of_images--1] c
+	+[-1] [-2]
+	rm[-2]
+	a[^-1] c
 
-	for(pos=S,pos<s#-1,pos+=S,
-		current_color=(colors)[pos,S];
-		same(current_color,old_color)?(
-			found_duplicate=1;
+	#Find Mode of Color
+	0x$dictionary_buckets
+
+	eval[1] :"begin_t(
+			const spec_size=$spectrum_size;
+			const inc_spec_size=spec_size+1;
+			const dec_spec_size=spec_size-1;
+			offset_pos=(t<<8)+2;
+		);
+
+		size_buckets=vector(#0x100);
+		maxima_a=maxima_b=number_of_buckets=color_pos=last_p=0;
+
+		keys=I;
+		colors=I#0;
+
+		current_maximum_color=old_color=vector(#spec_size,nan);
+		repeat(s,v,
+			current_color=(colors)[color_pos,spec_size];
+
+			key=keys[v];
+			relative_key=key-offset_pos;
+
+			size_bucket=size_buckets[relative_key];
+			height_current_bucket=h(#key);
+
+			same_color=current_color==old_color;
+			bucket_pos=height_current_bucket-size_bucket;
+			(size_bucket?(p=same_color?last_p:find(#key,current_color,bucket_pos,inc_spec_size)+1))?(
+				if(!same_color,p+=dec_spec_size);
+
+				current_number_of_color=++i[#key,p];
+
+				if(current_number_of_color>=maxima_a,
+					maxima_b=maxima_a;
+					maxima_a=current_number_of_color;
+					current_maximum_color=current_color;
+				);
+
+				last_p=p;
+			):(
+				size_buckets[relative_key]+=inc_spec_size;
+				current_size_bucket=size_buckets[relative_key];
+
+				(height_current_bucket?current_size_bucket>height_current_bucket:1)?(
+					insertion_pos=height_current_bucket;
+					resize(#key,1,current_size_bucket,1,1,-1);
+				):(
+					insertion_pos=height_current_bucket-current_size_bucket;
+				);
+
+				copy(i(#key,0,insertion_pos,0,0),[current_color,1]);
+
+				if(1>=maxima_a,
+					maxima_b=maxima_a;
+					maxima_a=1;
+					current_maximum_color=current_color;
+				);
+
+				last_p=insertion_pos+spec_size;
+			);
+			color_pos+=spec_size;
+			old_color=current_color;
+		);
+
+		maxima_a>maxima_b?(
+			draw(#0,current_maximum_color,x,y,z,0,1,1,1,spec_size);
 		):(
-			found_duplicate=0;
-			for(q_pos=[0,0],q_pos[0]<last_nonduplicate_pos,q_pos+=[S,1],
-				if( same( current_color , (colors)[q_pos[0],S] ),
-					found_duplicate=1;
-					break();
+			draw(#0,vector(#spec_size,nan),x,y,z,0,1,1,1,spec_size);
+		);
+
+		I;"
+
+	keep[0] channels 0,$d_s
+else
+	a c
+
+	f ":begin(
+			const S=$spectrum_size;
+			const layers=$number_of_images;
+			init_new_counts=vector(#layers);
+			init_new_counts[0]=1;
+
+			v_NaN=vector(#S,nan);
+		);
+
+		colors=I;
+		counts=init_new_counts;
+		last_nonduplicate_pos=S;
+		found_at_least_one_duplicate=0;
+		old_color=v_NaN;
+
+		for(pos=S,pos<s,pos+=S,
+			current_color=(colors)[pos,S];
+			same(current_color,old_color)?(
+				found_duplicate=1;
+			):(
+				found_duplicate=0;
+				for(q_pos=[0,0],q_pos[0]<last_nonduplicate_pos,q_pos+=[S,1],
+					if( same( current_color , (colors)[q_pos[0],S] ),
+						found_duplicate=1;
+						break();
+					);
 				);
 			);
-		);
-		old_color=current_color;
-		++counts[q_pos[1]];
-		found_duplicate?(
-			found_at_least_one_duplicate=1;
-		):(
-			copy(colors[q_pos[0]],current_color);
-			last_nonduplicate_pos+=S;
-		);
-	);
-
-	found_at_least_one_duplicate?(
-		current_maxima=old_maxima=maxima_pos=0;
-		for(r=[0,0],r[0]<last_nonduplicate_pos,r+=[S,1],
-			if(counts[r[1]]>=current_maxima,
-				old_maxima=current_maxima;
-				current_maxima=counts[r[1]];
-				maxima_pos=r[0];
+			old_color=current_color;
+			++counts[q_pos[1]];
+			found_duplicate?(
+				found_at_least_one_duplicate=1;
+			):(
+				copy(colors[q_pos[0]],current_color);
+				last_nonduplicate_pos+=S;
 			);
 		);
-		current_maxima!=old_maxima?(
-			(colors)[maxima_pos,S];
+
+		found_at_least_one_duplicate?(
+			current_maxima=old_maxima=maxima_pos=0;
+			for(r=[0,0],r[0]<last_nonduplicate_pos,r+=[S,1],
+				if(counts[r[1]]>=current_maxima,
+					old_maxima=current_maxima;
+					current_maxima=counts[r[1]];
+					maxima_pos=r[0];
+				);
+			);
+			current_maxima!=old_maxima?(
+				(colors)[maxima_pos,S];
+			):(
+				v_NaN;
+			);
 		):(
 			v_NaN;
-		);
-	):(
-		v_NaN;
-	)"
+		)"
 
-rm..
+	channels 0,$d_s
+fi
 #@cli rep_mode_type_int: _use_16_bit_mode={ 0=false | 1= true },_fill_with_mode_color={ 0=false | 1=true }
 #@cli : Finds mode color of 8-bit images.
 #@cli : Note: You can use 8 or 16 as first argument to reflect the number of bits to use instead of 0,1 for self-documentation purpose.
@@ -6626,97 +6736,95 @@ total_items_count,number_of_possible_permutations={"
 		total_items_count=sum(groups_of_items_counts);
 		[total_items_count,fact(total_items_count)/prod(fact(groups_of_items_counts))]"}
 
-if $number_of_possible_permutations>(1<<24) error exc_permut_val:$number_of_string_permutations fi
+if $number_of_possible_permutations>(1<<24)
+	error exc_permut_val:$number_of_string_permutations
+fi
 
-if ($number_of_possible_permutations*$total_items_count)>131072 p_mode=: else p_mode=> fi
+if ($number_of_possible_permutations*$total_items_count)>0x20000
+	p_mode=:
+else
+	p_mode=>
+fi
 
 out_dim={v=vector(#3,1);v[$axis]=$number_of_possible_permutations;v}
 
 $out_dim,$total_items_count,$p_mode"
 	begin(
+		const max_index=s-1;
+		const dec_max_index=max_index-1;
 
 		const axis=$axis;
-
 		axis==2?(iter_index()=z;):
 		axis==1?(iter_index()=y;):
 		         iter_index()=x;
 
-		items_count=["$items_count"];
-		permutation_result=expr('
-				begin(
-					items_counts=["$items_count"];
-					position=0;
-					current_count=-1;
-				);
-				if(items_counts[position]==++current_count,
-					++position;
-					current_count=0;
-				);
-				position;
-			',s);
+		const t_items=$total_items_count;
+		const n_perms=$number_of_possible_permutations;
 
-		level_length=$number_of_possible_permutations;
-
-		const max_index=s-1;
-		const dec_max_index=max_index-1;
-
-		started=0;
+		items_group_count=["$items_count"];
+		permutation=vector(#t_items);
+		q=0;
+		repeat(size(items_group_count),p,
+			count=items_group_count[p];
+			copy(permutation[q],p,count,1,0);
+			q+=count;
+		);
 
 		reverse_array_starting_from(a)=(
 			start=a;
 			end=max_index;
 			while(start<end,
-				swap(permutation_result[start++],permutation_result[end--]);
+				swap(permutation[start++],permutation[end--]);
 			);
-
 		);
 
-	);
+		move_ind(a,b)=(
+			t_val=permutation[a];
+			a!=b?(
+				copy(permutation[b+1],permutation[b],a-b,1,1);
+				permutation[b]=t_val;
+			);
+		);
 
+		started=0;
+	);
 	started?(
 		for(jp=dec_max_index,jp>-1,--jp,
-			if(permutation_result[jp]<permutation_result[jp+1],break(););
+			if(permutation[jp]<permutation[jp+1],break(););
 		);
 
-		v=permutation_result[jp];
+		v=permutation[jp];
 		for(kp=max_index,kp>jp,--kp,
-			if(v<permutation_result[kp],break(););
+			if(v<permutation[kp],break(););
 		);
 
-		swap(permutation_result[kp],permutation_result[jp]);
+		swap(permutation[kp],permutation[jp]);
 		reverse_array_starting_from(jp+1);
 	):(
 		if(index=iter_index(),
-			initial_permutation=permutation_result;
-
-			selectable_vector_size=s;
-			repeat(s,ind,
-				section_size=level_length/selectable_vector_size;
+			level_length=n_perms;
+			for(V=[0,t_items],index,V+=[1,-1],
+				section_size=level_length/V[1];
 				selected_indice=int(index/section_size);
 
-				current_item_count=initial_permutation[selected_indice];
-				copy(initial_permutation[selected_indice],initial_permutation[selected_indice+1],selectable_vector_size-selected_indice);
-				--selectable_vector_size;
+				move_ind(V[0]+selected_indice,V[0]);
 
-				level_length=section_size*items_count[current_item_count];
-				--items_count[current_item_count];
+				level_length=section_size*items_group_count[t_val];
+				--items_group_count[t_val];
 
-				repeat(current_item_count,iter,
-					index-=items_count[iter]*section_size;
+				repeat(t_val,q,
+					index-=items_group_count[q]*section_size;
 				);
-
-				permutation_result[ind]=current_item_count;
 			);
 		);
 		started=1;
 	);
-
-	permutation_result;"
+	permutation;"
 #@cli rep_rde_permutation_index2list: item_0_count>=1,item_1_count>=1,...,index
 #@cli : Return permutations of repeated distinct elements of different count which correspond to the index.
 #@cli :
 #@cli : Author: Reptorian.
-new_rep_rde_permutation_index2list:
+rep_rde_permutation_index2list:
 check "($#>1) && (sum([${1--2}]>1)==($#-1))"
 
 total_items_count={sum(${1--2})}
@@ -6724,44 +6832,51 @@ if $total_items_count>18 error exec_items_count fi
 number_of_possible_permutations={fact($total_items_count)/prod(fact([${1--2}]))}
 
 eval "
-	const ttc=$total_items_count;
-	item_id=q=0;
+	const tic=$total_items_count;
 	items_group_count=[${1--2}];
-	all_items=vector(#ttc);
+	all_items=vector(#tic);
+	q=0;
 	repeat(size(items_group_count),p,
 		count=items_group_count[p];
 		copy(all_items[q],p,count,1,0);
 		q+=count;
 	);
-	all_items;
 
 	const perms_possible=$number_of_possible_permutations;
+	const dec_perms_possible=perms_possible-1;
 	level_length=perms_possible;
 	index=$-1%perms_possible;
 
-	move_ind(a,b)=(
-		t_val=all_items[a];
-		a!=b?(
-			copy(all_items[b+1],all_items[b],a-b,1,1);
-			all_items[b]=t_val;
+	!index?(
+		all_items;
+	):
+	index==dec_perms_possible?(
+		reverse(all_items);
+	):(
+		move_ind(a,b)=(
+			t_val=all_items[a];
+			a!=b?(
+				copy(all_items[b+1],all_items[b],a-b,1,1);
+				all_items[b]=t_val;
+			);
 		);
-	);
 
-	for(V=[0,ttc],index,V+=[1,-1],
-		section_size=level_length/V[1];
-		selected_indice=int(index/section_size);
+		for(V=[0,tic],index,V+=[1,-1],
+			section_size=level_length/V[1];
+			selected_indice=int(index/section_size);
 
-		move_ind(V[0]+selected_indice,V[0]);
+			move_ind(V[0]+selected_indice,V[0]);
 
-		level_length=section_size*items_group_count[t_val];
-		--items_group_count[t_val];
+			level_length=section_size*items_group_count[t_val];
+			--items_group_count[t_val];
 
-		repeat(t_val,q,
-			index-=items_group_count[q]*section_size;
+			repeat(t_val,q,
+				index-=items_group_count[q]*section_size;
+			);
 		);
-	);
 
-	all_items;"
+		all_items;
+	);"
 #@cli rep_rde_permutation_list2index: item_group_index_0,item_group_index_1,...
 #@cli : Return the index which corresponds to the permutation of multiple repeated different elements of different counts.
 #@cli : Code adapted from rahul sharma at geeksforgeeks - https://ide.geeksforgeeks.org/6YsMwFEHpH
@@ -6934,8 +7049,16 @@ if !$2
 	return
 fi
 
-$dims,$1,>"begin(
+if $sum_permutations_size>0x10000 mode=: else mode=> fi
+
+$dims,$1,$mode"
+	begin(
 		v=vectors();
+
+		const axis=$axis;
+		axis==2?(iter_index()=z;):
+		axis==1?(iter_index()=y;):
+		         iter_index()=x;
 
 		const max_sum=$2;
 		const dec_max_sum=max_sum-1;
@@ -6981,15 +7104,60 @@ $dims,$1,>"begin(
 				);
 			);
 		);
+	):(
+		if(index=iter_index(),
+			check_scanline=use_index=1;
+			sections_count=max_sum;
+			level_id=end_pos;
+			t_sum=0;
+
+			repeat(end_pos,p,
+				left_blocks_group_size=total_block_length=0;
+
+				repeat(sections_count,q,
+					left_blocks_group_size=total_block_length;
+					total_block_length+=perm(level_id,level_id+(sections_count-q),0);
+					if(total_block_length>index,break(););
+				);
+
+				--level_id;
+				index-=left_blocks_group_size;
+				sections_count-=q;
+				v[p]=q;
+
+				if(check_scanline?q,
+					scanline_pos=p;
+					check_scanline=0;
+				);
+
+				if(p<end_pos,
+					t_sum+=q;
+				);
+
+				if(!sections_count,
+					use_index=0;
+					break();
+				);
+			);
+
+			if(use_index,
+				v[end_pos]=index;
+			);
+
+			sum_v=t_sum+v[end_pos];
+			limit=max_sum-t_sum;
+			mode=sum_v!=max_sum;
+		);
+
+		started=1;
 	);
-	started=1;
 	v;"
 #@cli rep_sum_permutation_index2list: size>0,limit>=0,index
 #@cli : Return the list of non-negative integers values which adds up to limit at lexicographic index.
 rep_sum_permutation_index2list:
 check "isint($1,1)&&isint($2,0)"
 
-if !$2 u {vector($#1)} return fi
+if !$2 u {vector(#$1)} return fi
 
 eval "
 	const size=$1;
@@ -7060,6 +7228,128 @@ eval "
 	);
 
 	total;
+	"
+#@cli rep_total_sum_permutations: size>0,sum_total>=0,_axis={x,y,z}
+#@cli : Create a image representing every possible fixed-size vector which sum of non-negative integers is equal to the total of sum.
++rep_total_sum_permutations:
+check "isint($1,1)&&isint($2,0)&&$#>3?inrange(_'$-1',_'x',_'z',1,1):1"
+total_sum_permutations_size={d_s=$1-1;perm(d_s,d_s+$2,0)}
+
+if $total_sum_permutations_size>(1<<24) exc_size fi
+
+if $#>2
+	axis={_'$-1'-_'x'}
+else
+	axis=0
+fi
+
+dims={v=vector(#3,1);v[$axis]=$total_sum_permutations_size;v;}
+
+if !$2
+	$dims
+	return
+fi
+
+$dims,$1,>"begin(
+		v=vector(#s);
+		const ep=size(v)-1;
+		const d_ep=ep-1;
+		last_p_found=d_ep;
+		last_v=v[ep]=$2;
+		end_pos=scanline_pos=ep;
+		started=0;
+	);
+	if(started,
+		v[scanline_pos]==$2?(
+			copy(v[scanline_pos],0,$1-scanline_pos,1,0);
+			v[--scanline_pos]=1;
+			v[ep]=$2-1;
+		):
+		!v[ep]?(
+			end_pos=last_p_found+1;
+			last_p_found=last_val_found=sum=0;
+			for(p=scanline_pos,p<end_pos,++p,
+				cv=v[p];
+				if(cv,
+					sum+=cv;
+					last_p_found=p;
+					last_val_found=cv;
+				);
+			);
+			previous_sum_total=sum-last_val_found+1;
+			v[last_p_found]=0;
+			++v[last_p_found-1];
+			v[ep]=$2-previous_sum_total;
+		):(
+			++v[d_ep];
+			--v[ep];
+			last_p_found=d_ep;
+		);
+		last_v=v[ep];
+	);
+	started=1;
+	v;"
+#@cli rep_total_sum_permutation_index2list: size>0,sum>=0,index
+#@cli : Return the list of non-negative integers values which adds up to sum at lexicographic index.
+rep_total_sum_permutation_index2list:
+check "isint($1,1)&&isint($2,0)"
+
+if !$2 u {vector(#$1)} return fi
+
+eval "
+	const size=$1;
+	const d_size=size-1;
+	const level_length=perm(d_size,$2+d_size,0);
+	level_id=$1-2;
+	sections_count=$2;
+	index=$3%level_length;
+	N=sections_count;
+	output=vector(#size);
+
+	p=0;
+	while(N,
+		left_blocks_group_size=total_block_length=0;
+
+		repeat(sections_count,q,
+			left_blocks_group_size=total_block_length;
+			total_block_length+=perm(level_id,level_id+(sections_count-q),0);
+			if(total_block_length>index,break(););
+		);
+
+		--level_id;
+		index-=left_blocks_group_size;
+		sections_count-=q;
+		output[p++]=q;
+		N-=q;
+	);
+
+	output;
+	"
+#@cli rep_total_sum_permutation_list2index: number_a,number_b,...
+#@cli : Return the lexicographic index in which the list of number is found within the list of  arrays which adds up to a sum.
+#@cli : Note: Code was generated from ChatGPT, and modified from it. So, I do not know who the source is, nor do I see a better alternative in terms of efficiency. So, beware if you want to use this code for your coding project. It does work, however.
+rep_total_sum_permutation_list2index:
+check "sum(isint([$*],0))==$#"
+
+eval "
+	L=[$*];
+	S=sum(L);
+	const L_s=size(L);
+	const d_L_s=L_s-2;
+
+	index=0;
+	repeat($#-1,p,
+		current_value=L[p];
+		repeat(current_value,value,
+			(remaining_sum=S-value)?(
+				tv=d_L_s-p;
+				index+=perm(tv,remaining_sum+tv,0);
+			):(break(););
+		);
+		S-=current_value;
+		if(!S,break();)
+	);
+	index;
 	"
 #@cli rep_string_permutations: string,_axis,_sort_string={ 0=do_not_sort_string | 1=sort_string | 2=logical_sort_string }
 #@cli : Return all the unique permutations of characters of string as a image with values representing the unicode representation of characters in input string. Permutations is dependent on character appearance order.
