@@ -2091,7 +2091,7 @@ if $1<h&&$1 error inv_inp fi
 if $1>=h
 	fill y+x*h mirror. x
 
-	+rep_posdec2base_img ${rep_BIGINT_division\ $1,{h}},base_float
+	(${rep_posdec2altbase_num\ ${rep_BIGINT_division\ $1,{h}},float_max})
 	{24*(w-1)+int(log2(i[#-1,0]))+1}
 	eval[-2] "
 		const mx=w-1;
@@ -2328,7 +2328,7 @@ foreach {
 
 		if !$preserve_base10_dynamic_array_image
 
-			_$0 $unicode_out
+			rep_decimg2decstr $unicode_out
 			if $unicode_out
 				res.=$sep{t} rm.
 				sep=,
@@ -4030,170 +4030,309 @@ repeat h#0 {
 }
 
 rm[-3--1]
-#@cli rep_BIGINT_division: decimal_number>=0,1<=divisor<=9007199254740992
+#@cli rep_BIGINT_division: decimal_number>=0,1<=divisor<=16777216
 #@cli : Perform division on decimal number, then return the value. Supports 1000+ digits positive integer number for decimal_number only!
 rep_BIGINT_division:
-check "isint($2)&&$1>=0&&inrange($2,1,1<<53,1,1)"
+check m=1<<24;(inrange($1,0,m,1,1)?isint($1,0,m):1);isint($2,1,m)
 
 if $1<(1<<53) status {int($1/$2)}
+elif $2>$1    status 0
+elif $2==1    status $1
+elif $1==$2   status 1
 else
- if $2>$1 status 0 return
- elif $2==1
-  if v='$1';min(v)<_'0'||max(v)>_'9'; error inv_char_det fi
-  status $1
- else
-  ('$1')
-  if im<_'0'||iM>_'9' error inv_char_det fi
+	('$1')
 
-  eval "
-   const _0=_'0';
-   const divisor=$2;
-   const init_shift_num=int(log10(divisor));
-   const start_digits_count=init_shift_num+1;
-   const LenDecStr=w#-1;
-   start_num=0;
-   repeat(start_digits_count,p,
-    start_num=start_num*10+i[#-1,p]-_0;
-   );
-   start_num>=divisor?(
-    tmp=int(start_num/divisor);
-    i[#-1,0]=tmp+_0;
-    remainder=start_num-tmp*divisor;
-    shift_num=init_shift_num;
-   ):(
-    shift_num=init_shift_num+1;
-    remainder=start_num;
-   );
-   for(p,p<LenDecStr,++p,
-    tmp=remainder*10+i[#-1,p]-_0;
-    new_num=int(tmp/divisor);
-    remainder=tmp-new_num*divisor;
-    i[#-1,p-shift_num]=new_num+_0;
-   );
-   set('trim_end_point',LenDecStr-shift_num-1);
-   "
+	if im<_'0'||iM>_'9' error inv_num fi
 
-  crop. 0,$trim_end_point status {t} rm.
- fi
+	eval "
+		const _0=_'0';
+		const divisor=$2;
+		const init_shift_num=int(log10(divisor));
+		const start_digits_count=init_shift_num+1;
+		const LenDecStr=w#-1;
+		start_num=0;
+		repeat(start_digits_count,p,
+			start_num=start_num*10+i[#-1,p]-_0;
+		);
+		start_num>=divisor?(
+			tmp=int(start_num/divisor);
+			i[#-1,0]=tmp+_0;
+			remainder=start_num-tmp*divisor;
+			shift_num=init_shift_num;
+		):(
+			shift_num=init_shift_num+1;
+			remainder=start_num;
+		);
+		for(p,p<LenDecStr,++p,
+			tmp=remainder*10+i[#-1,p]-_0;
+			new_num=int(tmp/divisor);
+			remainder=tmp-new_num*divisor;
+			i[#-1,p-shift_num]=new_num+_0;
+		);
+		set('trim_end_point',LenDecStr-shift_num-1);"
+
+	crop. 0,$trim_end_point status {t} rm.
+
 fi
-#@cli rep_posdec2base_img: decimal_number>=0,1<base<=16777216
-#@cli : Output numberical representation of a decimal number in given base as a image. Each pixels are digit representation of a number. This can also be used to represent really huge decimal number. 1000+ digits decimal number is supported.
-#@cli :
-#@cli : 'base' can be a integer number between 2 to 16777216 (Inclusive for both). In addition, you can use the following string as argument for 'base': bin,oct,dec,hex,base_float.
-+rep_posdec2base_img:
-check "isint($1)?inrange($1,2,16777216,1,1):isnum($1)?0:1"
+#@cli rep_posdec2altbase_num: base,positive_decimal
+#@cli : Return decimal into specified base using series of digits represented in base 10 separated by comma.
+rep_posdec2altbase_num:
+base_float_max:=1<<24
+check "isint($2,0)"
 
-if !isint($1)
- bin,oct,dec,hex,base_float=2,8,10,16,16777216
- base:=$$1
-else base=$1
+if isnum($1)
+	base=$1
+else
+	base_bin,base_oct,base_dec,base_hex=2,8,10,16
+	base=${base_$1}
 fi
 
-if $base==10
- ('$2')
- if im<_'0'||iM>_'9' error inv_char_det fi
- -. {_'0'}
- return
-fi
+check "isint($base,2,$base_float_max)"
 
 if $2<(1<<53)
- {1+int(log($2)/log($base))},1,1,1,<"begin(
-   const base=$base;
-   n=$2;
-  );
-  remainder=n%base;
-  n=int(n/base);
-  remainder;
-  "
-else
- if $base>10
-  ('$2') -. {_'0'}
-  if im#-1<0||iM#-1>9 error inv_char_det fi
-
-  eval "
-   const base=$base;
-   const init_shift_num=int(log10(base));
-   const start_digits_count=init_shift_num+1;
-   const start_LenDecStr=w#-1;
-   LenDecStr=start_LenDecStr;
-   remainders_count=0;
-   while(LenDecStr>15,
-    start_num=0;
-    repeat(start_digits_count,p,
-     start_num=start_num*10+i[#-1,p];
-    );
-    start_num>=base?(
-     i[#-1,0]=int(start_num/base);
-     remainder=start_num-i[#-1,0]*base;
-     shift_num=init_shift_num;
-    ):(
-     shift_num=init_shift_num+1;
-     remainder=start_num;
-    );
-    for(p,p<LenDecStr,++p,
-     tmp=remainder*10+i[#-1,p];
-     new_num=int(tmp/base);
-     remainder=tmp-new_num*base;
-     i[#-1,p-shift_num]=new_num;
-    );
-    ++remainders_count;
-    i[#-1,start_LenDecStr-remainders_count]=remainder;
-    LenDecStr-=shift_num;
-   );
-   n=0;
-   repeat(LenDecStr,p,
-    n=n*10+i[#-1,p];
-   );
-   while(n,
-    remainder=n%base;
-    remainders_count++;
-    i[#-1,start_LenDecStr-remainders_count]=remainder;
-    n=int(n/base);
-   );
-   remainders_count;
-   "
-
-  crop. {w#-1-${}},100%
- else
-  ('$2') -. {_'0'} => input
-  if im#-1<0||iM#-1>9 error inv_char_det fi
-
-  1
-
-  eval "
-   const base=$base;
-   const input=$input;
-   LenDecStr=w#input;
-   while(LenDecStr>15,
-    shift_num=i[#input,0]<base;
-    remainder=shift_num?i[#input,0];
-    for(p=shift_num,p<LenDecStr,++p,
-     tmp=remainder*10+i[#input,p];
-     new_num=int(tmp/base);
-     remainder=tmp-new_num*base;
-     i[#input,p-shift_num]=new_num;
-    );
-    da_insert(#-1,0,remainder);
-    if(shift_num,--LenDecStr);
-   );
-   resize(#-1,da_size(#-1),1,1,1,-1);
-   resize(#input,LenDecStr,1,1,1,-1);
-   "
-
-  n={`crop(#$input)+_'0'`} rm[$input]
-
-  {1+int(log($n)/log($base))},1,1,1,<"begin(
-    const base=$base;
-    n=$n;
-   );
-   remainder=n%base;
-   n=int(n/base);
-   remainder;
-   "
-
-  rv[-2,-1] a[-2,-1] x
- fi
+	eval "expr('<begin(
+				const base=$base;
+				n=$2;
+			);
+			remainder=n%base;
+			n=int(n/base);
+			remainder;
+			',1+int(log($2)/log($base)));"
+	return
 fi
+
+positive_decimal_start_pos,S={V='$2';[for(p=0,V[p]==_'0',++p);,size(V)]}
+positive_decimal:=('$2')[$positive_decimal_start_pos,$S-$positive_decimal_start_pos]
+
+if isint(log10($base))
+	if !$2 u 0 return fi
+
+	if $base==10
+		u {["$positive_decimal"]-_'0'}
+	else
+		u {"decimal=["$positive_decimal"];
+
+			const num_of_digits_per_section=log10($base);
+			const order_of_magnitude_base_10=size(decimal);
+			const new_vector_size=ceil(order_of_magnitude_base_10/num_of_digits_per_section);
+			const K_d=order_of_magnitude_base_10%num_of_digits_per_section;
+
+			new_vector=vector(#new_vector_size);
+
+			if(K_d,
+				new_vector[0]=s2v((decimal)[0,K_d]);
+			);
+
+			insertion_pos=new_vector_size;
+			for(pos=order_of_magnitude_base_10-num_of_digits_per_section, pos>=0, pos-=num_of_digits_per_section,
+				new_vector[--insertion_pos]=s2v((decimal)[pos,num_of_digits_per_section]);
+			);
+
+			new_vector;
+		"}
+	fi
+
+	return
+fi
+
+digits_per_sections,temp_base={dps=int(log($base_float_max)/log($base));[dps,$base^dps]}
+exponent:=size('{$temp_base-1}')
+
+($positive_decimal) 1,1,1,1
+{ceil(w#-2/$exponent)},1,1,2,"begin(
+		const base_float=$base_float_max;
+		const bit_mask=base_float-1;
+		pos=started=0;
+		int2float_max(v)=[v>>24,v&bit_mask];
+	);
+	if(started
+	,pos+=$exponent;
+	,pos=w#-2-$exponent*(w-x);started=1;
+	);
+	val=crop(#-2,pos,0,0,0,$exponent,1,1,1);
+	val+=!val;
+	int2float_max(s2v(val));
+	"
+rm[-3]
+
+eval "
+	const base_float=$base_float_max;
+	const bit_mask=base_float-1;
+	const divisor=$temp_base;
+	const multiplier=1e"$exponent";
+	float_max2int(v)=v[0]<<24|v[1];
+	int2float_max(v)=[v>>24,v&bit_mask];
+	while(w(#-1)>1||float_max2int(I[#-1,w(#-1)-1]),
+		crop_point=nan;
+		remainder=current_number=0;
+		repeat(w(#-1),p,
+			current_number*=multiplier;
+			current_number+=float_max2int(I[#-1,p]);
+			remainder=current_number%divisor;
+			current_number>divisor?(
+				I[#-1,p]=int2float_max(int(current_number/divisor));
+				current_number=remainder;
+				if(isnan(crop_point),
+					crop_point=p;
+				);
+				[0,0];
+			):(
+				I[#-1,p]=[0,0];
+			);
+		);
+		da_insert(#-2,0,remainder);
+		if(!isnan(crop_point),
+			resize(#-1,w(#-1)-crop_point,1,1,2,0,0,crop_point,0,0,0);
+		);
+	);
+
+	da_freeze(#-2);
+	"
+
+rm.
+
+first_digits_set_size:=int(log(i[#-1,0])/log($base))
+{$first_digits_set_size+(h#-1-1)*$digits_per_sections+1},1,1,1
+
+eval.. "begin(
+		const sp=$first_digits_set_size;
+		const dps=$digits_per_sections;
+		const base=$base;
+		insertion_pos=started=0;
+	);
+	started?(
+		insertion_pos+=dps;
+	):(
+		insertion_pos=sp+dps*y;
+		started=1;
+	);
+	t_insertion_pos=insertion_pos;
+	n=i;
+	while(n,
+		i[#-1,t_insertion_pos--]=n%base;
+		n=int(n/base);
+	);
+	i;
+	"
+
+u {crop(#-1)} rm[-2,-1]
+#@cli rep_altbase_num2posdec: base,digit_a,digit_b,...
+#@cli : Return the decimal number which corresponds to arguments.
+rep_altbase_num2posdec:
+base_float_max:=1<<24
+
+if isnum($1)
+	base=$1
+else
+	base_bin,base_oct,base_dec,base_hex=2,8,10,16
+	base=${base_$1}
+fi
+
+(${2--1})
+crop. {for(p=0,!i[#-1,p],++p);set('p',p);p;},100%
+check "( isint($base,2,$base_float_max) && im>=0 && iM<$base && $#>1 ) ? ( sum(isint(crop(#-1)))== w#-1 )"
+
+if isint(log10($base))
+	exponent:=size('$base')-1
+else
+	if w#-1<=int(log(1<<53)/log($base))
+		eval. <"begin(
+				const base=$base;
+				M=1;
+				n=0;
+			);
+			n+=i*M;
+			M*=base;
+			end(set('{}',n););
+			"
+		rm.
+		return
+	fi
+
+	digits_per_sections,temp_base={dps=int(log($base_float_max)/log($base));[dps,$base^dps]}
+	exponent:=min(size('{$temp_base-1}'),7)
+
+	1,1,1,1
+	{ceil(w#-2/$digits_per_sections)},1,1,2,"begin(
+			const base_float=$base_float_max;
+			const bit_mask=base_float-1;
+			const dps=$digits_per_sections;
+			multiplier=expr('const m=w-1;$base^(m-x)',$digits_per_sections);
+			pos=started=0;
+			int2float_max(v)=[v>>24,v&bit_mask];
+		);
+		if(started
+		,pos+=dps;
+		,pos=w#-2-dps*(w-x);started=1;
+		);
+		int2float_max(sum(crop(#-2,pos,0,0,0,dps,1,1,1)*multiplier));
+		"
+
+	rm[-3]
+
+	eval "
+		const base_float=$base_float_max;
+		const bit_mask=base_float-1;
+		const divisor=1e"$exponent";
+		const multiplier=$temp_base;
+		float_max2int(v)=v[0]<<24|v[1];
+		int2float_max(v)=[v>>24,v&bit_mask];
+		while(w(#-1)>1||float_max2int(I[#-1,w(#-1)-1]),
+			crop_point=nan;
+			remainder=current_number=0;
+			repeat(w(#-1),p,
+				current_number*=multiplier;
+				current_number+=float_max2int(I[#-1,p]);
+				remainder=current_number%divisor;
+				current_number>divisor?(
+					I[#-1,p]=int2float_max(int(current_number/divisor));
+					current_number=remainder;
+					if(isnan(crop_point),
+						crop_point=p;
+					);
+					[0,0];
+				):(
+					I[#-1,p]=[0,0];
+				);
+			);
+			da_insert(#-2,0,remainder);
+			if(!isnan(crop_point),
+				resize(#-1,w(#-1)-crop_point,1,1,2,0,0,crop_point,0,0,0);
+			);
+		);
+
+		da_freeze(#-2);
+		"
+
+	rm.
+fi
+
+first_digits_set_size:=size('{i[#-1,0]}')
+
+{$first_digits_set_size+(wh#-1-1)*$exponent},1,1,1,{_'0'}
+
+eval.. "begin(
+		const _0=_'0';
+		const sp=$first_digits_set_size-1;
+		const dps=$exponent;
+		const base=10;
+		insertion_pos=started=0;
+	);
+	started?(
+		insertion_pos+=dps;
+	):(
+		insertion_pos=sp+dps*y;
+		started=1;
+	);
+	t_insertion_pos=insertion_pos;
+	n=i;
+	while(n,
+		i[#-1,t_insertion_pos--]=(n%base)+_0;
+		n=int(n/base);
+	);
+	i;"
+
+u {t} rm[-2,-1]
 #@cli rep_num2altbase: abs_num,base
 #@cli : Insert number in bases other than 10. Each numbers are represented as digits by themselves.
 +rep_num2altbase:
@@ -5660,58 +5799,54 @@ out_dim={v=vector(#3,1);v[$axis]=$fact_size;v}
 if $1>8 mode=: else mode=> fi
 
 $out_dim,$1,$mode"
- begin_t(
-  const max_index=s-1;
-  const dec_max_index=max_index-1;
-  const axis=$axis;
-  axis==2?(iter_index()=z;):
-  axis==1?(iter_index()=y;):
-           iter_index()=x;
-  reverse_array_starting_from(a)=(
-   start=a;
-   end=max_index;
-   while(start<end,
-    swap(permutation[start++],permutation[end--]);
-   );
-  );
-  started=0;
-  permutation=expr('x',s);
- );
+	begin(
+		const max_index=s-1;
+		const dec_max_index=max_index-1;
 
- started?(
-  fn=b=max_index;
-  while(permutation[fn-1]>=permutation[fn],--fn;if(!fn,break();););
-  while(b>fn&&permutation[b]<=permutation[fn-1],--b;);
-  swap(permutation[fn-1],permutation[b]);
-  reverse_array_starting_from(fn);
- ):(
+		const axis=$axis;
+		axis==2?(axis()=z;):
+		axis==1?(axis()=y;):
+		         axis()=x;
 
-  index=iter_index();
+		started=0;
+		permutation=expr('x',s);
 
-  if(index,
+		reverse_array_starting_from(a)=(
+			start=a;
+			end=max_index;
+			while(start<end,
+				swap(permutation[start++],permutation[end--]);
+			);
+		);
 
-   fn=max_index;
-   init_array_size=s;
-   init_permutation=permutation;
+		move_ind(a,b)=a!=b?(
+			t_val=permutation[a];
+			copy(permutation[b+1],permutation[b],a-b,1,1);
+			permutation[b]=t_val;
+		);
+	);
 
-   repeat(fn,iter,
-    division_number=fact(fn);
-    pos=int(index/division_number);
-    permutation[iter]=init_permutation[pos];
-    copy(init_permutation[pos],init_permutation[pos+1],init_array_size-pos);
-    index-=pos*division_number;
-    --init_array_size;
-    --fn;
-   );
+	started?(
+		fn=b=max_index;
+		while(permutation[fn-1]>=permutation[fn],--fn;if(!fn,break();););
+		while(b>fn&&permutation[b]<=permutation[fn-1],--b;);
+		swap(permutation[fn-1],permutation[b]);
+		reverse_array_starting_from(fn);
+	):(
+		if(index=axis(),
+			fn=max_index;
+			repeat(fn,p,
+				division_number=fact(fn);
+				pos=int(index/division_number);
+				move_ind(p+pos,p);
+				index-=pos*division_number;
+				--fn;
+			);
+		);
+		started=1;
+	);
 
-   permutation[iter]=init_permutation[0];
-  );
-
-  started=1;
-
- );
-
- permutation;"
+	permutation;"
 #@cli rep_permutation_index2list: number_of_item,permutation_number
 #@cli : Return permutation order at index permutation_number.
 rep_permutation_index2list:
@@ -5720,35 +5855,35 @@ num_of_items={max(1,int(abs($1)))}
 
 if $num_of_items==1 u 0
 else
+	eval "
+		const num_of_items=$num_of_items;
+		const num_of_possible_permutations=fact(num_of_items);
+		permutation_position=$2%num_of_possible_permutations;
 
- permutation_number={$2%fact($num_of_items)}
+		output=expr('x',num_of_items);
 
- 1,{$num_of_items+1},1,1,y
+		permutation_position==num_of_possible_permutations-1?(
+			reverse(output);
+		):(
+			if(permutation_position,
+				move_ind(a,b)=a!=b?(
+						t_val=output[a];
+						copy(output[b+1],output[b],a-b,1,1);
+						output[b]=t_val;
+					);
 
- eval "
-  const num_of_items=$num_of_items;
-  new_arr=vector(#num_of_items,0);
+				fn=num_of_items-1;
+				repeat(fn,p,
+					division_number=fact(fn);
+					pos=int(permutation_position/division_number);
+					move_ind(p+pos,p);
+					permutation_position-=pos*division_number;
+					--fn;
+				);
+			);
 
-  fn=num_of_items-1;
-
-  permutation_position=$permutation_number;
-
-  repeat(fn,iter,
-   division_number=fact(fn);
-   pos=int(permutation_position/division_number);
-   new_arr_num=i[#-1,pos];
-   new_arr[iter]=new_arr_num;
-   da_remove(#-1,pos);
-   permutation_position-=pos*division_number;
-   --fn;
-  );
-
-  new_arr[iter]=i[#-1,0];
-
-  new_arr;"
-
-  rm.
-
+			output;
+		);"
 fi
 #@cli rep_permutation_list2index: number_list
 #@cli : Return the lexicographic index in which this permutation is found within a list of all possible permutation.
@@ -5792,65 +5927,96 @@ check "($1>=$2&&$1>0&&isint($1))&&($2>0&&isint($2))&&inrange(_'$3',_'x',_'z',1,1
 
 if [${1-2}]==[1,1] 1 return fi
 
-num_of_combinations,axis={perm($2,$1,1)},{_'$3'-_'x'}
+num_of_permutations,axis={perm($2,$1,1)},{_'$3'-_'x'}
 
-if $axis==2   out_dim=1,1,$num_of_combinations
-elif $axis==1 out_dim=1,$num_of_combinations,1
-else          out_dim=$num_of_combinations,1,1
+if $axis==2   out_dim=1,1,$num_of_permutations
+elif $axis==1 out_dim=1,$num_of_permutations,1
+else          out_dim=$num_of_permutations,1,1
 fi
 
 if $2==1 $out_dim,1,${arg\ $axis+1,x,y,z} return fi
 
-$out_dim,$2,>"begin(
-  const edge=s-1;
-  const n=$1;
-  const dec_n=n-1;
-  const axis=$axis;
+if $num_of_permutations>0x10000 mode=: else mode=> fi
 
-  axis==2?(
-   axis()=z;
-  ):
-  axis==1?(
-   axis()=y;
-  ):(
-   axis()=x;
-  );
+$out_dim,$2,$mode"
+	begin(
+		const edge=s-1;
+		const n=$1;
+		const dec_n=n-1;
+		const axis=$axis;
 
-  output=expr('x',n);
+		axis==2?(
+			axis()=z;
+		):
+		axis==1?(
+			axis()=y;
+		):(
+			axis()=x;
+		);
 
-  reverse_array_starting_from(a)=(
-   start=a;
-   end=dec_n;
-   while(start<end,
-    swap(output[start++],output[end--]);
-   );
-  );
+		started=0;
 
- );
+		output=expr('x',n);
 
- if(axis(),
-  j=s;
-  while(j<n && (output[edge]>=output[j]),++j;);
+		reverse_array_starting_from(a)=(
+			start=a;
+			end=dec_n;
+			while(start<end,
+				swap(output[start++],output[end--]);
+			);
+		);
 
-  j<n?(
-   swap(output[edge],output[j]);
-  ):(
-   reverse_array_starting_from(s);
+		move_ind(a,b)=a!=b?(
+				t_val=output[a];
+				copy(output[b+1],output[b],a-b,1,1);
+				output[b]=t_val;
+			);
 
-   i=edge-1;
-   while(i>=0 && output[i]>=output[i+1],--i;);
+		division_numbers_arr=expr('begin(
+				const m=($1==$2?1:$1-$2)+1;
+				v=m;
+			);
+			x>1?v=v*(m+x-1):(x?v:1);'
+			,1+($1==$2?$1-2:min($1-1,$2-1)));
 
-   j=dec_n;
-   while(j>i && (output[i]>=output[j]),--j;);
+		const size_dna=size(division_numbers_arr);
 
-   swap(output[i],output[j]);
+	);
 
-   reverse_array_starting_from(i+1);
-  );
- );
+	started?(
+		j=s;
+		while(j<n && (output[edge]>=output[j]),++j;);
 
- (output)[0,s];
- "
+		j<n?(
+			swap(output[edge],output[j]);
+		):(
+			reverse_array_starting_from(s);
+
+			i=edge-1;
+			while(i>=0 && output[i]>=output[i+1],--i;);
+
+			j=dec_n;
+			while(j>i && (output[i]>=output[j]),--j;);
+
+			swap(output[i],output[j]);
+
+			reverse_array_starting_from(i+1);
+		);
+	):(
+		if(index=axis(),
+			divisor_position=size_dna-1;
+			repeat(size_dna,p,
+				division_number=division_numbers_arr[divisor_position];
+				pos=int(index/division_number);
+				move_ind(p+pos,p);
+				index%=division_number;
+				--divisor_position;
+			);
+		);
+		started=1;
+	);
+
+	(output)[0,s];"
 #@cli rep_npr_permutation_index2list: number_of_item,selected_items_count,permutation_number
 #@cli : Return permutation order at index permutation_number.
 rep_npr_permutation_index2list:
@@ -5859,37 +6025,44 @@ check "$2<=$1&&$1>0&&$2>0"
 if $1==1 status 0
 elif $2==1 status {$3%$1}
 else
+	eval "
+		output=expr('x',n);
 
- permutation_number={$3%perm($2,$1,1)}
+		const possible_permutations=perm($2,$1,1);
+		const dec_possible_permutations=possible_permutations-1;
+		index=$3%perm($2,$1,1);
 
- 1,{$1+1},1,1,y
+		!index?(
+			(output)[0,$2];
+		):
+		index==dec_possible_permutations?(
+			(reverse(output))[0,$2];
+		):(
+			division_numbers_arr=expr('begin(
+					const m=($1==$2?1:$1-$2)+1;
+					v=m;
+				);
+				x>1?v=v*(m+x-1):(x?v:1);'
+				,1+($1==$2?$1-2:min($1-1,$2-1)));
 
- {1+($1==$2?$1-2:min($1-1,$2-1))},1,1,1,>"begin(
-   const m=($1==$2?1:$1-$2)+1;
-   v=m;
-  );
-  x>1?v=v*(m+x-1):(x?v:1);"
+			move_ind(a,b)=a!=b?(
+				t_val=output[a];
+				copy(output[b+1],output[b],a-b,1,1);
+				output[b]=t_val;
+			);
 
- eval "
-  new_arr=vector(#$2,0);
-  divisor_position=w#-1-1;
-  permutation_number=$permutation_number;
+			const size_dna=size(division_numbers_arr);
+			divisor_position=size_dna-1;
+			repeat(size_dna,p,
+				division_number=division_numbers_arr[divisor_position];
+				pos=int(index/division_number);
+				move_ind(p+pos,p);
+				index%=division_number;
+				--divisor_position;
+			);
 
-  repeat(w#-1,iter,
-   division_number=i[#-1,divisor_position];
-   pos=int(permutation_number/division_number);
-   new_arr_num=i[#-2,pos];
-   new_arr[iter]=new_arr_num;
-   da_remove(#-2,pos);
-   permutation_number%=division_number;
-   --divisor_position;
-  );
-
-  new_arr[iter]=i[#-2,0];
-  new_arr;
-  "
-
- remove[-2--1]
+			(output)[0,$2];
+		);"
 fi
 #@cli rep_npr_permutation_list2index: number_of_items,number_list
 #@cli : Return the lexicographic index in which this permutation is found within a list of all possible permutations.
@@ -6459,7 +6632,7 @@ if ($number_of_possible_permutations*$total_items_count)>131072 p_mode=: else p_
 
 out_dim={v=vector(#3,1);v[$axis]=$number_of_possible_permutations;v}
 
-$out_dim,$total_items_count,:"
+$out_dim,$total_items_count,$p_mode"
 	begin(
 
 		const axis=$axis;
@@ -6543,60 +6716,52 @@ $out_dim,$total_items_count,:"
 #@cli : Return permutations of repeated distinct elements of different count which correspond to the index.
 #@cli :
 #@cli : Author: Reptorian.
-rep_rde_permutation_index2list:
+new_rep_rde_permutation_index2list:
 check "($#>1) && (sum([${1--2}]>1)==($#-1))"
 
 total_items_count={sum(${1--2})}
 if $total_items_count>18 error exec_items_count fi
 number_of_possible_permutations={fact($total_items_count)/prod(fact([${1--2}]))}
 
-1,{$total_items_count+1},1,1,<"begin(
-		items_group_count=[${1--2}];
-		started=0;
-		current_count=-1;
-		position=$#-2;
-	);
-	started?(
-		if(items_group_count[position]==++current_count,
-			--position;
-			current_count=0;
-		);
-		position;
-	):(
-		started=1;
-		$total_items_count;
-	);
-	"
-
 eval "
+	const ttc=$total_items_count;
+	item_id=q=0;
+	items_group_count=[${1--2}];
+	all_items=vector(#ttc);
+	repeat(size(items_group_count),p,
+		count=items_group_count[p];
+		copy(all_items[q],p,count,1,0);
+		q+=count;
+	);
+	all_items;
+
 	const perms_possible=$number_of_possible_permutations;
 	level_length=perms_possible;
 	index=$-1%perms_possible;
 
-	items_group_count=[${1--2}];
-	result=vector(#$total_items_count);
-
-	repeat(size(result),ind,
-		section_size=level_length/da_size(#-1);
-		selected_indice=int(index/section_size);
-
-		current_item_count=i[#-1,selected_indice];
-		da_remove(#-1,selected_indice);
-
-		level_length=section_size*items_group_count[current_item_count];
-		--items_group_count[current_item_count];
-
-		repeat(current_item_count,iter,
-			index-=items_group_count[iter]*section_size;
+	move_ind(a,b)=(
+		t_val=all_items[a];
+		a!=b?(
+			copy(all_items[b+1],all_items[b],a-b,1,1);
+			all_items[b]=t_val;
 		);
-
-		result[ind]=current_item_count;
 	);
 
-	result;
-	"
+	for(V=[0,ttc],index,V+=[1,-1],
+		section_size=level_length/V[1];
+		selected_indice=int(index/section_size);
 
-rm.
+		move_ind(V[0]+selected_indice,V[0]);
+
+		level_length=section_size*items_group_count[t_val];
+		--items_group_count[t_val];
+
+		repeat(t_val,q,
+			index-=items_group_count[q]*section_size;
+		);
+	);
+
+	all_items;"
 #@cli rep_rde_permutation_list2index: item_group_index_0,item_group_index_1,...
 #@cli : Return the index which corresponds to the permutation of multiple repeated different elements of different counts.
 #@cli : Code adapted from rahul sharma at geeksforgeeks - https://ide.geeksforgeeks.org/6YsMwFEHpH
@@ -6770,58 +6935,57 @@ if !$2
 fi
 
 $dims,$1,>"begin(
-	v=vectors();
-	const max_sum=$2;
-	const dec_max_sum=max_sum-1;
-	const end_pos=s-1;
-	scanline_pos=end_pos;
-	const dec_end_pos=end_pos-1;
-	mode=1;
-	p=0;
-	started=0;
-	limit=max_sum;
-	old_mode=1;
- );
- started?(
-	mode?(
-		if((++v[end_pos]) == limit,
-			mode=0;
-		);
-	):(
-		v[scanline_pos] == max_sum?(
-			copy(v[scanline_pos],0,s-scanline_pos,1,0);
-			v[--scanline_pos] = 1;
-			mode = 1;
-			limit = dec_max_sum;
-		):(
-			boundary = inf;
-			mode = found_number_pos = previous_numbers_sum = 0;
+		v=vectors();
 
-			# The for loop is used to find the sum of previous numbers before modified numbers. It is also used to scan where to modify the number.
-			for( p = end_pos , p>=scanline_pos, --p,
-				if(!found_number_pos?v[p],
-					found_number_pos = p;
-					boundary = p-1;
-				);
-				if(p<boundary,
-					previous_numbers_sum += v[p];
-				);
+		const max_sum=$2;
+		const dec_max_sum=max_sum-1;
+		const end_pos=s-1;
+		const dec_end_pos=end_pos-1;
+
+		scanline_pos=end_pos;
+		mode=old_mode=1;
+		p=started=0;
+		limit=max_sum;
+	);
+	started?(
+		mode?(
+			if((++v[end_pos]) == limit,
+				mode=0;
 			);
-
-			# This section modifies the first and second last number.
-			v[found_number_pos--]=0;
-			( total = (++v[found_number_pos])+previous_numbers_sum ) != max_sum ?(
+		):(
+			v[scanline_pos] == max_sum?(
+				copy(v[scanline_pos],0,s-scanline_pos,1,0);
+				v[--scanline_pos] = 1;
 				mode = 1;
-				limit = max_sum-total;
+				limit = dec_max_sum;
+			):(
+				boundary = inf;
+				mode = found_number_pos = previous_numbers_sum = 0;
+
+				# The for loop is used to find the sum of previous numbers before modified numbers. It is also used to scan where to modify the number.
+				for( p = end_pos , p>=scanline_pos, --p,
+					if(!found_number_pos?v[p],
+						found_number_pos = p;
+						boundary = p-1;
+					);
+					if(p<boundary,
+						previous_numbers_sum += v[p];
+					);
+				);
+
+				# This section modifies the first and second last number.
+				v[found_number_pos--]=0;
+				( total = (++v[found_number_pos])+previous_numbers_sum ) != max_sum ?(
+					mode = 1;
+					limit = max_sum-total;
+				);
 			);
 		);
 	);
- );
- started=1;
- v;"
+	started=1;
+	v;"
 #@cli rep_sum_permutation_index2list: size>0,limit>=0,index
 #@cli : Return the list of non-negative integers values which adds up to limit at lexicographic index.
-#@cli : Note: Code was generated via ChatGPT, and yes it has been tested. No, I can't think of any better solution, so I do not recommend this code.
 rep_sum_permutation_index2list:
 check "isint($1,1)&&isint($2,0)"
 
@@ -6880,8 +7044,7 @@ eval "
 	const max_int_sum=$1;
 	list_of_num=[${2--1}];
 
-	total=0;
-	current_sum=0;
+	total=current_sum=0;
 
 	repeat(size_of_arr,p,
 		repeat(list_of_num[p],q,
