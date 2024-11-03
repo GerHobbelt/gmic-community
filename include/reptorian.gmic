@@ -62,55 +62,60 @@ use_16_bit:=$1==16?1:$1?$1!=8
 max_value,max_spec_size:=mv=(1<<($use_16_bit?(ms=4;16):(ms=7;8)))-1;[mv,ms]
 
 foreach {
- if im<0||iM>$max_value error exc_val_det@[$>] fi
- if s>$max_spec_size error exc_chans fi
- 
- if $2 od:=w,h,d,s 
- else  od=1,1,1,{s}
- fi
- 
- eval[-1] >"begin(
-    if($use_16_bit
-    ,bitshift_factors=expr('x<<4',s);
-    ,bitshift_factors=expr('x<<3',s);
-    );
-   
-    convert_color2int(color_values)=sum(color_values<<bitshift_factors);
-    convert_int2color(counting_num)=(counting_num>>bitshift_factors)&$max_value;
-    nan_vector=vector(#s,nan);
-    list_of_colors=vector(#whd);
-    p=0;
-  );
-  list_of_colors[p++]=convert_color2int(I);
-  I;
-  end(
-    count=maximum_count=old_maximum_count=0;
-    old_color=maximum_freq_color=nan;
-    
-    list_of_colors=sort(list_of_colors);
-    
-    repeat(whd,p,
-        list_of_colors[p]!=old_color?(
-            count=1;
-        ):(
-            ++count;
-            count>maximum_count?(
-                maximum_count=count;
-                maximum_freq_color=old_color;
-            ):
-            count==maximum_count?(
-                old_maximum_count=maximum_count;
-            );
-        );
-        old_color=list_of_colors[p];
-    );
- 
-    set('mode_color',v2s(if(maximum_count==1||(maximum_count==old_maximum_count),nan_vector,convert_int2color(maximum_freq_color););););
-  );
-  "
- rm.
- 
- $od,[$mode_color]
+	if im<0||iM>$max_value
+		error exc_val_det@[$>]
+	fi
+
+	if s>$max_spec_size
+		error exc_chans
+	fi
+
+	if $2 od:=w,h,d,s
+	else  od=1,1,1,{s}
+	fi
+
+	eval[-1] >"begin(
+			if($use_16_bit
+			,bitshift_factors=expr('x<<4',s);
+			,bitshift_factors=expr('x<<3',s);
+			);
+
+			convert_color2int(color_values)=sum(color_values<<bitshift_factors);
+			convert_int2color(counting_num)=(counting_num>>bitshift_factors)&$max_value;
+			nan_vector=vector(#s,nan);
+			list_of_colors=vector(#whd);
+			p=0;
+		);
+		list_of_colors[p++]=convert_color2int(I);
+		I;
+		end(
+			count=maximum_count=old_maximum_count=0;
+			old_color=maximum_freq_color=nan;
+
+			list_of_colors=sort(list_of_colors);
+
+			repeat(whd,p,
+				list_of_colors[p]!=old_color?(
+					count=1;
+				):(
+					++count;
+					count>maximum_count?(
+						maximum_count=count;
+						maximum_freq_color=old_color;
+					):
+					count==maximum_count?(
+						old_maximum_count=maximum_count;
+					);
+				);
+				old_color=list_of_colors[p];
+			);
+
+			set('mode_color',v2s(if(maximum_count==1||(maximum_count==old_maximum_count),nan_vector,convert_int2color(maximum_freq_color););););
+		);
+		"
+	rm.
+
+	$od,[$mode_color]
 
 }
 
@@ -127,24 +132,24 @@ if $!<=1 return fi
 use_16_bit:=$1==16?1:$1?$1!=8
 
 all_values_in_ranges,dimension_valid={"
- const max_value=(1<<($use_16_bit?16:8))-1;
- v=[w#0,h#0,d#0,s#0];
- all_values_in_ranges=1;
- dimension_valid=1;
- !same(v[0,3],[0,0,0])?(
-  for(p=1,p<$!,++p,
-    nv=[w#p,h#p,d#p,s#p];
-    if(!inrange(im#p,0,max_value,1,1),all_values_in_ranges=0;break(););
-    if(!inrange(iM#p,0,max_value,1,1),all_values_in_ranges=0;break(););
-    if(same(v[0,3],[0,0,0]),dimension_valid=0;break(););
-    if(!same(nv,v),dimension_valid=0;break(););
-   );
- ):(
-  p=dimension_valid=0;
- );
- set('img_checked',p);
- [all_values_in_ranges,dimension_valid]"}
- 
+	const max_value=(1<<($use_16_bit?16:8))-1;
+	v=[w#0,h#0,d#0,s#0];
+	all_values_in_ranges=1;
+	dimension_valid=1;
+	!same(v[0,3],[0,0,0])?(
+		for(p=1,p<$!,++p,
+			nv=[w#p,h#p,d#p,s#p];
+			if(!inrange(im#p,0,max_value,1,1),all_values_in_ranges=0;break(););
+			if(!inrange(iM#p,0,max_value,1,1),all_values_in_ranges=0;break(););
+			if(same(v[0,3],[0,0,0]),dimension_valid=0;break(););
+			if(!same(nv,v),dimension_valid=0;break(););
+		);
+	):(
+		p=dimension_valid=0;
+	);
+	set('img_checked',p);
+	[all_values_in_ranges,dimension_valid]"}
+
 if !$all_values_in_ranges error exc_val_det@[$img_checked]
 elif !$dimension_valid    error dif_dim_det@[$img_checked]
 fi
@@ -157,95 +162,142 @@ spectrum_size,number_of_images:=s,$!
 append c
 
 100%,100%,100%,$spectrum_size,"begin(
-  const use_16_bit=$use_16_bit;
-  const number_of_images=$number_of_images;
-  const spec_ref_img=s#-1;
-  const max_value=use_16_bit?0xffff:0xff;
-  
-  nan_vector=vector(#s,nan);
-  
-  if(use_16_bit
-  ,bitshift_factors=expr('x<<4',s);
-  ,bitshift_factors=expr('x<<3',s);
-  );
-  
-  convert_color2int(color_values)=sum(color_values<<bitshift_factors);
-  convert_int2color(counting_num)=(counting_num>>bitshift_factors)&max_value;
- );
- 
- values_of_colors=I#-1;
- list_of_colors=vector(#number_of_images,nan);
- count=maximum_count=old_maximum_count=0;
- old_color=maximum_freq_color=nan;
- 
- q=0;
- repeat(number_of_images,p,
-  list_of_colors[p]=convert_color2int((values_of_colors)[q,s]);
-  q+=s;
- );
- list_of_colors=sort(list_of_colors);
- 
- repeat(number_of_images,p,
-    list_of_colors[p]!=old_color?(
-        count=1;
-    ):(
-        ++count;
-        count>maximum_count?(
-            maximum_count=count;
-            maximum_freq_color=old_color;
-        ):
-        count==maximum_count?(
-            old_maximum_count=maximum_count;
-        );
-    );
-    old_color=list_of_colors[p];
- );
- 
- if(maximum_count==1||(maximum_count==old_maximum_count),nan_vector,convert_int2color(maximum_freq_color););
- "
+		const use_16_bit=$use_16_bit;
+		const number_of_images=$number_of_images;
+		const spec_ref_img=s#-1;
+		const max_value=use_16_bit?0xffff:0xff;
+
+		nan_vector=vector(#s,nan);
+
+		if(use_16_bit
+		,bitshift_factors=expr('x<<4',s);
+		,bitshift_factors=expr('x<<3',s);
+		);
+
+		convert_color2int(color_values)=sum(color_values<<bitshift_factors);
+		convert_int2color(counting_num)=(counting_num>>bitshift_factors)&max_value;
+	);
+
+	values_of_colors=I#-1;
+	list_of_colors=vector(#number_of_images,nan);
+	count=maximum_count=old_maximum_count=0;
+	old_color=maximum_freq_color=nan;
+
+	q=0;
+	repeat(number_of_images,p,
+		list_of_colors[p]=convert_color2int((values_of_colors)[q,s]);
+		q+=s;
+	);
+	list_of_colors=sort(list_of_colors);
+
+	repeat(number_of_images,p,
+		list_of_colors[p]!=old_color?(
+			count=1;
+		):(
+			++count;
+			count>maximum_count?(
+				maximum_count=count;
+				maximum_freq_color=old_color;
+			):
+			count==maximum_count?(
+				old_maximum_count=maximum_count;
+			);
+		);
+		old_color=list_of_colors[p];
+	);
+
+	if(maximum_count==1||(maximum_count==old_maximum_count),nan_vector,convert_int2color(maximum_freq_color););
+	"
 
 rm..
-#@cli rep_extract_unique_values_and_count:
+#@cli rep_extract_unique_values_and_count
 #@cli : Extract Unique values from a image starting from 0,0,0,0, and then outputs unique values only with the count.
 rep_extract_unique_values_and_count:
 m $0_a_nums:"100%,1,1,1,x a c"
 
 max_dim:=1<<24
 foreach {
- if whds>$max_dim error lim_dim_exc fi
-  
- unroll x +$0_a_nums pixelsort[-1] +,x,[-2] rm..
- 100%,100%,100%,3
- 
- eval[-2] >"begin(
-   count=started=uniques=0;
-   min_value=old_number=nan;
-  );
-  i0==old_number?(
-   ++count;
-   if(i1<min_value,min_value=i1;);
-  ):(
-   if(started,I[#-1,uniques-1]=[old_number,count,min_value];);
-   ++uniques;
-   min_value=i1;
-   count=1;
-  );
-  old_number=i0;
-  started=1;
-  I;
-  end(
-   I[#-1,uniques-1]=[old_number,count,min_value];
-   set('end',uniques-1);
-  );
-  "
- rm.. 
- crop. 0,$end
- s. c,-2
- pixelsort[-2] +,x,[-1] rm.
- 
+	if whds>$max_dim error lim_dim_exc fi
+
+	unroll x +$0_a_nums pixelsort[-1] +,x,[-2] rm..
+	100%,100%,100%,3
+
+	eval[-2] >"begin(
+			count=started=uniques=0;
+			min_value=old_number=nan;
+		);
+		i0==old_number?(
+			++count;
+			if(i1<min_value,min_value=i1;);
+		):(
+			if(started,I[#-1,uniques-1]=[old_number,count,min_value];);
+			++uniques;
+			min_value=i1;
+			count=1;
+		);
+		old_number=i0;
+		started=1;
+		I;
+		end(
+			I[#-1,uniques-1]=[old_number,count,min_value];
+			set('end',uniques-1);
+		);
+		"
+
+	rm..
+	crop. 0,$end
+	s. c,-2
+	pixelsort[-2] +,x,[-1] rm.
 }
 
 um $0_a_nums
+#@cli rep_val_ord_id
+#@cli : Change images value into the order of appearance starting from 0,0,0,0
+rep_val_ord_id:
+foreach {
+	eval "
+		const ref_vector_size=whds<<1;
+		ref_vector=expr('p=x>>1;x&1?p:i[#-1,p];',ref_vector_size);
+		ref_vector=sort(ref_vector,1,whds,2);
+
+		count=last_p=0;
+		min_value=current_number=old_number=nan;
+		for(p=0,p<ref_vector_size,p+=2,
+			current_number=ref_vector[p];
+			current_number==old_number?(
+				++count;
+				value=ref_vector[p+1];
+				if(value<min_value,
+					min_value=value;
+				);
+			):(
+				if(count,
+					copy(ref_vector[last_p],min_value,count,2,0);
+				);
+				min_value=ref_vector[p+1];
+				count=1;
+				last_p=p;
+			);
+			old_number=current_number;
+		);
+
+		ref_vector=sort(ref_vector,1,whds,2);
+
+		id=-1;
+		old_number=nan;
+		for(p=0,p<ref_vector_size,p+=2,
+			ref_vector[p]!=old_number?(
+				++id;
+			);
+			old_number=ref_vector[p];
+			ref_vector[p]=id;
+		);
+
+		ref_vector=shift(ref_vector,-1,2);
+		ref_vector=sort(ref_vector,1,whds,2);
+		copy(i[#-1,0],ref_vector[1],whds,1,2);
+		"
+}
 #@cli rep_cbsoo: eq. to 'rep_channels_overblur_overline_blur_sharpen'.
 rep_cbsoo: rep_channels_blur_sharpen_overblur_overline $*
 #@cli rep_channels_overblur_overline_blur_sharpen: method_a={ 0=blur | 1=sharpen | 2=overblur | 3=overline },0%<_effect_factor_a[%]<=100%,_multiplication_factor>0,_blending_mode,0<_blending_opacity[%]<=100%...
@@ -273,109 +325,107 @@ num_of_blending_modes={narg($list_of_blending_modes)}
 $list_of_blending_modes={expr('x',$num_of_blending_modes)}
 
 m $0_bsoo_edit:"
- pos,use_char={$""1>1?[$""1-1,1]:[$""1+1,0]}
+	pos,use_char={$""1>1?[$""1-1,1]:[$""1+1,0]}
 
- if $use_char char=+ fi
+	if $use_char char=+ fi
 
- $char${arg\\ $pos,blur,sharpen} $""2
+	$char${arg\\ $pos,blur,sharpen} $""2
 
- if $""1>1
-  +-[-2,-1] abs[-1]
-  *[-1] $""3
-  rm[-2]
-  +[-2,-1]
- fi
- "
+	if $""1>1
+		+-[-2,-1] abs[-1]
+		*[-1] $""3
+		rm[-2]
+		+[-2,-1]
+	fi
+	"
 
 m +$0_bsoo_edit:"
- pos={$""1>1?$""1-1:$""1+1}
- +${arg\\ $pos,blur,sharpen} $""2
+	pos={$""1>1?$""1-1:$""1+1}
+	+${arg\\ $pos,blur,sharpen} $""2
 
- if $""1>1
-  +-[-2,-1] abs[-1]
-  *[-1] $""3
-  rm[-2]
-  +[-1] [-2]
- fi
- "
+	if $""1>1
+		+-[-2,-1] abs[-1]
+		*[-1] $""3
+		rm[-2]
+		+[-1] [-2]
+	fi
+	"
 
 m $0_process_individual_channel_section:"
-  method,effect_factor,multiplication,opacity:=[$""{2-5}]
-  use_output=0
+	method,effect_factor,multiplication,opacity:=[$""{2-5}]
+	use_output=0
 
-  blending_id=$""6
-  use_blend_str:=!isnum($blending_id)
+	blending_id=$""6
+	use_blend_str:=!isnum($blending_id)
 
-  if $effect_factor||$opacity>0
-   use_output=1
-   if ($use_blend_str?same('$blending_id','normal')||same('$blending_id','alpha'):$blending_id=="$normal"||$blending_id=="$alpha")&&($opacity==1)
-    m $0_process_$""1:$0_bsoo_edit\\ $method,$effect_factor,$multiplication\\ cut\\ 0,255
-   else
-    if !$use_blend_str blending_id=${arg\\ $blending_id+1,"$list_of_blending_modes"} fi
-    m $0_process_$""1:+$0_bsoo_edit\\ $method,$effect_factor,$multiplication\\ _blend_$blending_id\\ if\\ $opacity<1\\ j..\\ .,0,0,0,0,$opacity\\ rm.\\ else\\ k.\\ fi\\ cut\\ 0,255
-   fi
-  fi
+	if $effect_factor||$opacity>0
+		use_output=1
 
-  status $use_output"
+		if ($use_blend_str?same('$blending_id','normal')||same('$blending_id','alpha'):$blending_id=="$normal"||$blending_id=="$alpha")&&($opacity==1)
+			m $0_process_$""1:$0_bsoo_edit\\ $method,$effect_factor,$multiplication\\ cut\\ 0,255
+		else
+			if !$use_blend_str blending_id=${arg\\ $blending_id+1,"$list_of_blending_modes"} fi
+			m $0_process_$""1:+$0_bsoo_edit\\ $method,$effect_factor,$multiplication\\ _blend_$blending_id\\ if\\ $opacity<1\\ j..\\ .,0,0,0,0,$opacity\\ rm.\\ else\\ k.\\ fi\\ cut\\ 0,255
+		fi
+	fi
+
+	status $use_output"
 
 cmyk_mode,max_col_spec_size={m=same('$-1','cmyk');[m,3+(m?1)]}
 user_cmyk_mode=$cmyk_mode
 
 if same('$_host','cli')&&!narg($_pasted_from_gui)
 
- do
-
-  eval "
-   const num_of_imgs=$!;
-   const cmyk_mode=$cmyk_mode;
-   const max_col_spec_size=$max_col_spec_size;
-   contain_gray=contain_alpha=0;
-   continue_analyzing_color_space=0;
-   cmyk_mode?(
-    contain_rgb=contain_cmyk=0;
-    repeat(num_of_imgs,p,
-     current_spec_size=s#p;
-     if(current_spec_size>5,run('exc_spec_found'););
-     if(!contain_gray?current_spec_size<3,contain_gray=1;);
-     if(!contain_cmy?current_spec_size==3,contain_cmy=1;);
-     if(!contain_cmyk?current_spec_size>=4,contain_cmyk=1;);
-     if(!contain_alpha?current_spec_size==2||current_spec_size>max_col_spec_size,contain_alpha=1;);
-    );
-    set('contain_gray',contain_gray);
-    set('contain_cmy',contain_cmy);
-    set('contain_cmyk',contain_cmyk);
-    set('contain_alpha',contain_alpha);
-   ):(
-    contain_color=0;
-    repeat(num_of_imgs,p,
-     current_spec_size=s#p;
-     if(!contain_gray?current_spec_size<3,contain_gray=1;);
-     if(!contain_color?current_spec_size>2,
-      contain_color=1;
-      if(current_spec_size>4,
-       set('cmyk_mode',1);
-       set('max_col_spec_size',4);
-       continue_analyzing_color_space=1;
-       break();
-      );
-     );
-     if(!contain_alpha?current_spec_size==2||current_spec_size>max_col_spec_size,contain_alpha=1;);
-    );
-    if(!continue_analyzing_color_space,
-     set('contain_gray',contain_gray);
-     set('contain_color',contain_color);
-     set('contain_alpha',contain_alpha);
-    );
-   );
-   set('continue_analyzing_color_space',continue_analyzing_color_space);"
-
- while $continue_analyzing_color_space
-
+	do
+		eval "
+			const num_of_imgs=$!;
+			const cmyk_mode=$cmyk_mode;
+			const max_col_spec_size=$max_col_spec_size;
+			contain_gray=contain_alpha=0;
+			continue_analyzing_color_space=0;
+			cmyk_mode?(
+				contain_rgb=contain_cmyk=0;
+				repeat(num_of_imgs,p,
+					current_spec_size=s#p;
+					if(current_spec_size>5,run('exc_spec_found'););
+					if(!contain_gray?current_spec_size<3,contain_gray=1;);
+					if(!contain_cmy?current_spec_size==3,contain_cmy=1;);
+					if(!contain_cmyk?current_spec_size>=4,contain_cmyk=1;);
+					if(!contain_alpha?current_spec_size==2||current_spec_size>max_col_spec_size,contain_alpha=1;);
+				);
+				set('contain_gray',contain_gray);
+				set('contain_cmy',contain_cmy);
+				set('contain_cmyk',contain_cmyk);
+				set('contain_alpha',contain_alpha);
+			):(
+				contain_color=0;
+				repeat(num_of_imgs,p,
+					current_spec_size=s#p;
+					if(!contain_gray?current_spec_size<3,contain_gray=1;);
+					if(!contain_color?current_spec_size>2,
+						contain_color=1;
+						if(current_spec_size>4,
+							set('cmyk_mode',1);
+							set('max_col_spec_size',4);
+							continue_analyzing_color_space=1;
+							break();
+						);
+					);
+					if(!contain_alpha?current_spec_size==2||current_spec_size>max_col_spec_size,contain_alpha=1;);
+				);
+				if(!continue_analyzing_color_space,
+					set('contain_gray',contain_gray);
+					set('contain_color',contain_color);
+					set('contain_alpha',contain_alpha);
+				);
+			);
+			set('continue_analyzing_color_space',continue_analyzing_color_space);"
+	while $continue_analyzing_color_space
 
 else
- contain_gray,contain_alpha=$_gui_analysis_gray,$_gui_analysis_alpha
- contain_cmy=0
- contain_color,contain_cmyk=$_gui_analysis_color
+	contain_gray,contain_alpha=$_gui_analysis_gray,$_gui_analysis_alpha
+	contain_cmy=0
+	contain_color,contain_cmyk=$_gui_analysis_color
 fi
 
 ############################################
@@ -409,268 +459,367 @@ fi
 var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity:=expr('x+1',5)
 
 if $cmyk_mode
- # Please factor in CMYK here. Find out how it should work #
- if ($#-$user_cmyk_mode)==5
-  effect_factor,multiplication,opacity:=[${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity}]
+	# Please factor in CMYK here. Find out how it should work #
+	if ($#-$user_cmyk_mode)==5
+		effect_factor,multiplication,opacity:=[${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity}]
+		method,blending_id=${arg$var_method},${arg$var_blending}
 
-  method,blending_id=${arg$var_method},${arg$var_blending}
+		if !isint($method)&&('$method'!='-')
+			method=${$method}
+		fi
 
-  if !isint($method)&&('$method'!='-') method=${$method} fi
+		if !$effect_factor||$opacity<=0
+			return
+		fi
 
-  if !$effect_factor||$opacity<=0 return fi
-  use_blend_str:=!isint($blending_id)
-  if !$use_blend_str blending_id=${arg\ $blending_id+1,$list_of_blending_modes} fi
+		use_blend_str:=!isint($blending_id)
 
-  if $effect_factor||$opacity>0
-   if $opacity==1?(same('$blending_id','normal')||same('$blending_id','alpha'))
-    foreach {
-     $0_bsoo_edit $method,$effect_factor,$multiplication
-     cut 0,255
-    }
-   else
-    foreach {
-     +$0_bsoo_edit $method,$effect_factor,$multiplication
-     _blend_$blending_id
-     if $opacity<1 j.. .,0,0,0,0,$opacity rm.
-     else rm..
-     fi
-     cut 0,255
-    }
-   fi
-  fi
- else
-  use_gray,use_cmy,use_cmyk,use_alpha,use_cmy_channel_0,use_cmy_channel_1,use_cmy_channel_2,use_cmyk_channel_0,use_cmyk_channel_1,use_cmyk_channel_2,use_cmyk_channel_3=0
+		if !$use_blend_str
+			blending_id=${arg\ $blending_id+1,$list_of_blending_modes}
+		fi
 
-  if $contain_gray
-   current_method=${arg$var_method}
+		if $effect_factor||$opacity>0
+			if $opacity==1?(same('$blending_id','normal')||same('$blending_id','alpha'))
+				foreach {
+					$0_bsoo_edit $method,$effect_factor,$multiplication
+					cut 0,255
+				}
+			else
+				foreach {
+					+$0_bsoo_edit $method,$effect_factor,$multiplication
+					_blend_$blending_id
 
-   if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
+					if $opacity<1
+						j.. .,0,0,0,0,$opacity
+						rm.
+					else
+						rm..
+					fi
 
-   if narg($current_method)?'$current_method'!='-'
-     use_gray=${$0_process_individual_channel_section\ gray,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
-     var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
-   else
-    var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
-   fi
-  fi
+					cut 0,255
+				}
+			fi
+		fi
+	else
+		use_gray,use_cmy,use_cmyk,use_alpha,use_cmy_channel_0,use_cmy_channel_1,use_cmy_channel_2,use_cmyk_channel_0,use_cmyk_channel_1,use_cmyk_channel_2,use_cmyk_channel_3=0
 
-  if $contain_cmy
-   current_method=${arg$var_method}
-   if narg($current_method)
-    repeat 3 {
-     if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
-     if same('$current_method','-')
-      var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
-     elif narg($current_method)
-      use_cmy_channel_$>=${$0_process_individual_channel_section\ cmy_channel_$>,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
-      if !$use_cmy use_cmy=${use_cmy_channel_$>} fi
-      var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
-     else error inval_arg
-     fi
-     current_method=${arg$var_method}
-    }
-   else
-    var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
-   fi
-  fi
+		if $contain_gray
+			current_method=${arg$var_method}
 
-  if $contain_cmyk
-   current_method=${arg$var_method}
-   if narg($current_method)
-    repeat 4 {
-     if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
-     if same('$current_method','-')
-      var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
-     elif narg($current_method)
-      use_cmyk_channel_$>=${$0_process_individual_channel_section\ cmyk_channel_$>,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
-      if !$use_cmyk use_cmyk=${use_cmyk_channel_$>} fi
-      var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
-     else error inval_arg
-     fi
-     current_method=${arg$var_method}
-    }
-   else
-    var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
-   fi
-  fi
+			if !isint($current_method)&&('$current_method'!='-')
+				current_method=${$current_method}
+			fi
 
-  if $contain_alpha
-   current_method=${arg$var_method}
-   if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
-   if narg($current_method)?'$current_method'!='-'
-    use_alpha=${$0_process_individual_channel_section\ alpha,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
-   fi
-  fi
+			if narg($current_method)?'$current_method'!='-'
+				use_gray=${$0_process_individual_channel_section\ gray,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
+				var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
+			else
+				var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
+			fi
+		fi
 
-  foreach {
-   contain_color,contain_alpha:=[s>2,s==2||s>4]
+		if $contain_cmy
+			current_method=${arg$var_method}
+			if narg($current_method)
+				repeat 3 {
+					if !isint($current_method)&&('$current_method'!='-')
+						current_method=${$current_method}
+					fi
 
-   if $use_alpha?$contain_alpha
-    s c,-{s-1}
-    if $use_alpha $0_process_alpha[-1] fi
-   fi
+					if same('$current_method','-')
+						var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
+					elif narg($current_method)
+						use_cmy_channel_$>=${$0_process_individual_channel_section\ cmy_channel_$>,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
 
-   if $contain_color
-    if s#0>3
-     if $use_cmyk
-      s[0] c
-      foreach[0-3] { if ${use_cmyk_channel_$>} $0_process_cmyk_channel_$> fi }
-     fi
-    else
-     if $use_cmy
-      s[0] c
-      foreach[0-2] { if ${use_cmy_channel_$>} $0_process_cmy_channel_$> fi }
-     fi
-    fi
-   else
-    if $use_gray
-     $0_process_gray[0]
-    fi
-   fi
+						if !$use_cmy
+							use_cmy=${use_cmy_channel_$>}
+						fi
 
-   a c
-  }
+						var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
+					else
+						error inval_arg
+					fi
+					current_method=${arg$var_method}
+				}
+			else
+				var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
+			fi
+		fi
 
- fi
+		if $contain_cmyk
+			current_method=${arg$var_method}
+
+			if narg($current_method)
+				repeat 4 {
+					if !isint($current_method)&&('$current_method'!='-')
+						current_method=${$current_method}
+					fi
+
+					if same('$current_method','-')
+						var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
+					elif narg($current_method)
+						use_cmyk_channel_$>=${$0_process_individual_channel_section\ cmyk_channel_$>,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
+
+						if !$use_cmyk
+							use_cmyk=${use_cmyk_channel_$>}
+						fi
+
+						var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
+					else
+						error inval_arg
+					fi
+
+					current_method=${arg$var_method}
+				}
+			else
+				var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
+			fi
+		fi
+
+		if $contain_alpha
+			current_method=${arg$var_method}
+
+			if !isint($current_method)&&('$current_method'!='-')
+				current_method=${$current_method}
+			fi
+
+			if narg($current_method)?'$current_method'!='-'
+				use_alpha=${$0_process_individual_channel_section\ alpha,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
+			fi
+		fi
+
+		foreach {
+			contain_color,contain_alpha:=[s>2,s==2||s>4]
+
+			if $use_alpha?$contain_alpha
+				s c,-{s-1}
+
+				if $use_alpha
+					$0_process_alpha[-1]
+				fi
+			fi
+
+			if $contain_color
+				if s#0>3
+					if $use_cmyk
+						s[0] c
+						foreach[0-3] { if ${use_cmyk_channel_$>} $0_process_cmyk_channel_$> fi }
+					fi
+				else
+					if $use_cmy
+						s[0] c
+						foreach[0-2] { if ${use_cmy_channel_$>} $0_process_cmy_channel_$> fi }
+					fi
+				fi
+			else
+				if $use_gray
+					$0_process_gray[0]
+				fi
+			fi
+
+			a c
+		}
+
+	fi
 else
 
- num_of_contains,num_of_set_args,gray_start={[sum($contain_gray,$contain_color,$contain_alpha),ceil($#/5)]},$contain_gray
+	num_of_contains,num_of_set_args,gray_start={[sum($contain_gray,$contain_color,$contain_alpha),ceil($#/5)]},$contain_gray
 
- if $num_of_set_args!=$num_of_contains||(($#-$num_of_set_args*5)>0)
-  use_gray,use_color,use_alpha,\
-  use_channel_0,use_channel_1,use_channel_2=0
+	if $num_of_set_args!=$num_of_contains||(($#-$num_of_set_args*5)>0)
+		use_gray,use_color,use_alpha,\
+		use_channel_0,use_channel_1,use_channel_2=0
 
-  if $contain_gray
-   current_method=${arg$var_method}
-   if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
-   if narg($current_method)?'$current_method'!='-'
-    use_gray=${$0_process_individual_channel_section\ gray,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
-    var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
-   else
-    var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
-   fi
-  fi
+		if $contain_gray
+			current_method=${arg$var_method}
 
-  if $contain_color
-   current_method=${arg$var_method}
-   if narg($current_method)
-    repeat 3 {
-     if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
-     if same('$current_method','-')
-      var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
-     elif narg($current_method)
-      use_channel_$>=${$0_process_individual_channel_section\ channel_$>,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
-      if !$use_color use_color=${use_channel_$>} fi
-      var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
-     else error inval_arg
-     fi
-     current_method=${arg$var_method}
-    }
-   else
-    var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
-   fi
-  fi
+			if !isint($current_method)&&('$current_method'!='-')
+				current_method=${$current_method}
+			fi
 
-  if $contain_alpha
-   current_method=${arg$var_method}
-   if !isint($current_method)&&('$current_method'!='-') current_method=${$current_method} fi
-   if narg($current_method)?'$current_method'!='-'
-    use_alpha=${$0_process_individual_channel_section\ alpha,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
-   fi
-  fi
+			if narg($current_method)?'$current_method'!='-'
+				use_gray=${$0_process_individual_channel_section\ gray,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
+				var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
+			else
+				var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
+			fi
+		fi
 
-  if !sum($use_gray,$use_color,$use_alpha) return fi
+		if $contain_color
+			current_method=${arg$var_method}
+			if narg($current_method)
+				repeat 3 {
+					if !isint($current_method)&&('$current_method'!='-')
+						current_method=${$current_method}
+					fi
 
-  foreach {
-   contain_color,contain_alpha:=[s>2,!(s&1)]
+					if same('$current_method','-')
+						var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
+					elif narg($current_method)
+						use_channel_$>=${$0_process_individual_channel_section\ channel_$>,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
 
-   if $use_alpha?$contain_alpha
-    s c,-{s-1}
-    if $use_alpha $0_process_alpha[-1] fi
-   fi
+						if !$use_color
+							use_color=${use_channel_$>}
+						fi
 
-   if $contain_color?$use_color
-    s[0] c
-    foreach[0-2] {
-     if ${use_channel_$>}
-      $0_process_channel_$>
-     fi
-    }
-   elif $use_gray $0_process_gray[0]
-   fi
+						var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
+					else
+						error inval_arg
+					fi
+					current_method=${arg$var_method}
+				}
+			else
+				var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=1
+			fi
+		fi
 
-   a c
-  }
- elif $num_of_set_args==1
-  effect_factor,multiplication,opacity:=[${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity}]
+		if $contain_alpha
+			current_method=${arg$var_method}
 
-  method,blending_id=${arg$var_method},${arg$var_blending}
+			if !isint($current_method)&&('$current_method'!='-')
+				current_method=${$current_method}
+			fi
 
-  if !isint($method)&&('$method'!='-') method=${$method} fi
+			if narg($current_method)?'$current_method'!='-'
+				use_alpha=${$0_process_individual_channel_section\ alpha,$current_method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
+			fi
+		fi
 
-  if !$effect_factor||$opacity<=0 return fi
-  use_blend_str:=!isint($blending_id)
-  if !$use_blend_str blending_id=${arg\ $blending_id+1,$list_of_blending_modes} fi
+		if !sum($use_gray,$use_color,$use_alpha)
+			return
+		fi
 
-  if $effect_factor||$opacity>0
-   if $opacity==1?(same('$blending_id','normal')||same('$blending_id','alpha'))
-    foreach {
-     $0_bsoo_edit $method,$effect_factor,$multiplication
-     cut 0,255
-    }
-   else
-    foreach {
-     +$0_bsoo_edit $method,$effect_factor,$multiplication
-     _blend_$blending_id
-     if $opacity<1 j.. .,0,0,0,0,$opacity rm.
-     else rm..
-     fi
-     cut 0,255
-    }
-   fi
-  fi
+		foreach {
+			contain_color,contain_alpha:=[s>2,!(s&1)]
 
- elif !$num_of_set_args
-  error needs_at_least_5_for_one_arg_set
- else
-  if $contain_gray
-    method=${arg$var_method} if !isint($method)&&('$method'!='-') method=${$method} fi
-    use_gray=${$0_process_individual_channel_section\ gray,$method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
-    var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
-  fi
-  if $contain_color
-    method=${arg$var_method} if !isint($method)&&('$method'!='-') method=${$method} fi
-    use_color=${$0_process_individual_channel_section\ color,$method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
-    var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
-  fi
-  if $contain_alpha
-    method=${arg$var_method} if !isint($method)&&('$method'!='-') method=${$method} fi
-    use_alpha=${$0_process_individual_channel_section\ alpha,$method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
-  fi
+			if $use_alpha?$contain_alpha
+				s c,-{s-1}
+				if $use_alpha
+					$0_process_alpha[-1]
+				fi
+			fi
 
-  if !sum($use_gray,$use_color,$use_alpha) return fi
+			if $contain_color?$use_color
+				s[0] c
+				foreach[0-2] {
+					if ${use_channel_$>}
+						$0_process_channel_$>
+					fi
+				}
+			elif $use_gray
+				$0_process_gray[0]
+			fi
 
-  foreach {
-   contain_color,contain_alpha:=[s>2,!(s&1)]
+			a c
+		}
+	elif $num_of_set_args==1
+		effect_factor,multiplication,opacity:=[${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity}]
 
-   if $use_alpha?$contain_alpha
-    shared[-1] {s-1}
-    $0_process_alpha[-1]
-    rm.
-   fi
+		method,blending_id=${arg$var_method},${arg$var_blending}
 
-   if $contain_color?$use_color
-    if $contain_alpha shared[-1] 0,{s-2} fi
-    $0_process_color[-1]
-    if $contain_alpha rm[-1] fi
-   elif $use_gray
-    if $contain_alpha shared[-1] 0,{s-2} fi
-    $0_process_gray[-1]
-    if $contain_alpha rm[-1] fi
-   fi
-  }
- fi
+		if !isint($method)&&('$method'!='-')
+			method=${$method}
+		fi
 
+		if !$effect_factor||$opacity<=0
+			return
+		fi
+
+		use_blend_str:=!isint($blending_id)
+
+		if !$use_blend_str
+			blending_id=${arg\ $blending_id+1,$list_of_blending_modes}
+		fi
+
+		if $effect_factor||$opacity>0
+			if $opacity==1?(same('$blending_id','normal')||same('$blending_id','alpha'))
+				foreach {
+					$0_bsoo_edit $method,$effect_factor,$multiplication
+					cut 0,255
+				}
+			else
+				foreach {
+					+$0_bsoo_edit $method,$effect_factor,$multiplication
+					_blend_$blending_id
+
+					if $opacity<1
+						j.. .,0,0,0,0,$opacity
+						rm.
+					else
+						rm..
+					fi
+
+					cut 0,255
+				}
+			fi
+		fi
+
+	elif !$num_of_set_args
+		error needs_at_least_5_for_one_arg_set
+	else
+		if $contain_gray
+			method=${arg$var_method}
+
+			if !isint($method)&&('$method'!='-')
+				method=${$method}
+			fi
+
+			use_gray=${$0_process_individual_channel_section\ gray,$method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
+			var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
+		fi
+
+		if $contain_color
+			method=${arg$var_method}
+
+			if !isint($method)&&('$method'!='-')
+				method=${$method}
+			fi
+
+			use_color=${$0_process_individual_channel_section\ color,$method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
+			var_method,var_effect_factor,var_multiplication_factor,var_blending,var_opacity+=5
+		fi
+
+		if $contain_alpha
+			method=${arg$var_method} if !isint($method)&&('$method'!='-') method=${$method} fi
+			use_alpha=${$0_process_individual_channel_section\ alpha,$method,${arg$var_effect_factor},${arg$var_multiplication_factor},${arg$var_opacity},${arg$var_blending}}
+		fi
+
+		if !sum($use_gray,$use_color,$use_alpha)
+			return
+		fi
+
+		foreach {
+			contain_color,contain_alpha:=[s>2,!(s&1)]
+
+			if $use_alpha?$contain_alpha
+				shared[-1] {s-1}
+				$0_process_alpha[-1]
+				rm.
+			fi
+
+			if $contain_color?$use_color
+				if $contain_alpha
+					shared[-1] 0,{s-2}
+				fi
+
+				$0_process_color[-1]
+
+				if $contain_alpha
+					rm[-1]
+				fi
+			elif $use_gray
+
+				if $contain_alpha
+					shared[-1] 0,{s-2}
+				fi
+
+				$0_process_gray[-1]
+
+				if $contain_alpha
+					rm[-1]
+				fi
+			fi
+		}
+	fi
 fi
 
 um $0_bsoo_edit,+$0_bsoo_edit,$0_process_individual_channel_section,$0_process_gray,$0_process_color,$0_process_channel_0,$0_process_channel_1,$0_process_channel_1,$0_process_channel_2,$0_process_cmy_channel_0,$0_process_cmy_channel_1,$0_process_cmy_channel_2,$0_process_cmyk_channel_0,$0_process_cmyk_channel_1,$0_process_cmyk_channel_2,$0_process_cmyk_channel_3,$0_process_alpha
@@ -680,89 +829,113 @@ um $0_bsoo_edit,+$0_bsoo_edit,$0_process_individual_channel_section,$0_process_g
 #@cli : Author : Reptorian.
 rep_decompose_bitplanes:
 l[] {
-  check "${1=8}>1 && isint(${1=8})"
-  d_bpi={$1-1}
+	check "${1=8}>1 && isint(${1=8})"
+	d_bpi={$1-1}
 
-  onfail
-    if isnum($1)
-      if !isint($1)||$1<2 error inv_num_inp fi
-    else
-      noarg d_bpi=7
-    fi
- }
+	onfail
+		if isnum($1)
+			if !isint($1)||$1<2
+				error inv_num_inp
+			fi
+		else
+			noarg d_bpi=7
+		fi
+	}
 
-foreach { repeat $d_bpi { +>>[-1] 1 &[-2] 1 } &[-1] 1 }
+foreach {
+	repeat $d_bpi {
+		+>>[-1] 1
+		&[-2] 1
+	}
+
+	&[-1] 1
+}
 #@cli rep_compose_bitplanes: _number_of_bits>0
 #@cli : Compose bitplanes into images.
 #@cli : Default values: '_number_of_bits=8'
 #@cli : Author : Reptorian.
 rep_compose_bitplanes:
 l[] {
-  check "${1=8}>1 && isint(${1=8})"
-  d_bpi={$1-1}
+	check "${1=8}>1 && isint(${1=8})"
+	d_bpi={$1-1}
 
-  onfail
-    if isnum($1)
-      if !isint($1)||$1<2 error inv_num_inp fi
-    else
-      noarg d_bpi=7
-    fi
- }
+	onfail
+		if isnum($1)
+			if !isint($1)||$1<2
+				error inv_num_inp
+			fi
+		else
+			noarg d_bpi=7
+		fi
+	}
 
 P,Q=-1,-2
+
 repeat inf {
- repeat $d_bpi { <<[$P] 1 |[$P,$Q] }
- if ($>+1)==$! break fi
- P,Q-=1
+	repeat $d_bpi {
+		<<[$P] 1
+		|[$P,$Q]
+	}
+
+	if ($>+1)==$!
+		break
+	fi
+
+	P,Q-=1
 }
 #@cli utf8str2vint: string
 #@cli : Return vector of integer representation of UTF-8 byte string.
 #@cli : Author : Reptorian.
 utf8str2vint:
 skip "${1=}"
-if !$# status "" return fi
+if !$#
+	status ""
+	return
+fi
 
 eval "
-  str = '$1';
-  const size_str = size(str);
-  code_points = vector(#size_str,0);
-  num_of_code_points(v)=1+(v>=0b1110?v&0b11:v>0b111);
+	str = '$1';
+	const size_str = size(str);
+	code_points = vector(#size_str,0);
+	num_of_code_points(v)=1+(v>=0b1110?v&0b11:v>0b111);
 
-  pos = num_of_chars = 0;
-  while( pos < size_str,
-    current_code_point = str[pos] >> 4; # Extract first 4 bits of first byte. pos is used to select and extract the relevant numbers.
-    code_points[num_of_chars] = num_of_code_points(current_code_point);
-    pos += code_points[num_of_chars];
-    ++num_of_chars;
-  );
+	pos = num_of_chars = 0;
+	while( pos < size_str,
+		current_code_point = str[pos] >> 4; # Extract first 4 bits of first byte. pos is used to select and extract the relevant numbers.
+		code_points[num_of_chars] = num_of_code_points(current_code_point);
+		pos += code_points[num_of_chars];
+		++num_of_chars;
+	);
 
-  if(pos!=size_str,run('error not_a_UTF-8_string!'););
+	if(pos!=size_str,
+		run('error not_a_UTF-8_string!');
+	);
 
-  const N=0b11111111; # Base for the mathematics involving encoding or decoding UTF-8 strings.
-  const M=N>>2;       # Used to select binary numbers within x section of 10xxxxxx.
+	const N=0b11111111; # Base for the mathematics involving encoding or decoding UTF-8 strings.
+	const M=N>>2;       # Used to select binary numbers within x section of 10xxxxxx.
 
-  pos=0;
-  repeat(num_of_chars,k,
-    current_num_of_code_point = code_points[k];
+	pos=0;
+	repeat(num_of_chars,k,
+		current_num_of_code_point = code_points[k];
 
-    current_num_of_code_point == 4 ?(
-     code_points[k] = ( str[pos] & (N>>5) ) << 18 | ( str[pos+1] & M ) << 12 | ( str[pos+2] & M ) << 6 | ( str[pos+3] & M );
-    ):
-    current_num_of_code_point == 3 ?(
-     code_points[k] = ( str[pos] & (N>>4) ) << 12 | ( str[pos+1] & M ) << 6  | ( str[pos+2] & M );
-    ):
-    current_num_of_code_point == 2 ?(
-     code_points[k] = ( str[pos] & (N>>3) ) << 6  | ( str[pos+1] & M );
-    ):(
-     code_points[k] =   str[pos];
-    );
+		current_num_of_code_point == 4 ?(
+			code_points[k] = ( str[pos] & (N>>5) ) << 18 | ( str[pos+1] & M ) << 12 | ( str[pos+2] & M ) << 6 | ( str[pos+3] & M );
+		):
+		current_num_of_code_point == 3 ?(
+			code_points[k] = ( str[pos] & (N>>4) ) << 12 | ( str[pos+1] & M ) << 6  | ( str[pos+2] & M );
+		):
+		current_num_of_code_point == 2 ?(
+			code_points[k] = ( str[pos] & (N>>3) ) << 6  | ( str[pos+1] & M );
+		):(
+			code_points[k] =   str[pos];
+		);
 
-    pos+=current_num_of_code_point;
-  );
+		pos+=current_num_of_code_point;
+	);
 
-  set('num_of_chars',num_of_chars);
-  code_points;
-  "
+	set('num_of_chars',num_of_chars);
+	code_points;
+	"
 
 status {([${}])[0,$num_of_chars]}
 #@cli vint2utf8str: int_a>=0,...
@@ -770,49 +943,55 @@ status {([${}])[0,$num_of_chars]}
 #@cli : Author : Reptorian.
 vint2utf8str:
 skip "${1=}"
-if !$# status "" return fi
+if !$#
+	status ""
+	return
+fi
 
 eval "
-  list_of_ints = [$*];
-  if( min(list_of_ints) < 0 || max(list_of_ints) > 0x10ffff, run('error range_exc'); );
+	list_of_ints = [$*];
 
-  const list_size = size(list_of_ints);
-  const init_size = list_size<<2;
+	if( min(list_of_ints) < 0 || max(list_of_ints) > 0x10ffff,
+		run('error range_exc');
+	);
 
-  new_list = vector(#init_size,0);
+	const list_size = size(list_of_ints);
+	const init_size = list_size<<2;
 
-  const M  = 0b10000000;  # 10xxxxxx. x will be replaced by corresponding numbers associated with integer representation.
-  const N  = 0b11111111;  # Base for the mathematics involving encoding or decoding UTF-8 strings.
-  const S  = N>>2;        # Used to select binary numbers to insert into x section of 10xxxxxx.
-  const X1 = xor(N,S);    #110xxxxx.
-  const X2 = xor(N,S>>1); #1110xxxx.
-  const X3 = xor(N,S>>2); #11110xxx.
+	new_list = vector(#init_size,0);
 
-  final_size=0;
-  repeat(list_size,k,
-    cv = list_of_ints[k];
+	const M  = 0b10000000;  # 10xxxxxx. x will be replaced by corresponding numbers associated with integer representation.
+	const N  = 0b11111111;  # Base for the mathematics involving encoding or decoding UTF-8 strings.
+	const S  = N>>2;        # Used to select binary numbers to insert into x section of 10xxxxxx.
+	const X1 = xor(N,S);    #110xxxxx.
+	const X2 = xor(N,S>>1); #1110xxxx.
+	const X3 = xor(N,S>>2); #11110xxx.
 
-    cv > 0x10000 ? ( LS=3;XC=X3; ): # LS is shorthand for loops, which will be used to aid into inserting values into x series.
-    cv > 0x800 ? (   LS=2;XC=X2; ):
-    cv > 0x80 ? (    LS=1;XC=X1; ):
-    (                LS=0;       );
+	final_size=0;
+	repeat(list_size,k,
+		cv = list_of_ints[k];
 
-    LS?(
-     for( ind=final_size+LS, ind>final_size, --ind,
-        new_list[ind] = M | ( cv&S );
-        cv >>= 6;
-      );
-      new_list[final_size] = XC | cv;
-    ):(
-     new_list[final_size] = cv;
-    );
+		cv > 0x10000 ? ( LS=3;XC=X3; ): # LS is shorthand for loops, which will be used to aid into inserting values into x series.
+		cv > 0x800 ? (   LS=2;XC=X2; ):
+		cv > 0x80 ? (    LS=1;XC=X1; ):
+		(                LS=0;       );
 
-    final_size += LS+1;
-  );
+		LS?(
+			for( ind=final_size+LS, ind>final_size, --ind,
+				new_list[ind] = M | ( cv&S );
+				cv >>= 6;
+			);
+			new_list[final_size] = XC | cv;
+		):(
+			new_list[final_size] = cv;
+		);
 
-  set('final_size',final_size);
-  new_list;
-  "
+		final_size += LS+1;
+	);
+
+	set('final_size',final_size);
+	new_list;
+	"
 
 status {`([${}])[0,$final_size]`}
 #@cli rep_nonexistent_colors_pal: number_of_new_colors, _appended_into_palette={ 0=do_not_append | 1=append into palette },_method={ 0=random | 1=farthest (slow) },0<_mask_factor[%]<=1,_cube_size>=7
@@ -826,273 +1005,260 @@ number_of_new_colors,append_into_pal,cube_size=$1,$2,$5
 
 if isint($3) far_mode={$3&1}
 else
- r,rand,random,aleatoria=0 far,farthest,distant,lejos=1
- far_mode=$$3 if !narg($far_mode) error inval_arg fi
+	r,rand,random,aleatoria=0 far,farthest,distant,lejos=1
+	far_mode=$$3 if !narg($far_mode) error inval_arg fi
 fi
 
 if $far_mode
 
- mask_factor={1-$4}
- if !inrange($4,0,1,0,1)
-  error 0<\$\4<=1==F
- fi
+	mask_factor={1-$4}
+	if !inrange($4,0,1,0,1)
+		error 0<\$\4<=1==F
+	fi
 
- if !isint($cube_size)||!inrange($cube_size,7,256,1,1)
-  error inv_inp_\$\5
- fi
+	if !isint($cube_size)||!inrange($cube_size,7,256,1,1)
+		error inv_inp_\$\5
+	fi
 
- if $cube_size==256
-  initial_code=i(#-1,I)=1
-  xyz_code=[xM,yM,zM]
-  m "cmd_$0_insert_new_color: point 0,$""1,0,1,$""2,$""3,$""4"
- else
-  d_cube_size={$cube_size-1}
-  initial_code=i(#-1,I*{$d_cube_size/255})=1
-  xyz_code=round([xM,yM,zM])
-  m "cmd_$0_insert_new_color: point 0,$""1,0,1,{round([$""2,$""3,$""4]*"{255/$d_cube_size}")}"
- fi
+	if $cube_size==256
+		initial_code=i(#-1,I)=1
+		xyz_code=[xM,yM,zM]
+		m "cmd_$0_insert_new_color: point 0,$""1,0,1,$""2,$""3,$""4"
+	else
+		d_cube_size={$cube_size-1}
+		initial_code=i(#-1,I*{$d_cube_size/255})=1
+		xyz_code=round([xM,yM,zM])
+		m "cmd_$0_insert_new_color: point 0,$""1,0,1,{round([$""2,$""3,$""4]*"{255/$d_cube_size}")}"
+	fi
 
- if $mask_factor
-  m "cmd_$0_generate_pal:
-   current_number_of_colors=$""1
+	if $mask_factor
+		m "cmd_$0_generate_pal:
+			current_number_of_colors=$""1
 
-   if "$append_into_pal"
-    1,{"$number_of_new_colors"+$current_number_of_colors},1,1,y
-    map[-1] [-3]
-    rm[-3]
-   else
-    1,"$number_of_new_colors",1,{s#-2}
-    rm[-3]
-    current_number_of_colors=0
-   fi
+			if "$append_into_pal"
+				1,{"$number_of_new_colors"+$current_number_of_colors},1,1,y
+				map[-1] [-3]
+				rm[-3]
+			else
+				1,"$number_of_new_colors",1,{s#-2}
+				rm[-3]
+				current_number_of_colors=0
+			fi
 
-   +fill[-2] :\"const max_coords="$d_cube_size";!i?(inrange(x,0,max_coords,0,0)&&inrange(y,0,max_coords,0,0)&&inrange(z,0,max_coords,0,0));\"
-   +inpaint_pde[-3] [-1],100%,0
-   remove[-2]
-   erode_circ. 2,1,1 blur. 2 +. 1 ^. "$mask_factor"
+			+fill[-2] :\"const max_coords="$d_cube_size";!i?(inrange(x,0,max_coords,0,0)&&inrange(y,0,max_coords,0,0)&&inrange(z,0,max_coords,0,0));\"
+			+inpaint_pde[-3] [-1],100%,0
+			remove[-2]
+			erode_circ. 2,1,1 blur. 2 +. 1 ^. "$mask_factor"
 
-   repeat "$number_of_new_colors" {
-    +distance... 1,2 *. .. xyz:="$xyz_code" rm.
-    point... $xyz,1,1
-    cmd_$0_insert_new_color.. $current_number_of_colors,$xyz
-    current_number_of_colors+=1
-   }
+			repeat "$number_of_new_colors" {
+				+distance... 1,2 *. .. xyz:="$xyz_code" rm.
+				point... $xyz,1,1
+				cmd_$0_insert_new_color.. $current_number_of_colors,$xyz
+				current_number_of_colors+=1
+			}
 
-   remove[-3,-1]
-   "
- else
-  m "cmd_$0_generate_pal:
-   current_number_of_colors=$""1
+			remove[-3,-1]
+			"
+	else
+		m "cmd_$0_generate_pal:
+			current_number_of_colors=$""1
 
-   if "$append_into_pal"
-    1,{"$number_of_new_colors"+$current_number_of_colors},1,1,y
-    map[-1] [-3]
-    rm[-3]
-   else
-    1,"$number_of_new_colors",1,{s#-2}
-    rm[-3]
-    current_number_of_colors=0
-   fi
+			if "$append_into_pal"
+				1,{"$number_of_new_colors"+$current_number_of_colors},1,1,y
+				map[-1] [-3]
+				rm[-3]
+			else
+				1,"$number_of_new_colors",1,{s#-2}
+				rm[-3]
+				current_number_of_colors=0
+			fi
 
-   repeat "$number_of_new_colors" {
-    +distance.. 1,2 xyz:="$xyz_code" rm.
-    point.. $xyz,1,1
-    cmd_$0_insert_new_color. $current_number_of_colors,$xyz
-    current_number_of_colors+=1
-   }
+			repeat "$number_of_new_colors" {
+				+distance.. 1,2 xyz:="$xyz_code" rm.
+				point.. $xyz,1,1
+				cmd_$0_insert_new_color. $current_number_of_colors,$xyz
+				current_number_of_colors+=1
+			}
 
-   remove[-2]
-   "
- fi
+			remove[-2]
+			"
+	fi
 
 fi
 
-foreach { # For each images
+foreach {
 
- current_number_of_colors:=whd
+	current_number_of_colors:=whd
 
- if $far_mode
+	if $far_mode
 
-  if s!=3 error inv_chans_num fi
+		if s!=3
+			error inv_chans_num
+		fi
 
-  {vector3($cube_size)},1
-  eval[-2] $initial_code
-  cmd_$0_generate_pal $current_number_of_colors
+		{vector3($cube_size)},1
+		eval[-2] $initial_code
+		cmd_$0_generate_pal $current_number_of_colors
+	else
+		if !inrange(1,6,1,1)
+			error inv_chans_num
+		fi
 
- else
+		if $append_into_pal
+			1,{$number_of_new_colors+$current_number_of_colors},1,1,y
+			map[-1] [-2]
+			rm[-2]
+			1,1,1,100%
+		else
+			1,1,1,100%x2
+		fi
 
-  if !inrange(1,6,1,1)
-   error inv_chans_num
-  fi
+		eval "  # Enter JIT compiler
+			const number_of_new_colors=$number_of_new_colors;
+			const number_of_channels=s#0;
+			const current_number_of_colors=$current_number_of_colors;
+			const append_into_pal=$append_into_pal;
+			const maximum_integer_value=256^number_of_channels;
 
-  if $append_into_pal
-   1,{$number_of_new_colors+$current_number_of_colors},1,1,y
-   map[-1] [-2]
-   rm[-2]
-   1,1,1,100%
-  else
-   1,1,1,100%x2
-  fi
+			bitshift_factors=expr('x?1<<(2+x)',number_of_channels);
 
-  eval "  # Enter JIT compiler
-   const number_of_new_colors=$number_of_new_colors;
-   const number_of_channels=s#0;
-   const current_number_of_colors=$current_number_of_colors;
-   const append_into_pal=$append_into_pal;
-   const maximum_integer_value=256^number_of_channels;
+			convert_color2int(color_values)=sum(color_values<<bitshift_factors);
+			convert_int2color(value)=(value>>bitshift_factors)&0xff;
 
-   bitshift_factors=expr('x?1<<(2+x)',number_of_channels);
+			min_pos_val=-1;
+			max_pos_val=inf;
 
-   convert_color2int(color_values)=sum(color_values<<bitshift_factors);
-   convert_int2color(value)=(value>>bitshift_factors)&0xff;
+			state_check=mode=0;
+			old_value=middle_pivot=pivot_value=-1;
 
-   min_pos_val=-1;
-   max_pos_val=inf;
+			repeat(current_number_of_colors,p,
+				current_color=I[#0,p];
+				current_value=convert_color2int(current_color);
 
-   state_check=mode=0;
-   old_value=middle_pivot=pivot_value=-1;
+				mode==3?(
+					state_check=0;
+					current_value==min_pos_val||current_value==max_pos_val||current_value==pivot_value||current_value==old_value?(
+						continue();
+					):(
+						old_value=current_value;
 
-   repeat(current_number_of_colors,p,
+						current_value<min_pos_val?(
+							min_pos_val=current_value;
+							da_insert(#-1,0,current_color);
+						):
+						current_value>max_pos_val?(
+							max_pos_val=current_value;
+							da_push(#-1,current_color);
+						):
+						current_value>pivot_value?(
+							for(q=middle_pivot+1,q<da_size(#-1),++q,
+								test_value=convert_color2int(I[#-1,q]);
+								test_value>current_value?(
+									break();
+								):
+								test_value==current_value?(
+									state_check=1;
+									break();
+								);
+							);
+							if(state_check
+							,continue();
+							,da_insert(#-1,q,current_color);
+							);
+						):( # current_value<pivot_value
+							for(q=middle_pivot-1,q>0,--q,
+								test_value=convert_color2int(I[#-1,q]);
+								current_value>test_value?(
+									break();
+								):
+								test_value==current_value?(
+									state_check=1;
+									break();
+								);
+							);
+							if(state_check
+							,continue();
+							,da_insert(#-1,q+1,current_color);
+							);
+						);
+						middle_pivot=da_size(#-1)>>1;
+						pivot_value=convert_color2int(I[#-1,middle_pivot]);
+					);
+				):
+				mode==2?(
+					if(!state_check,
+						min_pos_val=convert_color2int(I[#-1,0]);
+						max_pos_val=convert_color2int(I[#-1,1]);
+						state_check=1;
+					);
+					current_value==min_pos_val||current_value==max_pos_val?(
+						continue();
+					):(
+						middle_pivot=1;
+						mode=3;
+						state_check=0;
 
-    current_color=I[#0,p];
-    current_value=convert_color2int(current_color);
+						current_value<min_pos_val?(
+							pivot_value=min_pos_val;
+							min_pos_val=current_value;
+							da_insert(#-1,0,current_color);
+						):
+						current_value<max_pos_val?(
+							pivot_value=current_value;
+							da_insert(#-1,1,current_color);
+						):
+						current_value>max_pos_val?(
+							pivot_value=max_pos_val;
+							max_pos_val=current_value;
+							da_push(#-1,current_color);
+						);
+					);
+				):
+				mode?(
+					current_value>old_value?(
+						da_push(#-1,current_color);
+						old_value=current_value;
+						mode=2;
+					):
+					current_value<old_value?(
+						da_insert(#-1,0,current_color);
+						old_value=current_value;
+						mode=2;
+					);
+				):(
+					da_push(#-1,current_color);
+					old_value=current_value;
+					mode=1;
+				);
+			);
 
-    mode==3?(
+			append_into_pal?(
+				insertion_pos=current_number_of_colors;
+				insert_new_color(color)=I[#-2,insertion_pos++]=color;
+			):(
+				insert_new_color(color)=da_push(#-2,color);
+			);
 
-     state_check=0;
+			last_rn=inf;
+			q=0; # Inserted position
+			repeat(number_of_new_colors,
+				selec_u=v(0,maximum_integer_value-da_size(#-1),1,0);
+				for(q=(selec_u>=last_rn?++q),q<da_size(#-1),++q,
+					selec_u>=convert_color2int(I[#-1,q])?(
+						++selec_u;
+					):(break(););
+				);
+				new_color=convert_int2color(selec_u);
+				da_insert(#-1,q,new_color);
+				insert_new_color(new_color);
+				last_rn=selec_u;
+			);
 
-     current_value==min_pos_val||current_value==max_pos_val||current_value==pivot_value||current_value==old_value?(
-      continue();
-     ):(
-      old_value=current_value;
+			if(!append_into_pal,da_freeze(#-2););
+			"
 
-      current_value<min_pos_val?(
-       min_pos_val=current_value;
-       da_insert(#-1,0,current_color);
-      ):
-      current_value>max_pos_val?(
-       max_pos_val=current_value;
-       da_push(#-1,current_color);
-      ):
-      current_value>pivot_value?(
-       for(q=middle_pivot+1,q<da_size(#-1),++q,
-        test_value=convert_color2int(I[#-1,q]);
-        test_value>current_value?(
-         break();
-        ):
-        test_value==current_value?(
-         state_check=1;
-         break();
-        );
-       );
-       if(state_check
-       ,continue();
-       ,da_insert(#-1,q,current_color);
-       );
-      ):( # current_value<pivot_value
-      for(q=middle_pivot-1,q>0,--q,
-        test_value=convert_color2int(I[#-1,q]);
-        current_value>test_value?(
-         break();
-        ):
-        test_value==current_value?(
-         state_check=1;
-         break();
-        );
-       );
-       if(state_check
-       ,continue();
-       ,da_insert(#-1,q+1,current_color);
-       );
-      );
-      middle_pivot=da_size(#-1)>>1;
-      pivot_value=convert_color2int(I[#-1,middle_pivot]);
-     );
-
-    ):
-    mode==2?(
-
-     if(!state_check,
-      min_pos_val=convert_color2int(I[#-1,0]);
-      max_pos_val=convert_color2int(I[#-1,1]);
-      state_check=1;
-     );
-
-     current_value==min_pos_val||current_value==max_pos_val?(
-      continue();
-     ):(
-      middle_pivot=1;
-      mode=3;
-      state_check=0;
-
-      current_value<min_pos_val?(
-       pivot_value=min_pos_val;
-       min_pos_val=current_value;
-       da_insert(#-1,0,current_color);
-      ):
-      current_value<max_pos_val?(
-       pivot_value=current_value;
-       da_insert(#-1,1,current_color);
-      ):
-      current_value>max_pos_val?(
-       pivot_value=max_pos_val;
-       max_pos_val=current_value;
-       da_push(#-1,current_color);
-      );
-     );
-
-    ):
-    mode?(
-
-     current_value>old_value?(
-      da_push(#-1,current_color);
-      old_value=current_value;
-      mode=2;
-     ):
-     current_value<old_value?(
-      da_insert(#-1,0,current_color);
-      old_value=current_value;
-      mode=2;
-     );
-
-    ):(
-
-     da_push(#-1,current_color);
-     old_value=current_value;
-     mode=1;
-
-    );
-
-   );
-
-   append_into_pal?(
-    insertion_pos=current_number_of_colors;
-    insert_new_color(color)=I[#-2,insertion_pos++]=color;
-   ):(
-    insert_new_color(color)=da_push(#-2,color);
-   );
-
-   last_rn=inf;
-   q=0; # Inserted position
-   repeat(number_of_new_colors,
-    selec_u=v(0,maximum_integer_value-da_size(#-1),1,0);
-    for(q=(selec_u>=last_rn?++q),q<da_size(#-1),++q,
-     selec_u>=convert_color2int(I[#-1,q])?(
-      ++selec_u;
-     ):(break(););
-    );
-    new_color=convert_int2color(selec_u);
-    da_insert(#-1,q,new_color);
-    insert_new_color(new_color);
-    last_rn=selec_u;
-   );
-
-   if(!append_into_pal,da_freeze(#-2););
-   "
-
-  keep[{!$append_into_pal}]
-
- fi
+		keep[{!$append_into_pal}]
+	fi
 }
 
 um cmd_$0_insert_new_color,cmd_$0_generate_pal
@@ -1102,50 +1268,50 @@ um cmd_$0_insert_new_color,cmd_$0_generate_pal
 check "$3>=2&&isint($3)"
 
 ${1-2},1,1,>"begin(
-   const Ws=$3;
-   rn_exlc(arg...)=(
-     ref([arg],excl_num);
-     repeat(size(excl_num),p,
-       sel_rn>=excl_num[p]?(
-         ++sel_rn;
-       ):(break(););
-     );
-     sel_rn;
-   );
-   temp_num_a=temp_num_b=0;
-  );
-  paint_using_x=x?1;
-  paint_using_y=y?1;
+		const Ws=$3;
+		rn_exlc(arg...)=(
+			ref([arg],excl_num);
+			repeat(size(excl_num),p,
+				sel_rn>=excl_num[p]?(
+					++sel_rn;
+				):(break(););
+			);
+			sel_rn;
+		);
+		temp_num_a=temp_num_b=0;
+	);
+	paint_using_x=x?1;
+	paint_using_y=y?1;
 
-  if(paint_using_x,temp_num_a=j(-1,0););
-  if(paint_using_y,temp_num_b=j(0,-1););
-  if(paint_using_x&&paint_using_y,paint_using_y=temp_num_a!=temp_num_b);
+	if(paint_using_x,temp_num_a=j(-1,0););
+	if(paint_using_y,temp_num_b=j(0,-1););
+	if(paint_using_x&&paint_using_y,paint_using_y=temp_num_a!=temp_num_b);
 
-  paint_using_x&&paint_using_y?(
-    if(temp_num_b<temp_num_a,swap(temp_num_a,temp_num_b););
-    sel_rn=v(0,Ws-2,1,0);
-    rn_exlc(temp_num_a,temp_num_b);
-  ):
-  paint_using_x||paint_using_y?(
-    sel_rn=v(0,Ws-1,1,0);
-    rn_exlc(paint_using_x?temp_num_a:temp_num_b);
-  ):(
-    v(0,Ws,1,0);
-  );"
+	paint_using_x&&paint_using_y?(
+		if(temp_num_b<temp_num_a,swap(temp_num_a,temp_num_b););
+		sel_rn=v(0,Ws-2,1,0);
+		rn_exlc(temp_num_a,temp_num_b);
+	):
+	paint_using_x||paint_using_y?(
+		sel_rn=v(0,Ws-1,1,0);
+		rn_exlc(paint_using_x?temp_num_a:temp_num_b);
+	):(
+		v(0,Ws,1,0);
+	);"
 #@cli rep_echo_image_data:
 #@cli : Echo the data that represents the image.
 rep_echo_image_data:
 repeat $! {
- echo[^-1] ({$>,`"put_sep(s,_k)=(
-                       for(k=_k;p=find(s,_','),p>=0,p = find(s,_',',++p),
-                         s[p]=k%w?_',':k%wh?_';':k%whd?_'/':_'^';
-                         ++k;
-                       );
-                       s;
-                     );
-                     s=v2s(crop(),-1);
-                     put_sep(s,1);
-                     "`}) # Code taken from print in G'MIC STDLIB
+	echo[^-1] ({$>,`"put_sep(s,_k)=(
+						for(k=_k;p=find(s,_','),p>=0,p = find(s,_',',++p),
+							s[p]=k%w?_',':k%wh?_';':k%whd?_'/':_'^';
+							++k;
+						);
+						s;
+					);
+					s=v2s(crop(),-1);
+					put_sep(s,1);
+					"`}) # Code taken from print in G'MIC STDLIB
 }
 #@cli rep_cin: '_message'
 #@cli : Allows users to input into status. Maximum string length is 1024!
@@ -1166,69 +1332,72 @@ case:='A'-'a'
 n0:='0'
 
 if $#>1
- message={`[$*]`}
+	message={`[$*]`}
 else
- if narg("$1")
-  message="$1"
- else
-  message="G'MIC rep_cin input: "
- fi
+	if narg("$1")
+		message="$1"
+	else
+		message="G'MIC rep_cin input: "
+	fi
 fi
 
 do
 
- if {*,BACKSPACE}
-  if $stack_point>0
-   stack_point-=1
-   if $stack_point<0 stack_point=0 fi
-   o=${current_str_$stack_point}
-  fi
+	if {*,BACKSPACE}
+		if $stack_point>0
+			stack_point-=1
+			if $stack_point<0
+				stack_point=0
+			fi
+			o=${current_str_$stack_point}
+		fi
 
-  w[] $screen_w,1,0,0,$message$o
-  wait
- elif {*,ENTER}" || "{*,ESC}
-  break
- else
-  shift_pressed:=({*,SHIFTLEFT}||{*,SHIFTRIGHT})
-  use_capitalization:=!$shift_pressed
-  key={*,k}
+		w[] $screen_w,1,0,0,$message$o
+		wait
+	elif {*,ENTER}" || "{*,ESC}
+		break
+	else
+		shift_pressed:=({*,SHIFTLEFT}||{*,SHIFTRIGHT})
+		use_capitalization:=!$shift_pressed
+		key={*,k}
 
-  in_char_set_1,in_char_set_2,is_letter,is_num_range,is_space={[inrange($key,186,192,1,1),inrange($key,219,222,1,1),inrange($key,_'A',_'Z',1,1),inrange($key,_'0',_'9',1,1),$key==_'\ ']}
-  if $is_space shift_pressed=0 fi
+		in_char_set_1,in_char_set_2,is_letter,is_num_range,is_space={[inrange($key,186,192,1,1),inrange($key,219,222,1,1),inrange($key,_'A',_'Z',1,1),inrange($key,_'0',_'9',1,1),$key==_'\ ']}
 
-  if $stack_point<$max_stack_size?($in_char_set_1||$in_char_set_2||$is_letter||$is_num_range||$is_space)
-   stack_point+=1
+		if $is_space
+			shift_pressed=0
+		fi
 
-   if $shift_pressed
-    if $in_char_set_1   o.={`(':+<_>?~')[$key-186]`}
-    elif $in_char_set_2 o.={`('\{|\}\"')[$key-219]`}
-    elif $is_num_range  o.={`('\)!@#$%^&*\(')[$key-$n0]`}
-    else                o.={`$key`}
-    fi
-   else
-    if $in_char_set_1   o.={`(';=,-./\`')[$key-186]`}
-    elif $in_char_set_2
-     if $key==220 o.=\\
-     else o.={`('[\\]\'')[$key-219]`}
-     fi
-    elif $is_letter     o.={`$key-$case`}
-    else                o.={`$key`}
-    fi
-   fi
+		if $stack_point<$max_stack_size?($in_char_set_1||$in_char_set_2||$is_letter||$is_num_range||$is_space)
+			stack_point+=1
 
-   current_str_$stack_point=$o
-  fi
+			if $shift_pressed
+				if $in_char_set_1   o.={`(':+<_>?~')[$key-186]`}
+				elif $in_char_set_2 o.={`('\{|\}\"')[$key-219]`}
+				elif $is_num_range  o.={`('\)!@#$%^&*\(')[$key-$n0]`}
+				else                o.={`$key`}
+				fi
+			else
+				if $in_char_set_1   o.={`(';=,-./\`')[$key-186]`}
+				elif $in_char_set_2
+					if $key==220    o.=\\
+					else            o.={`('[\\]\'')[$key-219]`}
+					fi
+				elif $is_letter     o.={`$key-$case`}
+				else                o.={`$key`}
+				fi
+			fi
+			current_str_$stack_point=$o
+		fi
 
-  if $started
-   w[] $screen_w,1,0,0,$message$o
-  else
-   w[] $screen_w,1,0,0,0,$screen_h,$message$o
-   started=1
-  fi
+		if $started
+			w[] $screen_w,1,0,0,$message$o
+		else
+			w[] $screen_w,1,0,0,0,$screen_h,$message$o
+			started=1
+		fi
+	fi
 
- fi
-
- wait 50
+	wait 50
 while {*}
 
 # Below is the reference I used to help create the above code:
@@ -1241,63 +1410,63 @@ status $o wait
 rep_closest_number_in_ordered_list_of_numbers:
 
 eval "
- const number_to_search=$1;
- vn=sort([${2--1}]);
- const size_vn=size(vn);
- const last_index=size_vn-1;
- diff(a,b)=abs(a-b);
+	const number_to_search=$1;
+	vn=sort([${2--1}]);
+	const size_vn=size(vn);
+	const last_index=size_vn-1;
+	diff(a,b)=abs(a-b);
 
- number_to_search==inf?(
-  last_index;
- ):
- number_to_search==-inf?(
-  0;
- ):
- number_to_search>vn[last_index]?(
-  vn[last_index];
- ):
- number_to_search<vn[0]?(
-  0;
- ):
- isnan(number_to_search)?(
-  nan;
- ):(
-  old_value=nan;
-  return_number=0;
-  repeat(size_vn,p,
-   value=vn[p];
-   if(value==number_to_search,return_number=vn[p];break(););
-   if(value>number_to_search,
-    if(p,
-    a=diff(number_to_search,value);
-    b=diff(number_to_search,old_value);
-    return_number=a<b?value:old_value;
-    break();
-    ,0;);
-   );
-   old_value=value;
-  );
-  return_number;
- );"
+	number_to_search==inf?(
+		last_index;
+	):
+	number_to_search==-inf?(
+		0;
+	):
+	number_to_search>vn[last_index]?(
+		vn[last_index];
+	):
+	number_to_search<vn[0]?(
+		0;
+	):
+	isnan(number_to_search)?(
+		nan;
+	):(
+		old_value=nan;
+		return_number=0;
+		repeat(size_vn,p,
+			value=vn[p];
+			if(value==number_to_search,return_number=vn[p];break(););
+			if(value>number_to_search,
+				if(p,
+					a=diff(number_to_search,value);
+					b=diff(number_to_search,old_value);
+					return_number=a<b?value:old_value;
+					break();
+				,0;);
+			);
+			old_value=value;
+		);
+		return_number;
+	);"
 #@cli rep_digamma:
 #@cli : Return the Logarithmic deritative of the Gamma function
 #@cli : Original code has been made by Mark Johnson. Permission has been granted to use his code. Link to source - http://web.science.mq.edu.au/~mjohnson/code/digamma.c
 rep_digamma:
 eval "
- digamma(n)=(
-  result=0;
-  p=n;
-  while(p<7,
-   result-=1/p;
-   ++p;
-  );
-  x0=p-(1/2);
-  xx=1/x0;
-  xx2=sqr(xx);
-  xx4=sqr(xx2);
-  result+=log(x0)+(1./24)*xx2-(7/960)*xx4+(31/8064)*xx4*xx2-(127/30720)*xx4*xx4;
- );
- digamma($1);"
+	digamma(n)=(
+		result=0;
+		p=n;
+		while(p<7,
+			result-=1/p;
+			++p;
+		);
+		x0=p-(1/2);
+		xx=1/x0;
+		xx2=sqr(xx);
+		xx4=sqr(xx2);
+		result+=log(x0)+(1./24)*xx2-(7/960)*xx4+(31/8064)*xx4*xx2-(127/30720)*xx4*xx4;
+	);
+	digamma($1);"
 #@cli rep_color_region: _threshold[%]>0
 #@cli : For use in images with large color blobs, this simplifies a image.
 rep_color_region:
@@ -1307,123 +1476,129 @@ check "inrange($1,0,1,0,1)&&inrange($2,0,1,1,1)&&$3>=0"
 area_threshold,stray_threshold,color_distance_threshold=${1-3}
 
 foreach {
- +round
- +colormap. 0,,1
- +index[-2] [-1],0,0
- +area. 0,0
- ge. {ia*$area_threshold}
- *.. .
- negate.
- -.. .
- rm.
- colormap. 0,,1
+	+round
+	+colormap. 0,,1
+	+index[-2] [-1],0,0
+	+area. 0,0
+	ge. {ia*$area_threshold}
+	*.. .
+	negate.
+	-.. .
+	rm.
+	colormap. 0,,1
 
- if xM discard. -1
- else crop. 1,100%
- fi
+	if xM discard. -1
+	else crop. 1,100%
+	fi
 
- map. ..
+	map. ..
 
- if $color_distance_threshold
-  if h>1 dimensions=1,100%
-  else 100%,1
-  fi
-  $dimensions,1,1,">begin(
-    const color_distance_threshold=$color_distance_threshold;
-    position=0;
-    test_color=vector(#s#-1,-inf);
-   );
-   distance=norm(I#-1-test_color);
-   if(distance>color_distance_threshold&&distance!=inf,
-    ++position;
-   );
-   test_color=I#-1;
-   position;"
-  blend[-2,-1] shapeaverage colormap. 0
- fi
+	if $color_distance_threshold
+		if h>1 dimensions=1,100%
+		else 100%,1
+		fi
+		$dimensions,1,1,">begin(
+				const color_distance_threshold=$color_distance_threshold;
+				position=0;
+				test_color=vector(#s#-1,-inf);
+			);
+			distance=norm(I#-1-test_color);
+			if(distance>color_distance_threshold&&distance!=inf,
+				++position;
+			);
+			test_color=I#-1;
+			position;"
+		blend[-2,-1] shapeaverage colormap. 0
+	fi
 
- rm..
- index.. .,0,1
- rm. rv
+	rm..
+	index.. .,0,1
+	rm. rv
 
- if $2
+	if $2
 
-  100%,100%,100%,1
+		100%,100%,100%,1
 
-  1,1,1,2
+		1,1,1,2
 
-  eval[0] >"
-   begin(
-    off_place=[-1,1];
-   );
+		eval[0] >"
+			begin(
+				off_place=[-1,1];
+			);
 
-   pixel_in_place=0;
+			pixel_in_place=0;
 
-   repeat(4,position,
-    xp=off_place[position&1];
-    yp=off_place[position>>1];
-    pixel_in_place=(I==J(xp,0,0,0,1))&&(I==J(0,yp,0,0,1));
-    if(pixel_in_place,break(););
-   );
+			repeat(4,position,
+				xp=off_place[position&1];
+				yp=off_place[position>>1];
+				pixel_in_place=(I==J(xp,0,0,0,1))&&(I==J(0,yp,0,0,1));
+				if(pixel_in_place,break(););
+			);
 
-   if(!pixel_in_place,
-    pixel_position=[x,y];
-    i(#-2,pixel_position)=1;
-    da_push(#-1,pixel_position);
-   );
+			if(!pixel_in_place,
+				pixel_position=[x,y];
+				i(#-2,pixel_position)=1;
+				da_push(#-1,pixel_position);
+			);
 
-   I;"
+			I;"
 
-  if !iM#-2 keep[0] continue fi
+		if !iM#-2
+			keep[0]
+			continue
+		fi
 
-  +label[0] 0,0
-  area. 0,0
-  le. {$stray_threshold*iM}
-  *[-3,-1]
+		+label[0] 0,0
+		area. 0,0
+		le. {$stray_threshold*iM}
+		*[-3,-1]
 
-  if !iM#-2 keep[0] continue fi
+		if !iM#-2
+			keep[0]
+			continue
+		fi
 
-  eval "
-   size_da=da_size(#-1);
-   point=size_da-1;
-   repeat(size_da,
-    if(!i(#-2,I[#-1,point],0,1),da_remove(#-1,point););
-    --point;
-   );
-   da_freeze(#-1);
-   "
+		eval "
+			size_da=da_size(#-1);
+			point=size_da-1;
+			repeat(size_da,
+				if(!i(#-2,I[#-1,point],0,1),da_remove(#-1,point););
+				--point;
+			);
+			da_freeze(#-1);
+			"
 
-  eval. :"begin(
-    a_coordinates=[-1,0,1,-1,1,-1,0,1];
-    b_coordinates=[-1,-1,-1,0,0,1,1,1];
-   );
+		eval. :"begin(
+				a_coordinates=[-1,0,1,-1,1,-1,0,1];
+				b_coordinates=[-1,-1,-1,0,0,1,1,1];
+			);
 
-   number_of_valid_pixels=0;
-   difference_vector=vector(#4,inf);
+			number_of_valid_pixels=0;
+			difference_vector=vector(#4,inf);
 
-   repeat(8,position,
-    offset_a=a_coordinates[position];
-    offset_b=b_coordinates[position];
-    offset=[offset_a,offset_b];
-    test_pixel_position=I+offset;
-    if(!i(#3,test_pixel_position,1),
-     difference_vector[position]=norm(I(#0,I,0,1),I(#1,test_pixel_position,0,1));
-     ++number_of_valid_pixels;
-    );
-   );
+			repeat(8,position,
+				offset_a=a_coordinates[position];
+				offset_b=b_coordinates[position];
+				offset=[offset_a,offset_b];
+				test_pixel_position=I+offset;
+				if(!i(#3,test_pixel_position,1),
+					difference_vector[position]=norm(I(#0,I,0,1),I(#1,test_pixel_position,0,1));
+					++number_of_valid_pixels;
+				);
+			);
 
-   if(number_of_valid_pixels,
-    position=argmin(difference_vector);
-    offset_a=a_coordinates[position];
-    offset_b=b_coordinates[position];
-    offset=[offset_a,offset_b];
-    pixel_position=I+offset;
-    I(#0,I)=I(#0,pixel_position,0,1);
-   );"
+			if(number_of_valid_pixels,
+				position=argmin(difference_vector);
+				offset_a=a_coordinates[position];
+				offset_b=b_coordinates[position];
+				offset=[offset_a,offset_b];
+				pixel_position=I+offset;
+				I(#0,I)=I(#0,pixel_position,0,1);
+			);"
 
- fi
+	fi
 
- keep[0]
+	keep[0]
 }
 #@cli rep_two_dimension_set_indices:
 #@cli : Return images containing indexes
@@ -1431,15 +1606,15 @@ rep_two_dimension_set_indices:
 num_of_imgs:=$!
 
 repeat $num_of_imgs {
- width:=w#$>
- height:=h#$>
+	width:=w#$>
+	height:=h#$>
 
- if narg(${image_dimension_${width}_${height}})
-  eval da_push(#${image_dimension_${width}_${height}},$>)
- else
-  1 => image_dimension_${width}_${height}
-  eval da_push(#-1,$>)
- fi
+	if narg(${image_dimension_${width}_${height}})
+		eval da_push(#${image_dimension_${width}_${height}},$>)
+	else
+		1 => image_dimension_${width}_${height}
+		eval da_push(#-1,$>)
+	fi
 }
 
 foreach[$num_of_imgs--1] { eval da_freeze(#-1) }
@@ -1451,14 +1626,15 @@ imgs_moved=0
 $=arg
 
 for $imgs_moved<$! {
- named[$imgs_moved--1] 0,${arg{$>+1}}
- t_arg:=narg(${})
+	named[$imgs_moved--1] 0,${arg{$>+1}}
+	t_arg:=narg(${})
 
- if $t_arg
-  move[${}] $imgs_moved
-  imgs_moved+=$t_arg
- else error missing_image_name
- fi
+	if $t_arg
+		move[${}] $imgs_moved
+		imgs_moved+=$t_arg
+	else
+		error missing_image_name
+	fi
 }
 #@cli rep_sort_images_by_order: number_a,number_b,....
 #@cli : Sort images accordingly to numerical arguments. The number of numerical arguments has to be equal to the number of images, and they have to be positive integer number starting from 0 until number that is equal to number of arguments minus one.
@@ -1469,30 +1645,32 @@ if $#!=$! error invalid_image_count fi
 input_v=[{[$*]%$#}]
 sorted_v=[{expr('x',$#)}]
 
-if $input_v==$sorted_v return
-elif $input_v==reverse($sorted_v) reverse
+if $input_v==$sorted_v
+	return
+elif $input_v==reverse($sorted_v)
+	reverse
 else
- $#,1,1,1
+	$#,1,1,1
 
- $#,1,1,1,>"begin(
-   const max_index=w-1;
-   index_counter=vector(#w,0);
-   order=[$*];
-  );
-  value_index=order[x]%w;
-  if(++index_counter[value_index]>1,run('error dup_ind_inp'););
-  off_position=value_index-i(#-1,value_index);
-  polygon(#-1,2,value_index,0,max_index,0,-1,1);
-  off_position+x;
-  "
+	$#,1,1,1,>"begin(
+			const max_index=w-1;
+			index_counter=vector(#w,0);
+			order=[$*];
+		);
+		value_index=order[x]%w;
+		if(++index_counter[value_index]>1,run('error dup_ind_inp'););
+		off_position=value_index-i(#-1,value_index);
+		polygon(#-1,2,value_index,0,max_index,0,-1,1);
+		off_position+x;
+		"
 
- remove[-2]
+	remove[-2]
 
- repeat $# {
-  move[{i(#-1,$>)}] $>
- }
+	repeat $# {
+		move[{i(#-1,$>)}] $>
+	}
 
- remove[-1]
+	remove[-1]
 
 fi
 #@cli rep_tuppers_self_K: apply_pre_negation={ 0=false | 1=true }
@@ -1507,50 +1685,60 @@ out,sep=
 
 foreach {
 
- if !(s&1) to_graya s c /. 255 *
- else to_gray
- fi
+	if !(s&1)
+		to_graya
+		s c
+		/. 255
+		*
+	else
+		to_gray
+	fi
 
- if !iv?($1?im:!im)
-  if $> out.=,0
-  else out=0
-  fi
-  continue
- fi
+	if !iv?($1?im:!im)
+		if $> out.=,0
+		else out=0
+		fi
+		continue
+	fi
 
- height={h}
+	height={h}
 
- if $height<2 error inv_dimension_[$>] fi
+	if $height<2
+		error inv_dimension_[$>]
+	fi
 
- gt {(im+iM)/2}
- +store. image
- if $1 xor 1 fi
+	gt {(im+iM)/2}
+	+store. image
 
- rotate 90
- unroll x
+	if $1
+		xor 1
+	fi
 
- rep_binimg2dec_base 0,1
+	rotate 90
+	unroll x
 
- eval "begin(
-   const=height=$height;
-   carry_over=0;
-  );
-  current_digit_pos=da_size(#-1);
-  while(current_digit_pos--,
-   n=carry_over+i[#-1,current_digit_pos]*height;
-   carry_over=int(n/1e7);
-   i[#-1,current_digit_pos]=n%1e7;
-  );
-  if(carry_over,da_insert(#-1,0,carry_over););
-  "
+	rep_binimg2dec_base 0,1
 
- da_freeze
- rep_decimg2decstr 1
+	eval "begin(
+			const=height=$height;
+			carry_over=0;
+		);
+		current_digit_pos=da_size(#-1);
+		while(current_digit_pos--,
+			n=carry_over+i[#-1,current_digit_pos]*height;
+			carry_over=int(n/1e7);
+			i[#-1,current_digit_pos]=n%1e7;
+		);
+		if(carry_over,da_insert(#-1,0,carry_over););
+		"
 
- out.=$sep{t}
- sep=,
+	da_freeze
+	rep_decimg2decstr 1
 
- rm $image
+	out.=$sep{t}
+	sep=,
+
+	rm $image
 
 }
 
@@ -1567,33 +1755,44 @@ if d>1 error imgs_dims_inv fi
 if $1<h&&$1 error inv_inp fi
 
 if $1>=h
- fill y+x*h mirror. x
+	fill y+x*h mirror. x
 
- +rep_posdec2base_img ${rep_BIGINT_division\ $1,{h}},base_float
- {24*(w-1)+int(log2(i[#-1,0]))+1}
- eval[-2] "
-  const mx=w-1;
-  xp=mx-x;
-  point=xp*24;
-  digit=i;
-  while(digit,
-   i(#-1,point++)=digit&1;
-   digit>>=1;
-  );
-  i;
-  "
+	+rep_posdec2base_img ${rep_BIGINT_division\ $1,{h}},base_float
+	{24*(w-1)+int(log2(i[#-1,0]))+1}
+	eval[-2] "
+		const mx=w-1;
+		xp=mx-x;
+		point=xp*24;
+		digit=i;
+		while(digit,
+			i(#-1,point++)=digit&1;
+			digit>>=1;
+		);
+		i;
+		"
 
- map[-3] [-1] rm[-2,-1]
-else fill 0
+	map[-3] [-1] rm[-2,-1]
+else
+	fill 0
 fi
-if $2 negate fi
+
+if $2
+	negate
+fi
 #@cli rep_bin2dec: binary_a,binary_b,....
 #@cli : Return the converted binary numbers to decimal representating using an algorithm that use base-10M and Schönhage-Strassen multiplication algorithm. Large binary number is supported here.
 rep_bin2dec:
 check "$#>0"
+
 $=arg
+
 I={$!}
-repeat $# { p:=$>+1 ('${arg$p}') }
+
+repeat $# {
+	p:=$>+1
+	('${arg$p}')
+}
+
 rep_binimg2dec_base[$I--1] 1
 #@cli rep_binimg2dec_base: '_mode_unicode={ 0=false | 1=true }','_preserve_base10M_dynamic_array={ 0=false | 1=true },'_unicode_img_out={ 0=false | 1=true }
 #@cli : Used as base command to process binary-value images and to output decimal or base-10M images.
@@ -1610,231 +1809,233 @@ mode_unicode,preserve_base10_dynamic_array_image,unicode_out=$1,$2,{$#>=3?$-1:$1
 res,sep=
 
 if $mode_unicode
-    n0,n1:='01'
-    bin=t
+	n0,n1:='01'
+	bin=t
 else
-    n0,n1=0,1
-    bin=`crop(#-1)+$n0`
+	n0,n1=0,1
+	bin=`crop(#-1)+$n0`
 fi
 
 foreach {
-    if im<$n0||iM>$n1 error no_binary_image fi
+	if im<$n0||iM>$n1 error no_binary_image fi
 
-    crop {xM},100%
+	crop {xM},100%
 
-    name binary_image
+	name binary_image
 
-    if w>53
+	if w>53
 
-        num_of_binaries={whd#-1}
+		num_of_binaries={whd#-1}
 
-        1,{ceil(w/24)},1,2,"begin(
-                const max_ind = whd#-1-1 ;
-                const bits = 24 ;
-                const mode_unicode=$mode_unicode;
-                mode_unicode?(
-                   is_one()=i[#-1,ind]==$n1;
-                ):(is_one()=i[#-1,ind];);
-            );
-            start_point = max_ind - ( y * bits ) ;
-            end_block= max( -1 , start_point - bits ) ;
-            bitshift_factor = output_value = 0 ;
+		1,{ceil(w/24)},1,2,"begin(
+				const max_ind = whd#-1-1 ;
+				const bits = 24 ;
+				const mode_unicode=$mode_unicode;
+				mode_unicode?(
+					is_one()=i[#-1,ind]==$n1;
+				):(
+					is_one()=i[#-1,ind];
+				);
+			);
+			start_point = max_ind - ( y * bits ) ;
+			end_block= max( -1 , start_point - bits ) ;
+			bitshift_factor = output_value = 0 ;
 
-            for ( ind = start_point , ind > end_block , --ind ,
-                output_value |= is_one() << bitshift_factor ;
-                bitshift_factor++;
-            );
+			for ( ind = start_point , ind > end_block , --ind ,
+				output_value |= is_one() << bitshift_factor ;
+				bitshift_factor++;
+			);
 
-            [ output_value , y ] ;"
+			[ output_value , y ] ;"
 
-        rm..
-        start_value:=i[#-1,0]
-        crop 0,1,0,100%
-        ({h}) append[-2,-1] y
-        ref_img:=$!-1
+		rm..
+		start_value:=i[#-1,0]
+		crop 0,1,0,100%
+		({h}) append[-2,-1] y
+		ref_img:=$!-1
 
-        eval "
-            current_ind=da_size(#-1);
-            while(current_ind>=0,
-                if( !i[#-1,current_ind], da_remove(#-1,current_ind); );
-                --current_ind;
-            );
-            da_freeze(#-1);"
+		eval "
+			current_ind=da_size(#-1);
+			while(current_ind>=0,
+				if( !i[#-1,current_ind],
+					da_remove(#-1,current_ind);
+				);
+				--current_ind;
+			);
+			da_freeze(#-1);"
 
-        number_of_resulting_decimals:=ceil($num_of_binaries*$Ldb)
+		number_of_resulting_decimals:=ceil($num_of_binaries*$Ldb)
 
-        multithreading={h>1024}
+		multithreading={h>1024}
 
-        if $multithreading
-            symbol_to_use=:
-            num_of_chans=$_cpus
+		if $multithreading
+			symbol_to_use=:
+			num_of_chans=$_cpus
         else
-            symbol_to_use=>
-            num_of_chans=1
-        fi
+			symbol_to_use=>
+			num_of_chans=1
+		fi
 
-        decimal_conversion_array_size,result_conversion_array_size:=[ceil(ceil((i(#$ref_img,0,h#$ref_img-1,0,1)*24-1)*$Ldb)/7)+1,ceil($number_of_resulting_decimals/7)]
+		decimal_conversion_array_size,result_conversion_array_size:=[ceil(ceil((i(#$ref_img,0,h#$ref_img-1,0,1)*24-1)*$Ldb)/7)+1,ceil($number_of_resulting_decimals/7)]
 
-        1,$result_conversion_array_size,1,$num_of_chans                      # Result conversion of binary to decimal conversion
-        set[-1] $start_value,0,100%,0,100%
+		1,$result_conversion_array_size,1,$num_of_chans # Result conversion of binary to decimal conversion
+		set[-1] $start_value,0,100%,0,100%
 
-        eval[-2] $symbol_to_use"
-            begin(
-                const base_10M = 1e7;
-                const power_24_second_digit = - ( ( 1 << 24 ) % base_10M );
-                const log_10_2 = log10(2);
-                const end_ind = h#-1-1;
-                const result_conversion_size = $result_conversion_array_size;
-                const two_to_the_power_of_24_n_array_size = $decimal_conversion_array_size ;
-                const dec_two_to_the_power_of_24_n_array_size = two_to_the_power_of_24_n_array_size - 1;
-                number_of_decimals = old_power = started = 0;
-                calc_min_decimal_length(binary_digits_count) = ceil( (binary_digits_count-1) * log_10_2 );
+		eval[-2] $symbol_to_use"
+			begin(
+				const base_10M = 1e7;
+				const power_24_second_digit = - ( ( 1 << 24 ) % base_10M );
+				const log_10_2 = log10(2);
+				const end_ind = h#-1-1;
+				const result_conversion_size = $result_conversion_array_size;
+				const two_to_the_power_of_24_n_array_size = $decimal_conversion_array_size ;
+				const dec_two_to_the_power_of_24_n_array_size = two_to_the_power_of_24_n_array_size - 1;
+				number_of_decimals = old_power = started = 0;
+				calc_min_decimal_length(binary_digits_count) = ceil( (binary_digits_count-1) * log_10_2 );
 
-                destination_two_to_the_power_24_n_array = vector(#two_to_the_power_of_24_n_array_size,0);
-                source_two_to_the_power_24_n_array = destination_two_to_the_power_24_n_array;
-                auxillary_two_to_the_power_24_n_array = source_two_to_the_power_24_n_array;
-                empty_result_conversion_array = vector(#result_conversion_size,0);
-                result_conversion_array = empty_result_conversion_array;
+				destination_two_to_the_power_24_n_array = vector(#two_to_the_power_of_24_n_array_size,0);
+				source_two_to_the_power_24_n_array = destination_two_to_the_power_24_n_array;
+				auxillary_two_to_the_power_24_n_array = source_two_to_the_power_24_n_array;
+				empty_result_conversion_array = vector(#result_conversion_size,0);
+				result_conversion_array = empty_result_conversion_array;
 
-                convert_power_of_24_into_decimal(n)=(
-                    blen = n + 1;
-                    number_of_decimals = ceil( calc_min_decimal_length( n*24+1 ) / 7 );
-                    source_two_to_the_power_24_n_array[n] = 1;
-                    insert_pos=0;
-                    while( blen,
-                        num=0;process_bin=blen+1;
-                        while( process_bin--,
-                            num = (num << 24 ) | source_two_to_the_power_24_n_array[process_bin];
-                            source_two_to_the_power_24_n_array[process_bin] = int( num / base_10M );
-                            num %= base_10M;
-                        );
-                        destination_two_to_the_power_24_n_array[insert_pos++] = num;
-                        while( blen && !source_two_to_the_power_24_n_array[blen-1] ,
-                            blen--;
-                        );
-                    );
-                );
-            );
+				convert_power_of_24_into_decimal(n)=(
+					blen = n + 1;
+					number_of_decimals = ceil( calc_min_decimal_length( n*24+1 ) / 7 );
+					source_two_to_the_power_24_n_array[n] = 1;
+					insert_pos=0;
+					while( blen,
+						num=0;process_bin=blen+1;
+						while( process_bin--,
+							num = (num << 24 ) | source_two_to_the_power_24_n_array[process_bin];
+							source_two_to_the_power_24_n_array[process_bin] = int( num / base_10M );
+							num %= base_10M;
+						);
+						destination_two_to_the_power_24_n_array[insert_pos++] = num;
+						while( blen && !source_two_to_the_power_24_n_array[blen-1] ,
+							blen--;
+						);
+					);
+				);
+			);
 
-            if( !started || ( i1-old_power>1 ),
-                convert_power_of_24_into_decimal(i1);
-            );
+			if( !started || ( i1-old_power>1 ),
+				convert_power_of_24_into_decimal(i1);
+			);
 
-            remainder_new_power_24 = remainder_value_of_bin2dec = 0;
+			remainder_new_power_24 = remainder_value_of_bin2dec = 0;
 
-            min_copy_count = min(number_of_decimals,dec_two_to_the_power_of_24_n_array_size);
-            auxillary_two_to_the_power_24_n_array[0] = 0;
-            copy(auxillary_two_to_the_power_24_n_array[1],destination_two_to_the_power_24_n_array[0],min_copy_count,1,1);
+			min_copy_count = min(number_of_decimals,dec_two_to_the_power_of_24_n_array_size);
+			auxillary_two_to_the_power_24_n_array[0] = 0;
+			copy(auxillary_two_to_the_power_24_n_array[1],destination_two_to_the_power_24_n_array[0],min_copy_count,1,1);
 
-            if(i0>=base_10M
-            ,result_conversion_array[0]=0;copy(result_conversion_array[1],destination_two_to_the_power_24_n_array[0],number_of_decimals,1,1);
-            ,result_conversion_array = empty_result_conversion_array;0;
-            );
+			if(i0>=base_10M
+			,result_conversion_array[0]=0;copy(result_conversion_array[1],destination_two_to_the_power_24_n_array[0],number_of_decimals,1,1);
+			,result_conversion_array = empty_result_conversion_array;0;
+			);
 
-            multiplicant = - ( i0 % base_10M );
-            if(multiplicant,
-                copy(result_conversion_array[0],destination_two_to_the_power_24_n_array[0],number_of_decimals,1,1,multiplicant);
-            );
-            copy(auxillary_two_to_the_power_24_n_array[0],destination_two_to_the_power_24_n_array[0],number_of_decimals,1,1,power_24_second_digit);
+			multiplicant = - ( i0 % base_10M );
+			if(multiplicant,
+				copy(result_conversion_array[0],destination_two_to_the_power_24_n_array[0],number_of_decimals,1,1,multiplicant);
+			);
+			copy(auxillary_two_to_the_power_24_n_array[0],destination_two_to_the_power_24_n_array[0],number_of_decimals,1,1,power_24_second_digit);
 
+			repeat(number_of_decimals,pos,
+				result_pos = end_ind - pos;
+				value_of_bin2dec = i(#-1,0,result_pos,0,t) + result_conversion_array[pos] + remainder_value_of_bin2dec ;
+				value_of_new_power_24_n = auxillary_two_to_the_power_24_n_array[pos] + remainder_new_power_24 ;
+				remainder_new_power_24 = int ( value_of_new_power_24_n / base_10M );
+				remainder_value_of_bin2dec = int ( value_of_bin2dec / base_10M );
+				destination_two_to_the_power_24_n_array[pos] = value_of_new_power_24_n % base_10M ;
+				i(#-1,0,result_pos,0,t) = value_of_bin2dec % base_10M ;
+			);
 
-            repeat(number_of_decimals,pos,
-                result_pos = end_ind - pos;
-                value_of_bin2dec = i(#-1,0,result_pos,0,t) + result_conversion_array[pos] + remainder_value_of_bin2dec ;
-                value_of_new_power_24_n = auxillary_two_to_the_power_24_n_array[pos] + remainder_new_power_24 ;
-                remainder_new_power_24 = int ( value_of_new_power_24_n / base_10M );
-                remainder_value_of_bin2dec = int ( value_of_bin2dec / base_10M );
-                destination_two_to_the_power_24_n_array[pos] = value_of_new_power_24_n % base_10M ;
-                i(#-1,0,result_pos,0,t) = value_of_bin2dec % base_10M ;
-            );
+			value_of_bin2dec = remainder_value_of_bin2dec + result_conversion_array[pos];
+			remainder_bin2dec = int ( value_of_bin2dec / base_10M );
+			i(#-1,0,result_pos - 1,0,t) = value_of_bin2dec % base_10M;
+			if( remainder_bin2dec ,
+				i(#-1,0,result_pos - 2,0,t) = remainder_bin2dec;
+			);
 
-            value_of_bin2dec = remainder_value_of_bin2dec + result_conversion_array[pos];
-            remainder_bin2dec = int ( value_of_bin2dec / base_10M );
-            i(#-1,0,result_pos - 1,0,t) = value_of_bin2dec % base_10M;
-            if( remainder_bin2dec ,
-                i(#-1,0,result_pos - 2,0,t) = remainder_bin2dec;
-            );
+			value_of_new_power_24_n = remainder_new_power_24 + ( number_of_decimals < two_to_the_power_of_24_n_array_size ? auxillary_two_to_the_power_24_n_array[number_of_decimals] );
+			remainder_new_power_24 = int( value_of_new_power_24_n / base_10M );
+			destination_two_to_the_power_24_n_array[number_of_decimals++] = value_of_new_power_24_n % base_10M;
+			if( remainder_new_power_24,
+				destination_two_to_the_power_24_n_array[number_of_decimals++] = remainder_new_power_24;
+			);
 
-            value_of_new_power_24_n = remainder_new_power_24 + ( number_of_decimals < two_to_the_power_of_24_n_array_size ? auxillary_two_to_the_power_24_n_array[number_of_decimals] );
-            remainder_new_power_24 = int( value_of_new_power_24_n / base_10M );
-            destination_two_to_the_power_24_n_array[number_of_decimals++] = value_of_new_power_24_n % base_10M;
-            if( remainder_new_power_24,
-                destination_two_to_the_power_24_n_array[number_of_decimals++] = remainder_new_power_24;
-            );
+			old_power=i1;
+			started=1;
+			I;
+			"
 
-            old_power=i1;
-            started=1;
-            I;
-            "
+		remove[-2]
 
-        remove[-2]
+		if $multithreading
+			100%,100%,100%,1
 
-        if $multithreading
+			eval.. <"begin(
+					const base_10M = 1e7;
+					remainder = 0;
+				);
+				total_value = sum(I) + remainder;
+				i(#-1,0,y,0,0) = total_value % base_10M;
+				remainder = int( total_value / base_10M );
+				I;"
 
-            100%,100%,100%,1
+			rm..
+		fi
 
-            eval.. <"begin(
-                    const base_10M = 1e7;
-                    remainder = 0;
-                );
-                total_value = sum(I) + remainder;
-                i(#-1,0,y,0,0) = total_value % base_10M;
-                remainder = int( total_value / base_10M );
-                I;"
-            rm..
+		if !i[#-1,0]
+			crop. 0,1,0,100%
+		fi
 
-        fi
+		name[-1] bin2dec_result_img
 
-        if !i[#-1,0] crop. 0,1,0,100% fi
+		if !$preserve_base10_dynamic_array_image
 
-        name[-1] bin2dec_result_img
-
-        if !$preserve_base10_dynamic_array_image
-
-            _$0 $unicode_out
-            if $unicode_out
-                res.=$sep{t} rm.
-                sep=,
-            fi
-        else
-            ({h})
-            append[-2,-1] y
-            name[-1] bin2dec_result_img_base_10M
-        fi
-
+			_$0 $unicode_out
+			if $unicode_out
+				res.=$sep{t} rm.
+				sep=,
+			fi
+		else
+			({h})
+			append[-2,-1] y
+			name[-1] bin2dec_result_img_base_10M
+		fi
     else
+		eval 0b{$bin}
 
-        eval 0b{$bin}
+		if $preserve_base10_dynamic_array_image
+			1,{1+int(log(${})/log(1e7))},1,1,<"begin(
+					n=${};
+				);
+				remainder=n%1e7;
+				n=int(n/1e7);
+				remainder;
+				"
 
-        if $preserve_base10_dynamic_array_image
-            1,{1+int(log(${})/log(1e7))},1,1,<"begin(
-                    n=${};
-                );
-                remainder=n%1e7;
-                n=int(n/1e7);
-                remainder;
-                "
-            ({h})
+			({h})
 
-            append y
+			append y
 
-            name[-1] bin2dec_result_img_base_10M
-        else
-            if $unicode_out
-                res.=$sep${}
-                sep=,
-                remove.
-            else
-                ('${}') -. $n0 => bin2dec_result_img
-            fi
-        fi
-
-
-    fi
+			name[-1] bin2dec_result_img_base_10M
+		else
+			if $unicode_out
+				res.=$sep${}
+				sep=,
+				remove.
+			else
+				('${}')
+				-. $n0 => bin2dec_result_img
+			fi
+		fi
+	fi
 }
 
 if !$preserve_base10_dynamic_array_image?$unicode_out
-    status $res
+	status $res
 fi
 rep_decimg2decstr:
 number_of_digits_for_first_digit={int(log10(i[#-1,0]))+1}
@@ -1848,34 +2049,34 @@ else      ps=>
 fi
 
 eval[-2] $ps"
-    begin(
-        const unicode_out=$1;
-        const number_of_digits_for_first_digit=$number_of_digits_for_first_digit;
-        const _0=_'0';
-        unicode_out?(
-            format_output()=(shift(tv,shift_factor,0);tv+=!tv*_0);
-            insert2first(value)=value%10+_0;
-        ):(
-            format_output()=(tv-=_0;shift(tv,shift_factor,0));
-            insert2first(value)=value%10;
-        );
-    );
-    y?(
-        insertion_pos=((y-1)*7)+number_of_digits_for_first_digit;
-        shift_factor=6-int(log10(i));
-        tv=v2s(i,0,7);
-        format_output();
-        copy(i[#-1,insertion_pos],tv[0],7,1,1);
-        i;
-    ):(
-        n=i;
-        insertion_pos=number_of_digits_for_first_digit;
-        while(insertion_pos--,
-            i[#-1,insertion_pos]=insert2first(n);
-            n=int(n/10);
-        );
-        i;
-    );"
+	begin(
+		const unicode_out=$1;
+		const number_of_digits_for_first_digit=$number_of_digits_for_first_digit;
+		const _0=_'0';
+		unicode_out?(
+			format_output()=(shift(tv,shift_factor,0);tv+=!tv*_0);
+			insert2first(value)=value%10+_0;
+		):(
+			format_output()=(tv-=_0;shift(tv,shift_factor,0));
+			insert2first(value)=value%10;
+		);
+	);
+	y?(
+		insertion_pos=((y-1)*7)+number_of_digits_for_first_digit;
+		shift_factor=6-int(log10(i));
+		tv=v2s(i,0,7);
+		format_output();
+		copy(i[#-1,insertion_pos],tv[0],7,1,1);
+		i;
+	):(
+		n=i;
+		insertion_pos=number_of_digits_for_first_digit;
+		while(insertion_pos--,
+			i[#-1,insertion_pos]=insert2first(n);
+			n=int(n/10);
+		);
+		i;
+	);"
 
 remove.. => $name
 #@cli rep_nearest_ratio: value_a>0,value_b>0,_maximum_proposition_number>0,_output_whether_true_ratio={ 0=False | 1=True }
@@ -2159,7 +2360,6 @@ f. "begin(
  );
  count;
  "
-
 
 if $act_arr_sortclass
 
@@ -5479,7 +5679,7 @@ eval "
 #@cli rep_ncr_combinations: number_of_items>0,choices>0,_axis={x,y,z} : choices>0, number_of_items>0,_axis={x,y,z}
 #@cli : Generates all combinations that fits nCr. The algorithm used for this is based on Algorithm 515 (Buckles and Lybanon 1977) which allows index-based generation of combinations.
 #@cli :
-#@cli : Code has been adapted from sleeepjack's Python 2 code executing Algorithm 515 - https://github.com/sleeepyjack/alg515/blob/master/python/alg515.py
+#@cli : Code has been adapted from sleeepjack's Python 2 code executing Algorithm 515 only in case when non-zero index is used to find combination at a point - https://github.com/sleeepyjack/alg515/blob/master/python/alg515.py
 #@cli :
 #@cli : Note: If $2 is greater than $1, then $2 is number of items and $1 is choices. Only positive integer numbers are accepted!
 #@cli : Default values: '_axis=x'
@@ -5891,6 +6091,329 @@ eval "
   tv=mul_items[dec_half_list_size-p]*=tv;
  );
  sum(mul_items*position);"
+#@cli rep_rde_permutations: item_0_count,item_1_count,...,_axis={x,y,z}
+#@cli : Generate all of the unique permutations of repeated distinct elements of different count as a image.
+#@cli :
+#@cli : Algorithm is based on the implementation of Narayana Pandita's algorithm by PM 2Ring at stackoverflow.
+#@cli : Implementation of Narayana Pandita's algorithm -  https://stackoverflow.com/questions/8306654/finding-all-possible-permutations-of-a-given-string-in-python
+#@cli : Description of Narayana Pandita's algorithm - https://en.wikipedia.org/wiki/Permutation#Generation_in_lexicographic_order
+#@cli : Author : Reptorian.
+#@cli : Default values: '_axis=x'
++rep_rde_permutations:
+check "$#>=1"
+
+if isnum($-1)
+	items_count=${1--1}
+	axis=0
+else
+	check "inrange(_'$-1',_'x',_'z',1,1)"
+	items_count=${1--2}
+	axis={_'$-1'-_'x'}
+fi
+
+check "items_counts=["$items_counts"];
+       ( sum( isint(items_counts,1) ) == size(items_counts) );"
+
+total_items_count,number_of_possible_permutations={"
+		groups_of_items_counts=["$items_count"];
+		total_items_count=sum(groups_of_items_counts);
+		[total_items_count,fact(total_items_count)/prod(fact(groups_of_items_counts))]"}
+
+if $number_of_possible_permutations>(1<<24) error exc_permut_val:$number_of_string_permutations fi
+
+if ($number_of_possible_permutations*$total_items_count)>131072 p_mode=: else p_mode=> fi
+
+out_dim={v=vector(#3,1);v[$axis]=$number_of_possible_permutations;v}
+
+$out_dim,$total_items_count,:"
+	begin(
+
+		const axis=$axis;
+
+		axis==2?(iter_index()=z;):
+		axis==1?(iter_index()=y;):
+		         iter_index()=x;
+
+		items_count=["$items_count"];
+		permutation_result=expr('
+				begin(
+					items_counts=["$items_count"];
+					position=0;
+					current_count=-1;
+				);
+				if(items_counts[position]==++current_count,
+					++position;
+					current_count=0;
+				);
+				position;
+			',s);
+
+		level_length=$number_of_possible_permutations;
+
+		const max_index=s-1;
+		const dec_max_index=max_index-1;
+
+		started=0;
+
+		reverse_array_starting_from(a)=(
+			start=a;
+			end=max_index;
+			while(start<end,
+				swap(permutation_result[start++],permutation_result[end--]);
+			);
+
+		);
+
+	);
+
+	started?(
+		for(jp=dec_max_index,jp>-1,--jp,
+			if(permutation_result[jp]<permutation_result[jp+1],break(););
+		);
+
+		v=permutation_result[jp];
+		for(kp=max_index,kp>jp,--kp,
+			if(v<permutation_result[kp],break(););
+		);
+
+		swap(permutation_result[kp],permutation_result[jp]);
+		reverse_array_starting_from(jp+1);
+	):(
+		if(index=iter_index(),
+			initial_permutation=permutation_result;
+
+			selectable_vector_size=s;
+			repeat(s,ind,
+				section_size=level_length/selectable_vector_size;
+				selected_indice=int(index/section_size);
+
+				current_item_count=initial_permutation[selected_indice];
+				copy(initial_permutation[selected_indice],initial_permutation[selected_indice+1],selectable_vector_size-selected_indice);
+				--selectable_vector_size;
+
+				level_length=section_size*items_count[current_item_count];
+				--items_count[current_item_count];
+
+				repeat(current_item_count,iter,
+					index-=items_count[iter]*section_size;
+				);
+
+				permutation_result[ind]=current_item_count;
+			);
+		);
+		started=1;
+	);
+
+	permutation_result;"
+#@cli rep_rde_permutation_index2list: item_0_count>=1,item_1_count>=1,...,index
+#@cli : Return permutations of repeated distinct elements of different count which correspond to the index.
+#@cli :
+#@cli : Author: Reptorian.
+rep_rde_permutation_index2list:
+check "($#>1) && (sum([${1--2}]>1)==($#-1))"
+
+total_items_count={sum(${1--2})}
+if $total_items_count>18 error exec_items_count fi
+number_of_possible_permutations={fact($total_items_count)/prod(fact([${1--2}]))}
+
+1,{$total_items_count+1},1,1,<"begin(
+		items_group_count=[${1--2}];
+		started=0;
+		current_count=-1;
+		position=$#-2;
+	);
+	started?(
+		if(items_group_count[position]==++current_count,
+			--position;
+			current_count=0;
+		);
+		position;
+	):(
+		started=1;
+		$total_items_count;
+	);
+	"
+
+eval "
+	const perms_possible=$number_of_possible_permutations;
+	level_length=perms_possible;
+	index=$-1%perms_possible;
+
+	items_group_count=[${1--2}];
+	result=vector(#$total_items_count);
+
+	repeat(size(result),ind,
+		section_size=level_length/da_size(#-1);
+		selected_indice=int(index/section_size);
+
+		current_item_count=i[#-1,selected_indice];
+		da_remove(#-1,selected_indice);
+
+		level_length=section_size*items_group_count[current_item_count];
+		--items_group_count[current_item_count];
+
+		repeat(current_item_count,iter,
+			index-=items_group_count[iter]*section_size;
+		);
+
+		result[ind]=current_item_count;
+	);
+
+	result;
+	"
+
+rm.
+#@cli rep_rde_permutation_list2index: item_group_index_0,item_group_index_1,...
+#@cli : Return the index which corresponds to the permutation of multiple repeated different elements of different counts.
+#@cli : Code adapted from rahul sharma at geeksforgeeks - https://ide.geeksforgeeks.org/6YsMwFEHpH
+#@cli :
+#@cli : Note: Group_index are often multiple number of the same number. All number must be a integer within boundary [0,$#). All integers within those range must show up at least once.
+#@cli :
+#@cli : Author: Reptorian.
+rep_rde_permutation_list2index:
+check "
+	list2check=[$*];
+	temp_list=vector(#$#);
+	min_val=min(list2check);
+	max_val=max(list2check);
+	!min_val&&max_val<$#?(
+		repeat(size(list2check),p,++temp_list[list2check[p]];);
+		repeat(max_val,p,if(!(valid=temp_list[p]),break();););
+		set('size',max_val+1);
+		set('list',v2s(temp_list););
+		valid;
+	);"
+
+eval "
+	item_group_counts=(["$list"])[0,$size];
+	list_of_number_arguments=[$*];
+	mul=fact($#);
+	index=0;
+	repeat($#,p,
+		mul/=$#-p;
+		sum=0;
+		d_fac=1;
+		loc=list_of_number_arguments[p];
+		repeat(size(item_group_counts),q,
+			t=item_group_counts[q];
+			q<loc?(sum+=t);
+			d_fac*=fact(t);
+		);
+		index+=(mul*sum)/d_fac;
+		--item_group_counts[loc];
+	);
+	index;
+	"
+#@cli rep_inc_combinations: size,_axis={x,y,z}
+#@cli : Generate all of the possible incremental combination.
+#@cli :
+#@cli : Author: Reptorian.
+#@cli : Default values: '_axis=x'
++rep_inc_combinations:
+skip ${2=x}
+check "isint($1,1,24)&&inrange(_'$2',_'x',_'z',1,1)"
+
+size,axis={[1<<($1-1),_'$2'-_'x']}
+out_dim={v=vector(#3,1);v[$axis]=$size;v}
+
+if ($size*$1)>131072 mode=: else mode=> fi
+
+$out_dim,$1,$mode"
+	begin(
+		const end_ind=s-1;
+		const dec_end_ind=end_ind-1;
+
+		const axis=$axis;
+		axis==2?(iter_index()=z;):
+		axis==1?(iter_index()=y;):
+		         iter_index()=x;
+
+		started=0;
+		v=vector(#s);
+	);
+	started?(
+		positions=[end_ind,dec_end_ind];
+		while( ( ++v[positions[0]] ) - v[positions[1]]  == 2,
+			positions--;
+		);
+		if(positions[0]<end_ind,
+			m=v[positions[0]];
+			copy(v[positions[0]],m,s-positions[0],1,0);
+		);
+		0;
+	):(
+		if(index=iter_index(),
+			binary=vector(#end_ind);
+
+			pos=end_ind;
+			while(index,
+				binary[--pos]=index&1;
+				index>>=1;
+			);
+
+			p=0;
+			repeat(end_ind-pos,
+				if(binary[pos++],++p;);
+					v[pos]=p;
+			);
+		);
+		started=1;
+	);
+	v;
+	"
+#@cli rep_inc_combination_index2list: size,index
+#@cli : Return the incremental combination at index.
+#@cli : Note: Untested with high size values.
+rep_inc_combination_index2list:
+check "(isint($1,1,52)&&isint($2))?inrange($2,0,1<<($1-1),1,0)"
+eval "
+	const s=$1;
+	const d_s=s-1;
+	index=$2;
+
+	result=vector(#s);
+	binary=vector(#d_s);
+
+	pos=d_s;
+	while(index,
+		binary[--pos]=index&1;
+		index>>=1;
+	);
+
+	p=0;
+	repeat(d_s-pos,
+		if(binary[pos++],++p;);
+		result[pos]=p;
+	);
+
+	result;
+	"
+#@cli rep_inc_combination_list2index: number_list
+#@cli : Return the lexicographic index in which this incremental combination is found within a list of all possible incremental combination.
+#@cli : Note: Untested with high size of number_list.
+rep_inc_combination_list2index:
+check "
+	number_list=sort([$*]);
+	const max_index=size(number_list)-1;
+	valid=1;
+	v=0;
+	if(size(number_list)<53,
+		for(p=1,p<size(number_list),++p,
+			diff=number_list[p]-number_list[p-1];
+			diff==1?(
+				v|=1<<(max_index-p);
+			):
+			diff>1?(
+				valid=0;
+				break();
+			);
+		);
+		if(valid,
+			set('{}',v);
+			valid;
+		);
+	);
+	"
 #@cli rep_string_permutations: string,_axis,_sort_string={ 0=do_not_sort_string | 1=sort_string | 2=logical_sort_string }
 #@cli : Return all the unique permutations of characters of string as a image with values representing the unicode representation of characters in input string. Permutations is dependent on character appearance order.
 #@cli :
@@ -9651,7 +10174,7 @@ foreach {
  if s>4||d#0>1 continue fi
 
  +dla_create_coordinate_map $initial_coordinates_map_mode
- gcd_shuffle.
+ shuffle.
 
  use_dla_map=${dla_check_variance[0]}
 
@@ -15508,7 +16031,6 @@ if $3
  f.. i*i0#-1
  rm.
 fi
-
 #@cli rep_recc: eq. to 'rep_reverse_engineer_color_curves'.
 rep_recc: rep_reverse_engineer_color_curves $*
 #@cli rep_reverse_engineer_color_curves: _array_size>0
@@ -16338,9 +16860,9 @@ if ('$1')[0]==_'-'
 else rd=0
 fi
 
-m _$0_dict:"n_ids=$""# $""=d"
-_$0_dict ${-__pal_ids}
-um _$0_dict
+m __$0_dict:"n_ids=$""# $""=d"
+__$0_dict ${-__pal_ids}
+um __$0_dict
 
 n_$d1,p_$d1,\
 n_$d2,p_$d2,\
@@ -18586,7 +19108,7 @@ crop_ratio={$cr2d_h/$cr2d_w}
 if $crop_ratio==1
   m __$0_arc_2d_crop:"
     if w==h return fi
-    
+
     if w>h
       start_point={int($sf_0*(w-h))}
       crop $start_point,0,{[$start_point,0]+(h-1)}
@@ -18598,16 +19120,16 @@ if $crop_ratio==1
 else
   m __$0_arc_2d_crop:"
     ratio={h/w}
-    
+
     if $ratio==$crop_ratio return fi
-    
+
     new_dim,mode={\"
         ny=min(w#-1*"$crop_ratio",h#-1);
         ny<h#-1?([round(ny),1]):([round(h#-1/"$crop_ratio"),0]);
       \"}
-      
+
     shift_factor=${sf_$mode}
-    
+
     if $mode
       start_point={int($shift_factor*(h-$new_dim))}
       crop 0,$start_point,{[w-1,$start_point+$new_dim-1]}
@@ -21503,7 +22025,6 @@ else
   if '$current_args'!='$previous_args'
    all_args_same=0
   fi
-
 
   filter_args.=,$current_args
 
@@ -24577,7 +25098,6 @@ if $2
         "
 
         changes,threshold_change=${}
-
 
       if $changes
         has_activated_post_changes=1
@@ -28718,7 +29238,7 @@ fx_rep_array_random_jumble_by_px_preview:
        cy=y*mini_h;
        [cx,cy];"
 
-      gcd_shuffle[-1]
+      shuffle[-1]
 
       eval[-1] :"begin(
         const mini_w=$tile_w;
@@ -32196,24 +32716,24 @@ contain_persistent:=narg($_persistent)
 if ([${1-2}]!=[$7])||!$contain_persistent
  to_rgba
  if $1 * 257 fi
- 
+
  if $2
   rep_mode_type_int $1,1
- else  
+ else
   rep_blend_mode_type_int $1
  fi
- 
+
  foreach { if isnan(im) error all_nan@[$>] fi }
- 
+
  if $1 / 257 fi
- 
+
  name[0--1] result
- 
+
  if !$2
   +f isnan(i0)?[${3-6}]:I
   name[-2,-1] temp_result,result
  fi
- 
+
  +store _persistent
 elif $contain_persistent?!$1&&([${3-6}]!=[$8])
  rm $_persistent rm[result]
