@@ -39,7 +39,7 @@
 #@gui :_=note("<b>Nettoyage du code/Cleaning the code :</b>)
 #@gui :_=note("Thank RepTorian1125 for modernizing the source code of these filters for GMIC 3.1.0")
 #@gui :_=note("Merci Reptorian1125 pour avoir modernisé le code source de ces filtres pour GMIC 3.1.0")
-#@gui :_=note("Version 2024/11/16 GMIC 3.4.3")
+#@gui :_=note("Version 2024/11/26 GMIC 3.5.0-pre")
 
 samj_about :
  Dim=1024
@@ -6841,6 +6841,74 @@ samj_rien_colors :
 
 #################################################
 ##                                             ##
+##              samj_CeKoaSa_013               ##
+##                                             ##
+#################################################
+
+#@gui CeKoaSa 013  : samj_CeKoaSa_013, samj_CeKoaSa_013(0)
+#@gui : sep = separator()
+#@gui :_=note("<span foreground="orangered"> CeKoaSa 013 Hallucinogens</span>")
+#@gui : 1 - SRand - 0 Random = int(1,0,512)
+#@gui : 2 - Blur = float(1,0,10)
+#@gui : 3 - Negate = bool(1)
+#@gui : 4 - Colored = bool(1)
+#@gui :_=separator()
+#@gui :_=note("<span foreground="orangered"> Configure Color Curve </span>")
+#@gui : 5 - Configure = bool(0)
+#@gui : 6 - X0 = bool(1)
+#@gui : 7 - X32 = bool(0)
+#@gui : 8 - X64 = bool(1)
+#@gui : 9 - X96 = bool(0)
+#@gui : 10 - X128 = bool(1)
+#@gui : 11 - X160 = bool(0)
+#@gui : 12 - X192 = bool(1)
+#@gui : 13 - X224 = bool(0)
+#@gui : 14 - X255 = bool(1)
+#@gui :_=separator()
+#@gui : 15 - Text Points Curve = bool(0)
+#@gui : Random Update Screen = bool(0)
+#@gui :_=separator()
+#@gui :_=note("<small>samj - Dernière mise à jour : <i>2024/11/26</i>.</small>")
+
+samj_CeKoaSa_013 :
+foreach {
+if $5
+ if $1>0 srand $1 fi
+ Na={$6*255}
+ Nb={$7*255}
+ Nc={$8*255}
+ Nd={$9*255}
+ Ne={$10*255}
+ Nf={$11*255}
+ Ng={$12*255}
+ Nh={$13*255}
+ Ni={$14*255}
+else
+ if $1>0 srand $1 fi
+ Na={round(u)*255}
+ Nb={round(u)*255}
+ Nc={round(u)*255}
+ Nd={round(u)*255}
+ Ne={round(u)*255}
+ Nf={round(u)*255}
+ Ng={round(u)*255}
+ Nh={round(u)*255}
+ Ni={round(u)*255}
+fi
+Random_Update_Screen=$16
+blur $2 n. 0,255 if $4 +- fi apply_curve. 1,0,$Na,32,$Nb,64,$Nc,96,$Nd,128,$Ne,160,$Nf,192,$Ng,224,$Nh,255,$Ni
+luminance. if $3 negate. fi if $4 rv blend grainextract to_rgba else to_graya fi
+if $15 text. $Na-$Nb-$Nc-$Nd-$Ne-$Nf-$Ng-$Nh-$Ni,{{min(w,h)}/80},{{min(w,h)}/80},{{min(w,h)}/25},1,25,94,183,255 fi
+}
+
+#################################################
+##                                             ##
+##            FIN samj_CeKoaSa_013             ##
+##                                             ##
+#################################################
+
+#################################################
+##                                             ##
 ##          samj_Remplir_Fill_Flood            ##
 ##                                             ##
 #################################################
@@ -9350,6 +9418,32 @@ samj_rien_degradations :
 
 #@gui _
 #@gui <b>Degradations</b>
+
+#################################################
+##                                             ##
+##            FIN samj_bruit_noise             ##
+##                                             ##
+#################################################
+#@gui samj Bruit Noise : samj_bruit_noise, samj_bruit_noise(0)
+#@gui : sep = separator()
+#@gui :_=note("<span foreground="orangered"> Bruit Aléatoire / Random Noise </span>")
+#@gui : 1 - Bruit / Noise = int(0,0,100)
+#@gui : 2 - %Effet / Effect = float(0.75,0,1)
+#@gui : 3 - Couleur / Color = float(0,-0.1,0.4)
+#@gui : 4 - Boost = bool(0)
+#@gui :_=separator()
+#@gui :_=note("<small>samj - Dernière mise à jour : <i>2024/11/21</i>.</small>")
+
+samj_bruit_noise :
+foreach {
+Puce=$3
+if $4 Puce={$Puce/10} +- fi +Couleurs_Metalliques. 0,0,22,0,0,0,0,6,5,20,1,0,0,1,0,0,1,0,0 luminance. noise. $1 pow. {1+$Puce} c. 0,256 blend[-1,-2] average,$2 if $4 rv blend screen,0.5 fi
+}
+#################################################
+##                                             ##
+##             FIN samj_bruit_noise            ##
+##                                             ##
+#################################################
 
 #################################################
 ##                                             ##
@@ -29107,6 +29201,56 @@ Smoothness_C=$7
 #################################################
 ##                                             ##
 ##         FIN samj_test_Dither_Color          ##
+##                                             ##
+#################################################
+#################################################
+##                                             ##
+##              samj_CeKoaSa_012               ##
+##                                             ##
+#################################################
+
+#@gui CeKoaSa 012  : samj_CeKoaSa_012, samj_CeKoaSa_012
+#@gui : sep = separator()
+#@gui :_=note("<span foreground="orangered"> Degradation </span>")
+#@gui : 1 - Iter = int(30,1,200)
+#@gui : 2 - Degradation = int(3,0,6)
+#@gui : 3 - Resize = float(50,3,100)
+#@gui : 4 - Dilate = int(3,1,5)
+#@gui : 5 - Blend Edges = float(0,0,100)
+#@gui : 6 - Pow = float(1,0.9,1.1)
+#@gui : 7 - Srand = int(1,1,54321)
+#@gui : 8 - Blend = int(-1,-1,24)
+#@gui : 9 - %Blend = float(1,0,1)
+#@gui :_=separator()
+#@gui :_=note("<small>samj - Dernière mise à jour : <i>2024/11/19</i>.</small>")
+
+samj_CeKoaSa_012 :
+foreach {
+ Largeur={w}
+ Hauteur={h}
+ +resize $3%,$3%
+ ditheredbw.
+ srand $7
+ samj_Points_Aleatoires_001. $1,127,127,127,255,$2,1,1
+ if $4>1 dilate. {$4+1}  fi
+ ditheredbw.
+ negate.
+ resize. $Largeur,$Hauteur
+ if $8>-1 +-.. fi
+ blend_edges[-1,-2] $5%
+ pow. $6
+ if $8==0 blend add,$9 elif $8==1 blend alpha,$9 elif $8==2 blend and,$9 elif $8==3 blend average,$9
+ elif $8==4 blend blue,$9 elif $8==5 blend burn,$9 elif $8==6 blend darken,$9 elif $8==7 blend difference,$9
+ elif $8==8 blend divide,$9 elif $8==9 blend dodge,$9 elif $8==10 blend edges,$9 elif $8==11 blend exclusion,$9
+ elif $8==12 blend freeze,$9 elif $8==13 blend grainextract,$9 elif $8==14 blend grainmerge,$9 elif $8==15 blend green,$9
+ elif $8==16 blend hardlight,$9 elif $8==17 blend hardmix,$9 elif $8==18 blend interpolation,$9 elif $8==19 blend lchlightness,$9
+ elif $8==20 blend lighten,$9 elif $8==21 blend lightness,$9 elif $8==22 blend linearburn,$9 elif $8==23 blend linearlight,$9
+ elif $8==24 blend luminance,$9 fi
+ c. 0,255
+}
+#################################################
+##                                             ##
+##            FIN samj_CeKoaSa_012             ##
 ##                                             ##
 #################################################
 #################################################
