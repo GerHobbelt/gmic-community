@@ -1265,15 +1265,15 @@ foreach {
 #@gui : Margin Right (%)  = ~float(0,0,100)
 #@gui : Margin Top (%) = ~float(0,0,100)
 #@gui : Margin Bottom (%)  = ~float(0,0,100)
-#@gui : Quads = ~int(1,0,10)
-#@gui : Rectangles = ~int(1,0,10)
-#@gui : Triangles = ~int(1,0,10)
+#@gui : Quads = ~int(5,0,10)
+#@gui : Rectangles = ~int(5,0,10)
+#@gui : Triangles = ~int(5,0,10)
 #@gui : Circles = ~int(5,0,10)
-#@gui : Ellipses = ~int(2,0,10)
-#@gui : Lines = ~int(0,0,10)
-#@gui : Splines = ~int(4,0,10)
+#@gui : Ellipses = ~int(5,0,10)
+#@gui : Lines = ~int(5,0,10)
+#@gui : Splines = ~int(5,0,10)
 #@gui : Layers* = ~int(10,1,20)
-#@gui : Dilate = ~int(0,0,20)
+#@gui : Dilate = ~int(2,0,20)
 #@gui : Outline Pattern - All but Splines = text(0,0xFFFFFFFF)
 #@gui : Seed = ~int(0,0,1000000)
 #@gui : Tiles** = ~int(0,0,2)
@@ -1738,10 +1738,11 @@ pr_nongrass_preview:
 
 
 
+
 #@gui 3D Abstract : pr_3dabstract,pr_3dabstract_preview(1)*
 #@gui : Objects = ~int(5,2,20)
 #@gui : Complexity = ~int(20,2,100)
-#@gui : Mesh Resolution = ~int(128,16,256)
+#@gui : Mesh Resolution = int(128,16,256)
 #@gui : Smooth* = ~float(0,0,1)
 #@gui : Max Spin Angle* = ~float(360,0,360)
 #@gui : Min Opacity* = ~float(.5,0,1)
@@ -1753,31 +1754,24 @@ pr_nongrass_preview:
 #@gui : Max FOV* = ~float(500,0,1000)
 #@gui : note = note("<span color="#EE5500"><small><b>*Randomized per object.</b></small></span>")
 #@gui : Dilate = int(0,0,10)
-#@gui : Merge Mode =  ~choice(28,"Add","Alpha","And","Average","Blue","Burn","Darken","Difference","Divide","Dodge",\
+#@gui : Glow Mode=  ~choice(16,"Add","Alpha","And","Average","Blue","Burn","Darken","Difference","Divide","Dodge",\
 # "Edges","Exclusion","Freeze","Grainextract","Grainmerge","Green","Hardlight","Hardmix","Hue","Interpolation",\
 # "Lchlightness","Lighten","Lightness","Linearburn","Linearlight","Luminance","Multiply","Negation","Or","Overlay",\
 # "Pinlight","Red","Reflect","Saturation","Screen","Softburn","Softdodge","Softlight","Stamp","Subtract","Value","Vividlight",\
 # "Xor")
-#@gui : Opacity = ~float(.8,.2,1)
-#@gui : Glow Mode=  ~choice(0,"Add","Alpha","And","Average","Blue","Burn","Darken","Difference","Divide","Dodge",\
-# "Edges","Exclusion","Freeze","Grainextract","Grainmerge","Green","Hardlight","Hardmix","Hue","Interpolation",\
-# "Lchlightness","Lighten","Lightness","Linearburn","Linearlight","Luminance","Multiply","Negation","Or","Overlay",\
-# "Pinlight","Red","Reflect","Saturation","Screen","Softburn","Softdodge","Softlight","Stamp","Subtract","Value","Vividlight",\
-# "Xor")
-#@gui : Strength = ~float(0.8,0,1)
-#@gui : Render mode =  ~choice(5,"Dots","Wireframe","Flat","Flat shaded","Gouraud","Phong")
+#@gui : G. Spread = ~float(1,0,5)
+#@gui : G. Strength = ~float(0.3,0,1)
+#@gui : Render mode =  ~choice(4,"Dots","Wireframe","Flat","Flat shaded","Gouraud","Phong")
 #@gui : Layers Only* = bool(0)
 #@gui : note = note("<span color="#EE5500"><small><b>*Don't merge layers. Glow will not be applied.</b></small></span>")
 #@gui : Seed = ~int(0,0,9999999)
 #@gui : note = note("<small>Author: <i><a href="http://prawnsushi.free.fr">Prawnsushi</i></a>.\
-# Latest Update: <i>2024/05/24</i>.</small>")
-
+# Latest Update: <i>2025/02/01</i>.</small>")
 
 pr_3dabstract:
-  obj,comp,rez,smooth,M_ang,m_opa,M_opa,M_rot,m_z,M_z,m_fov,M_fov,dil,o_mod,o_opa,g_mod,g_opa,r_mod,lays,seed=$*
+  obj,comp,rez,smooth,M_ang,m_opa,M_opa,M_rot,m_z,M_z,m_fov,M_fov,dil,g_mod,g_spread,g_opa,r_mod,lays,seed=$*
 
   blending_modes=add,alpha,and,average,blue,burn,darken,difference,divide,dodge,edges,exclusion,freeze,grainextract,grainmerge,green,hardlight,hardmix,hue,interpolation,lchlightness,lighten,lightness,linearburn,linearlight,luminance,multiply,negation,or,overlay,pinlight,red,reflect,saturation,screen,softburn,softdodge,softlight,stamp,subtract,value,vividlight,xor
-  o_mod=${"arg0 $o_mod,"$blending_modes}
   g_mod=${"arg0 $g_mod,"$blending_modes}
 
   M_ang+=1
@@ -1789,13 +1783,12 @@ pr_3dabstract:
   repeat $obj {
       100,100,1,1
       repeat $comp {
-          ellipse. {u(0,100)}%,{u(0,100)}%,{u(1)}%,{u(1)}%,{u(180)},1,255
+          ellipse. {u(5,95)}%,{u(5,95)}%,{u(1,2)}%,{u(1,2)}%,{u(180)},1,255
       }
       if !$M_ang M_ang= fi
       lathe3d. $rez,$smooth,$M_ang
       double3d. 1
       col3d. ${-rgb},{u($m_opa,$M_opa)}
-      # opacity3d. {u($m_opa,$M_opa)}
       if $M_rot
         rot=
         if $>%2==0 rot=- fi
@@ -1806,19 +1799,19 @@ pr_3dabstract:
       snapshot3d. $size,$zoom,0,0,0,,$fov
       +luminance. a[-1,-2] c
   }
-  if !$lays blend $o_mod,$o_opa fi
-  if $dil>1 dilate_circ $dil fi
-  if $g_opa&&!$lays
-    +b 25 mul. 2
-    blend $g_mod,$g_opa
-  fi
-  n 0,255
+
+  if $dil dilate_circ {$dil+1} fi
+  r $W,$H
   $BG mv. 0
-  if !$lays blend alpha fi
+  if !$lays blend alpha,1 fi
+  n 0,255
+  if $g_opa&&!$lays +b $g_spread%,0 mul. 2 blend $g_mod,$g_opa fi
+  rv
 
 pr_3dabstract_preview:
-  pr_3dabstract $*
-  blend alpha
+pr_3dabstract $*
+rv blend alpha
+
 
 
 #@gui Stringify Mod : pr_stringify, pr_stringify(1)
@@ -1838,70 +1831,185 @@ pr_3dabstract_preview:
 #@gui : note = note("<small>Original Author: <i>David Tschumperlé</i>.</small>")
 #@gui : note = note("<small>Mod Author: <i>Prawnsushi</i>.      Latest Update: <i>2025/01/14</i>.</small>")
 pr_stringify:
-	process,procstr,smoothness,levels,sampling,link,offset,threshold,opacity,normalization,fill_holes,bgr,bgg,bgb,bga=${1-15}
-	foreach { to_rgb split_opacity l[0] {
-		to_rgba
-		if $procstr
-			if $process==0
-				com="sponge 10"
-				# com.=$procstr
-			elif $process==1
-				com="erode_circ "$procstr
-			elif $process==2
-				com="dilate_circ "$procstr
-			else
-				com="b "$procstr
-				procstr=3
-			fi
-		repeat $procstr {
+  process,procstr,smoothness,levels,sampling,link,offset,threshold,opacity,normalization,fill_holes,bgr,bgg,bgb,bga=${1-15}
+  foreach { to_rgb split_opacity l[0] {
+    to_rgba
+    if $procstr
+      if $process==0
+        com="sponge 10"
+        # com.=$procstr
+      elif $process==1
+        com="erode_circ "$procstr
+      elif $process==2
+        com="dilate_circ "$procstr
+      else
+        com="b "$procstr
+        procstr=3
+      fi
+    repeat $procstr {
 
-		run $com progress {lerp(0,12,($>+1)/($>+$<+1))}
-		}
-		fi
-		repeat $smoothness { smooth 60,0,1,1,1 progress {lerp(12,25,($>+1)/($>+$<+1))} }
+    run $com progress {lerp(0,12,($>+1)/($>+$<+1))}
+    }
+    fi
+    repeat $smoothness { smooth 60,0,1,1,1 progress {lerp(12,25,($>+1)/($>+$<+1))} }
 
-		+colormap. $levels,0 round. index.. .
-		[0],[0],1,4 fc. $bgr,$bgg,$bgb,$bga
+    +colormap. $levels,0 round. index.. .
+    [0],[0],1,4 fc. $bgr,$bgg,$bgb,$bga
 
-		# Extract all closed components and sort them by decreasing size.
-		repeat w#1 {
-			ind=$> color:="I[#1,$>]"
-			+==[0] $> N:=$!-1
-			edgels. ,
-			foreach[$N--1] { if h<=$threshold rm fi }
-			if $!>$N =>[$N--1] {``$color} fi
-			progress {lerp(25,75,($>+1)/($>+$<+1))}
-		}
-		sort_list[3--1] -,h
+    # Extract all closed components and sort them by decreasing size.
+    repeat w#1 {
+      ind=$> color:="I[#1,$>]"
+      +==[0] $> N:=$!-1
+      edgels. ,
+      foreach[$N--1] { if h<=$threshold rm fi }
+      if $!>$N =>[$N--1] {``$color} fi
+      progress {lerp(25,75,($>+1)/($>+$<+1))}
+    }
+    sort_list[3--1] -,h
 
-		# Draw colored lines.
-		repeat $!-3 {
-			p:=$>+3 color={$p,n}
-			+sh[$p] 100% f. "arg0((j[1,2]-i)%4,0,1,0,-1)" is_hole:=is!=4 rm.
-			if !$is_hole" || "$fill_holes
-				channels[$p] 0,1,2 rs[$p] ,$sampling%,1
-				eval[$p] ":begin(color = [ "$color" ]; const offset = h/($link + 2)*$offset%; ret = I);
-					P = I;
-						$link==5?(repeat (h,k,polygon(#2,2,P,I[k],$opacity%,color))):( # All-points link
-							Q = J[offset,2];
-							!$link?polygon(#2,2,P,Q,$opacity%,color):( # 2-point link
-								R = J[2*offset,2];
-								$link==1?polygon(#2,-3,P,Q,R,$opacity%,0xFFFFFFFF,color):( # 3-points link
-									$link==2?polygon(#2,3,P,Q,R,$opacity%,color):( # 3-points link filled
-										S = J[3*offset,2];
-											$link==4?polygon(#2,4,P,Q,R,S,$opacity%,color):( # 4-points link filled
-												$link==3?polygon(#2,-4,P,R,Q,S,$opacity%,0xFFFFFFFF,color) # 4-points link
-										);
-									);
-								);
-							);
-						); ret"
+    # Draw colored lines.
+    repeat $!-3 {
+      p:=$>+3 color={$p,n}
+      +sh[$p] 100% f. "arg0((j[1,2]-i)%4,0,1,0,-1)" is_hole:=is!=4 rm.
+      if !$is_hole" || "$fill_holes
+        channels[$p] 0,1,2 rs[$p] ,$sampling%,1
+        eval[$p] ":begin(color = [ "$color" ]; const offset = h/($link + 2)*$offset%; ret = I);
+          P = I;
+            $link==5?(repeat (h,k,polygon(#2,2,P,I[k],$opacity%,color))):( # All-points link
+              Q = J[offset,2];
+              !$link?polygon(#2,2,P,Q,$opacity%,color):( # 2-point link
+                R = J[2*offset,2];
+                $link==1?polygon(#2,-3,P,Q,R,$opacity%,0xFFFFFFFF,color):( # 3-points link
+                  $link==2?polygon(#2,3,P,Q,R,$opacity%,color):( # 3-points link filled
+                    S = J[3*offset,2];
+                      $link==4?polygon(#2,4,P,Q,R,S,$opacity%,color):( # 4-points link filled
+                        $link==3?polygon(#2,-4,P,R,Q,S,$opacity%,0xFFFFFFFF,color) # 4-points link
+                    );
+                  );
+                );
+              );
+            ); ret"
 
-			fi
-			progress {lerp(75,100,($>+1)/($>+$<+1))}
-		}
-		k[2] normalize_local {$normalization/10}
-	} a c }
+      fi
+      progress {lerp(75,100,($>+1)/($>+$<+1))}
+    }
+    k[2] normalize_local {$normalization/10}
+  } a c }
+
+
+#@gui Sketchy Ellipses : pr_sketchy_ellipses, pr_sketchy_ellipses(1)
+#@gui : Amount = int(2000,1,5000)
+#@gui : Center X = ~float(35,0,100)
+#@gui : Center Y = ~float(35,0,100)
+#@gui : Center XB = ~float(35,0,100)
+#@gui : Center YB = ~float(35,0,100)
+#@gui : Increment X = ~float(7,-10,10)
+#@gui : Increment Y = ~float(4,-10,10)
+#@gui : Increment XB = ~float(4,-10,10)
+#@gui : Increment YB = ~float(4,-10,10)
+#@gui : Inc Modifier  = ~int(1000,10,1000)
+#@gui : Starting Size = ~float(0,0,50)
+#@gui : Ratio = ~float(2,0.1,5)
+#@gui : Increment Size = float(4,1,10)
+#@gui : Angle Modifier = ~float(1,.01,10)
+#@gui : Add B Set = ~bool(1)
+#@gui : Invert B Direction = ~bool(1)
+#@gui : Opacity = float(.3,.01,1)
+#@gui : Line Pattern = text(0,0xFFFFFFFF)
+#@gui : Color 1 = ~color(0,0,0)
+#@gui : Color 2 = ~color(255,255,255)
+#@gui : sep = separator()
+#@gui : note = note("<small>Author: <i>Prawnsushi</i>.      Latest Update: <i>2025/01/30</i>.</small>")
+
+pr_sketchy_ellipses:
+foreach {
+  amount,x,y,xb,yb,SX,SY,SXB,SYB,boost,S,ratio,Rinc,angle,dbl,dir,op,pat=${1-18}
+  col1=${-6--4}
+  col2=${-3--1}
+  SX,SY,SXB,SYB/=$boost
+  Rinc/=100
+  repeat $amount {
+    opac:=u($op)
+    ang:=$>*$angle
+    if $dir Bang:=$<*$angle else Bang=$ang fi
+    repeat 4 {
+        nx,ny,nxb,nyb:=arg0($>,[$x,$y,$xb,$yb],[$x,$x,$xb,$xb],[$y,$x,$yb,$xb],[$y,$y,$yb,$yb])
+        ellipse[0] $nx%,$ny%,$S%,{$S*$ratio}%,$ang,$opac,$pat,$col1
+        if $dbl
+            ellipse[0] $nxb%,$nyb%,$S%,{$S*$ratio}%,$Bang,$opac,$pat,$col2
+        fi
+    }
+    x,y,xb,yb,S+=$SX,$SY,$SXB,$SYB,u($Rinc)
+  }
+  n 0,255
+}
+
+#@gui Kaleido Patterns : pr_kalpat, pr_kalpat(1)*
+#@gui : Seed = int(0,0,100000)
+#@gui : Amount = ~float(1,0.1,1.5)
+#@gui : Center X = ~float(50,0,100)
+#@gui : Center Y = ~float(50,0,100)
+#@gui : Size = ~choice(0,"Increase","Decrease")
+#@gui : Ratio = ~float(1,0.01,1)
+#@gui : Interpolation = choice(2,"Nearest","Linear,"Cubic")
+#@gui : Max Angle = ~int(180,0,360)
+#@gui : Rotations  = ~int(5,0,20)
+#@gui : Thickness = int(0,0,30)
+#@gui : Line Pattern = text(0,0xFFFFFFFF)
+#@gui : Grayscale = bool(0)
+#@gui : Custom Palette = filein("")
+#@gui : Max Pal. Colors = ~int(128,2,512)
+#@gui : Color 1 = ~color(255,0,0)
+#@gui : Color 2 = ~color(255,113,57)
+#@gui : Color 3 = ~color(255,255,0)
+#@gui : Color 4 = ~color(85,0,255)
+#@gui : Color 5 = ~color(0,0,255)
+#@gui : Color 6 = ~color(0,113,165)
+#@gui : Color 7 = ~color(85,170,0)
+#@gui : Color 8 = ~color(255,255,255)
+#@gui : Color 9 = ~color(255,0,0)
+#@gui : Color 10 = ~color(255,113,57)
+#@gui : Color 11 = ~color(255,255,0)
+#@gui : Color 12 = ~color(85,0,255)
+#@gui : Color 13 = ~color(0,0,255)
+#@gui : Color 14 = ~color(0,113,165)
+#@gui : Color 15 = ~color(85,170,0)
+#@gui : Color 16 = ~color(255,255,255)
+#@gui : sep = separator()
+#@gui : note = note("<small>Author: <i>Prawnsushi</i>.      Latest Update: <i>2025/01/22</i>.</small>")
+pr_kalpat: skip "${13=}"
+  seed,amount,cx,cy,size,ratio,interpol,ang,occ,thick,pat,gs,colnb=${1-12,14}
+  foreach {
+    to_rgb
+    width,occ:=w,abs($occ-15)
+    thick+=1
+
+    if $gs
+      256,1,1,3,x
+    elif isfile('"$13"')
+      "$13" rs. 512 colormap. $colnb
+    else
+      (${15--1}) r. 3,16,1,1,-1 permute. yzcx
+    fi
+    =>. PAL
+
+    if $seed srand $seed fi
+    repeat ($width-1)*$amount {
+        col:=I[#-1,$>,3]
+        if $size S:=$>+1 else S:=$<+1 fi
+        if $size>=$width/2 cy=50 fi
+        if $>%$occ==0
+          rotate[0] {u(0,$ang)},$interpol,3,{u(100)}%,{u(100)}%
+        fi
+        ellipse[0] $cx%,$cy%,$S,{$S*$ratio},{u($ang)},1,$pat,$col
+    }
+    rm[PAL]
+    if $thick>=1 dilate_circ $thick,1,1 fi
+    n 0,255
+    +mirror y a y +mirror x a x
+    rs 50%,0,6
+  }
+
 
 
 #
