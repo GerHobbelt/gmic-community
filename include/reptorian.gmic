@@ -5132,7 +5132,8 @@ number,base={int(abs([$1,$2]))}
 #@cli rep_int2roman: 1<=num<=3999
 #@cli : Return integer number as Roman Numberal
 rep_int2roman:
-check "isint($1,1,3999)"
+check isnum($1)?isint($1,1,3999)
+
 K,H,D,U={int($1/[1000,100,10,1])%10+1}
 
 u ${arg\ $K,,M,MM,MMM}\
@@ -5183,8 +5184,8 @@ eval "
 				);
 			);
 
-			pos_in_roman_str_is_odd_char_rank=char_rank&1;
-			if(pos_in_roman_str_is_odd_char_rank,
+			current_char_rank_is_odd_char_rank=char_rank&1;
+			if(current_char_rank_is_odd_char_rank,
 				last_known_odd_pos_in_roman_str=pos_in_roman_str;
 			);
 
@@ -5202,13 +5203,11 @@ eval "
 						run('error excess_char');
 					);
 				):(
-					if(pos_in_roman_str_is_odd_char_rank,
+					if(current_char_rank_is_odd_char_rank,
 						run('error invalid_char_order');
 					);
 				);
 			);
-
-			ans-=num;
 
 			if(!(old_char_rank&1),
 				char_limits[old_char_rank]=4;
@@ -5216,10 +5215,12 @@ eval "
 
 			check_forward_pos_in_roman_str=pos_in_roman_str+2;
 			if(check_forward_pos_in_roman_str<roman_num_length,
-				if(character_idx==roman_num[check_forward_pos_in_roman_str],
+				if(character_idx==roman_num[check_forward_pos_in_roman_str]||roman_num[pos_in_roman_str+1]==roman_num[check_forward_pos_in_roman_str],
 					run('error invalid_sect');
 				);
 			);
+
+			ans-=num;
 		):(
 			ans+=num;
 		);
