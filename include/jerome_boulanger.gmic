@@ -1955,7 +1955,7 @@ jeje_freqy_pattern_preview :
 #@gui : sep = separator(), Preview type = choice("Full","Forward horizontal","Forward vertical","Backward horizontal","Backward vertical","Duplicate top","Duplicate left","Duplicate bottom","Duplicate right","Duplicate horizontal","Duplicate vertical","Checkered","Checkered inverse")
 #@gui : sep = separator(), note = note("<small>Author : <i>J&#233;r&#244;me Boulanger</i>. Latest update: <i>2013/10/30</i>.</small>")
 jeje_normalize_local_variance :
-  apply_channels "normalize_local_variance $1,$2,$3,$4",$5,0
+  ac "normalize_local_variance $1,$2,$3,$4",$5,0
   c 0,255
 
 jeje_normalize_local_variance_preview :
@@ -1973,7 +1973,7 @@ jeje_normalize_local_variance_preview :
 #@gui : sep = separator(), Preview type = choice("Full","Forward horizontal","Forward vertical","Backward horizontal","Backward vertical","Duplicate top","Duplicate left","Duplicate bottom","Duplicate right","Duplicate horizontal","Duplicate vertical","Checkered","Checkered inverse")
 #@gui : sep = separator(), note = note("<small>Dark Channel Prior dehazing.Author : <i>J&#233;r&#244;me Boulanger</i>. Latest update: <i>2016/08/09</i>.</small>")
 jeje_dehaze :
-  apply_channels "dehaze {2*$1+1},$2,$3,$4,$5,$6,$7 if $8 k[1] n 0,255 to_rgb else k[0] fi",rgb,1
+  ac "dehaze {2*$1+1},$2,$3,$4,$5,$6,$7 if $8 k[1] n 0,255 to_rgb else k[0] fi",rgb,1
 
 jeje_dehaze_preview :
   gui_split_preview "jeje_dehaze $1,$2,$3,$4,$5,$6,$7,$8",$9
@@ -1983,11 +1983,19 @@ jeje_dehaze_preview :
 #@gui : Iteration = int(1,1,50)
 #@gui : Gamma = float(1,0,10)
 #@gui : Cut = bool(1)
-#@gui : sep = separator(), Channel(s) = choice(11,"All","RGBA [all]","RGB [all]","RGB [red]","RGB [green]","RGB [blue]","RGBA [alpha]","Linear RGB [all]","Linear RGB [red]","Linear RGB [green]","Linear RGB [blue]","YCbCr [luminance]","YCbCr [blue-red chrominances]","YCbCr [blue chrominance]","YCbCr [red chrominance]","YCbCr [green chrominance]","Lab [lightness]","Lab [ab-chrominances]","Lab [a-chrominance]","Lab [b-chrominance]","Lch [ch-chrominances]","Lch [c-chrominance]","Lch [h-chrominance]","HSV [hue]","HSV [saturation]","HSV [value]","HSI [intensity]","HSL [lightness]","CMYK [cyan]","CMYK [magenta]","CMYK [yellow]","CMYK [key]","YIQ [luma]","YIQ [chromas]")
+#@gui : sep = separator()
+#@gui : Channel(s) = ~choice(12,"All","RGBA [All]","RGBA [Red-Green-Blue]","RGBA [Red]","RGBA [Green]","RGBA [Blue]",\
+# "RGBA [Alpha]","Linear RGB [All]","Linear RGB [Red]","Linear RGB [Green]","Linear RGB [Blue]","YCbCr [All]",\
+# "YCbCr [Luminance]","YCbCr [Blue-Red Chrominances]","YCbCr [Blue Chrominance]","YCbCr [Red Chrominance]",\
+# "YCbCr [Green Chrominance]","Lab [All]","Lab [Lightness]","Lab [ab-Chrominances]","Lab [a-Chrominance]",\
+# "Lab [b-Chrominance]","Lch [All]","Lch [ch-Chrominances]","Lch [c-Chrominance]","Lch [h-Chrominance]","HSV [All]",\
+# "HSV [Hue]","HSV [Saturation]","HSV [Value]","HSI [All]","HSI [Intensity]","HSL [All]","HSL [Lightness]",\
+# "CMYK [All]","CYMK [Cyan-Magenta-Yellow]","CMYK [Cyan]","CMYK [Magenta]","CMYK [Yellow]","CMYK [Key]","YIQ [All]",\
+# "YIQ [Luma]","YIQ [Chromas]","RYB [All]","RYB [Red]","RYB [Yellow]","RYB [Blue]")
 #@gui : sep = separator(), Preview type = choice("Full","Forward horizontal","Forward vertical","Backward horizontal","Backward vertical","Duplicate top","Duplicate left","Duplicate bottom","Duplicate right","Duplicate horizontal","Duplicate vertical","Checkered","Checkered inverse")
 #@gui : sep = separator(), note = note("<small>Author : <i>J&#233;r&#244;me Boulanger</i>. Latest update: <i>2013/12/16</i>.</small>")
 jeje_spotify :
-  apply_channels "spotify $1,$2  apply_gamma $3 if $4 c 0,255 else n 0,255 fi",$5
+  ac "spotify $1,$2  apply_gamma $3 if $4 c 0,255 else n 0,255 fi",$5
 
 jeje_spotify_preview :
   gui_split_preview "jeje_spotify $1,$2,$3,$4,$5",$6
