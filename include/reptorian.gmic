@@ -572,7 +572,7 @@ eval "
 	);
 	"
 
-+rep_mt_f32v_map $final_dimension,{$final_dimensions>>15},0
++rep_mt_f32v_map $final_dimensions,{$final_dimensions>>15},0
 
 {D=vector(#3,1);D[$axis_ind]=$final_dimensions;[D,s#0]}
 
@@ -657,7 +657,7 @@ eval.. :"
 			++ref_img_ind;
 		);
 	);
-	I;
+	null;
 	"
 
 k.
@@ -820,49 +820,50 @@ if $red_cols_mode
 		if $2 # Add k-means step
 			keep[0,2]
 			+_rep_colormap_median_cut[0] $1
+
 			max_diff={(iM-im+1)/8192}
+			do {
+				eval.. :\"
+					begin(
+						current_palette=crop(#-1);
+						new_palette=vector(#whds#-1);
+						count=vector(#whd#-1);
+					);
 
-			eval.. :\"
-				O=J(-1);                   # Negative Offset Vector
-				SP=(O[0]<<24|O[1])-1;      # Start Point
-				Q=i0<<24|i1;               # End Point - Semi Const
-				const S=s#0;               # Spectrum size;
-				base_new=vector(whds#-1);
-				current_palette=crop(#-1);
-				new_palette=incremental_palette=current_palette * 0;
-				temp_vector=count=vector(#whd#-1);
-				const C=size(count);
+					O=J(-1);
+					P=(O[0]<<24|O[1])-1;
+					Q=i0<<24|i1;
 
-				do(
-					P=SP;
 					while(++P<Q,
 						current_color=I[#0,P];
-						selected_index=[index(current_color,current_palette,S,0,0)][0];
-						copy(incremental_palette[selected_index],current_color,S,C,1,-1);
-						++count[selected_index];
+						idx=index(current_color,current_palette,s#0,0,0)[0];
+						copy(new_palette[idx],current_color,s#0,w#-1,1,-1);
+						++count[idx];
 					);
-					critical(
-						merge(incremental_palette,+);
+
+					I;
+
+					end(
+						merge(new_palette,+);
 						merge(count,+);
+
 						count=1/vmax(count,1);
-						p=0;
-						repeat(S,
-							copy(temp_vector[0],incremental_palette[p],C,1,1);
-							temp_vector*=count;
-							copy(new_palette[p],temp_vector[0],C,1,1);
-							p+=C;
+
+						t_vec=vector(#whd#-1);
+
+						for(p=0,p<whds#-1,p+=whd#-1,
+							copy(t_vec,new_palette[p],whd#-1,1,1);
+							t_vec*=count;
+							copy(new_palette[p],t_vec,whd#-1,1,1);
 						);
-						diff=maxabs(new_palette-current_palette);
-						current_palette=new_palette;
-						copy(count[0],0,size(count),1,0);
-						copy(incremental_palette[0],0,size(incremental_palette),1,0);
+
+						set('diff',max(abs(new_palette-current_palette)));
+						copy(i[#-1,0],new_palette);
 					);
-				,diff>$max_diff);
-				end(
-					copy(i[#2,0],current_palette);
-				);
-				\"
-				rm[0,1]
+					\"
+			} while $diff>$max_diff
+
+			rm[0,1]
 		else
 			rm[^0]
 			_rep_colormap_median_cut $1
@@ -1085,10 +1086,12 @@ foreach {
 		);"
 
 	if $t_red_cols_mode
-		if i[#-2,0]?sum(expr('max(crop(#-1,x,0,0,0,1,h#-1,1,1))',w#-1))>$1:1
+		min_cols_possible={sum(expr('max(crop(#-1,x,0,0,0,1,h#-1,1,1))',w#-1))}
+
+		if i[#-2,0]?$min_cols_possible>$1:1
 			__$0_red_cols_mode
 			continue
-		elif is#-1<=$1
+		elif is#-1<=$1 # Maximum possible number of colors is less than input means go straight to regular unique color collection
 			rm..
 			t_red_cols_mode=0
 		fi
@@ -1127,8 +1130,10 @@ foreach {
 
 				urcmt?(
 					const urcmt_state=T-2;
+					const remainder_color_count=$1-$min_cols_possible;
+					list_of_min_possible_per_bucket=expr('max(crop(#"$T-1",x,0,0,0,1,h#-1,1,1))',w#-1);
 					color_collection_ok()=(current_bucket<=D)&&i[#urcmt_state,0];
-					count_of_color=0;
+					remainder_count_of_color=0;
 				):(
 					color_collection_ok()=current_bucket<=D;
 				);
@@ -1262,8 +1267,8 @@ foreach {
 				);
 
 				if(urcmt,
-					count_of_color+=current_bucket_pos;
-					if(count_of_color>$1,
+					remainder_count_of_color+=current_bucket_pos-list_of_min_possible_per_bucket[bucket_id];
+					if(remainder_count_of_color>remainder_color_count,
 						i[#urcmt_state,0]=0;
 					);
 				);
@@ -1271,8 +1276,8 @@ foreach {
 			calc_max_freq_num_mode?([maxima_color,maxima_a,maxima_b]):(I);
 			end(
 				if(urcmt&&i[#urcmt_state,0],
-					merge(count_of_color,+);
-					if(count_of_color>$1,
+					merge(remainder_count_of_color,+);
+					if(remainder_count_of_color>remainder_color_count,
 						i[#urcmt_state,0]=0;
 					);
 				);
@@ -1319,6 +1324,7 @@ foreach {
 	fi
 }
 
+um __$0_red_cols_mode
 status $original_status
 _rep_colormap_median_cut: # Implementation of the median-cut algorithm done by David Tschumperlé.
   m _$0": 1,1,1,100%,:C=crop(#$""1,0,0,0,c,w#$""1,h#$""1,d#$""1,1);max(C)-min(C) j.. .,$""1 rm."
@@ -1437,7 +1443,7 @@ if $use_hashmap_processing
 			last_color=current_color;
 		);
 		copy(i(#0,x,y,z,0),current_maxima>old_maxima?maxima_color:v_NaN,S,whd,1);
-		I;"
+		null;"
 else
 	f[0] "begin(
 			const layers="$!";
@@ -1733,7 +1739,7 @@ rep_cbsoo: rep_channels_blur_sharpen_overblur_overline $*
 #@cli : Author : Reptorian.
 #@cli : Default values: '_effect_factor=100%','_multiplication_factor=100%','_blending_mode=21','_blending_opacity=100%','_effect_boundary=1'
 #@cli : $ sp lena shape_cupid 512 blur. 10 *. 255 cut. 0,255 a c sp house rep_channels_blur_sharpen_overblur_overline 2,150,1.5,normal,100%,2,100,1,xor,100%,1,50,1,grainextract,100%
-#@cli : $ sp lena shape_cupid 512 blur. 10 *. 255 cut. 0,255 a c sp house rep_channels_blur_sharpen_overblur_overline 2,150,1.5,normal,100%
+# #@cli : $ sp lena shape_cupid 512 blur. 10 *. 255 cut. 0,255 a c sp house rep_channels_blur_sharpen_overblur_overline 2,150,1.5,normal,100%
 #@cli : $ sp lena shape_cupid 512 blur. 10 *. 255 cut. 0,255 a c sp house rep_channels_blur_sharpen_overblur_overline 3,150,1.5,normal,100%,2,100,1,xor,20%,3,200,2,linearlight,100%,-,1,200,1,normal,100%
 rep_channels_blur_sharpen_overblur_overline:
 skip "$*"
@@ -2682,7 +2688,7 @@ repeat $! {
 #@cli rep_cin: '_message'
 #@cli : Allows users to input into status.
 #@cli : Default values: '_message=G'MIC rep_cin output:'
-#@cli : $ echo ${-rep_cin}
+# #@cli : $ echo ${-rep_cin}
 #@cli : $ rep_cin , echo "Status Output: "${}
 #@cli : $ rep_cin "Input: " echo "Status Output: "${}
 #@cli : $ m=${"rep_cin \"Test A: \""} echo "Status Output: "$m
@@ -2976,7 +2982,7 @@ foreach {
 				da_push(#-1,pixel_position);
 			);
 
-			I;"
+			null;"
 
 		if !iM#-2
 			keep[0]
@@ -8960,7 +8966,7 @@ eval "
    current_char=sort_reference[pos];
    sort_reference[pos]=sort_indexes[current_char];
   );
-  sort_reference=sort(sort_reference,1,str_size,2);
+  sort_reference=sort(sort_reference,1,0,str_size,2);
   reference_information=(sort_reference)[1,str_size,2];
  ):
  sort_string==1?(
@@ -9054,7 +9060,7 @@ if !$2
     current_char=sort_reference[pos];
     sort_reference[pos]=sort_indexes[current_char];
    );
-   sort_reference=sort(sort_reference,1,str_size,2);
+   sort_reference=sort(sort_reference,1,0,str_size,2);
    (sort_reference)[1,str_size,2];
   "`}
  elif $sort_string==1
@@ -9081,7 +9087,7 @@ eval "
    current_char=sort_reference[pos];
    sort_reference[pos]=sort_indexes[current_char];
   );
-  sort_reference=sort(sort_reference,1,str_size,2);
+  sort_reference=sort(sort_reference,1,0,str_size,2);
   values_of_chars_in_string=(sort_reference)[1,str_size,2];
  ):
  sort_string==1?(
@@ -9191,7 +9197,7 @@ eval "
     current_char=sort_reference[pos];
     sort_reference[pos]=sort_indexes[current_char];
    );
-   sort_reference=sort(sort_reference,1,size_ref_str,2);
+   sort_reference=sort(sort_reference,1,0,size_ref_str,2);
    reference_information=(sort_reference)[1,size_ref_str,2];
   ):
   sort_string==1?(
@@ -10904,7 +10910,7 @@ rep_mlfrac_anim: rep_markus_lyapunov_fractal_animation $*
 #@cli : Default values: '_sublevel=1','_view_size=100%','_pos_x=50%','_pos_y=50%'
 #@cli :
 #@cli : Author: Reptorian.
-#@cli : $ 50,50,50 rep_markus_lyapunov_fractal_animation abc,50,.5,100%,50%,50%,0%,100%,1
+##@cli : $ 50,50,50 rep_markus_lyapunov_fractal_animation abc,50,.5,100%,50%,50%,0%,100%,1
 #@cli : $ 50,50,50 rep_markus_lyapunov_fractal_animation abc,50,.5,100%,50%,50%,0%,100%,0000ff,ffff00
 #@cli : $ 50,50,50 rep_markus_lyapunov_fractal_animation abc,50,.5,100%,50%,50%,0%,100%,u,8,1
 #@cli : $ 50,50,50 rep_markus_lyapunov_fractal_animation abc,50,.5,100%,50%,50%,0%,100%,u,u,5,8,2
@@ -11157,7 +11163,7 @@ if $mode==3
    use_b?(I(#-1,lyapunov_surface/maxv*ww_b,0,0,1);)
         :(I(#-2,lyapunov_surface/minv*ww_a,0,0,1););"
 
-  cs_out.
+  $cs_out.
  else
 
   $ref_colors
@@ -11171,7 +11177,7 @@ if $mode==3
    lyapunov_surface=(i0#-2-minv)/diff;
    I(#-1,lyapunov_surface,0,0,1);"
 
-  cs_out.
+  $cs_out.
  fi
 
 elif $mode==2
@@ -11567,7 +11573,7 @@ foreach {
     use_b?(I(#-1,lyapunov_surface/maxv*ww_b,0,0,1);)
          :(I(#-2,lyapunov_surface/minv*ww_a,0,0,1););
     "
-    cs_out.
+    $cs_out.
   else
    $ref_colors
    $nw,$nh,$nd,3,"begin(
@@ -11579,7 +11585,7 @@ foreach {
    lyapunov_surface=(i0#-2-minv)/diff;
    I(#-1,lyapunov_surface,0,0,1);
    "
-   cs_out.
+   $cs_out.
   fi
 
  elif $mode==2
@@ -12745,7 +12751,7 @@ foreach {
 			fi
 
 			1,{h},1,1,y
-			eval.. :if(!(i(#0,I)$val_check),i(#-1,0,y)=-1;);I;
+			eval.. :if(!(i(#0,I)$val_check),i(#-1,0,y)=-1;);null;
 			discard. -1
 			map. ..
 			rm..
@@ -12924,7 +12930,7 @@ foreach {
 			"$altern_text_b"
 		);
 
-		I;
+		null;
 		"
 
 	k[0]
@@ -13150,7 +13156,7 @@ rep_pfrac_t_rs: rep_popcorn_fractal_transformative_regular_and_swirling $*
 #@cli : Author: Reptorian.
 #@cli : Default values: '_points=50','density=1','H=.05','_K=3','zoom=.5','_rotation_angle=45','_origin_x=0','_origin_y=0'
 #@cli : $ set_arg_a=0,0 set_arg_b=0,4 512,512 rep_popcorn_fractal_transformative_regular_and_swirling 50,2,.05,3,.5,45,0,0,0,$set_arg_a,$set_arg_b cut 0,1000
-#@cli : $ set_arg_a=2,1,4,1 set_arg_b=1,4,2 set_arg_c=0,4 512,512 rep_popcorn_fractal_transformative_regular_and_swirling 50,2,.05,3,.5,45,0,0,1,$set_arg_a,$set_arg_b,$set_arg_c cut 0,1000
+##@cli : $ set_arg_a=2,1,4,1 set_arg_b=1,4,2 set_arg_c=0,4 512,512 rep_popcorn_fractal_transformative_regular_and_swirling 50,2,.05,3,.5,45,0,0,1,$set_arg_a,$set_arg_b,$set_arg_c cut 0,1000
 rep_popcorn_fractal_transformative_regular_and_swirling:
 
 skip ${1=50},${2=1},${3=.05},${4=3},${5=.5},${6=45},${7=0},${8=0},${9=0},${10=},${11=},${12=},${13=},${14=},${15=},${16=},${17=},${18=},${19=},${20=},${21=},${22=},${23=},${24=},${25=}
@@ -19970,7 +19976,7 @@ repeat $timg {
      ++freq_y_ind[tv[k]*2];
     );
 
-    freq_y_ind=sort(freq_y_ind,0,nb_cols,2);
+    freq_y_ind=sort(freq_y_ind,0,0,nb_cols,2);
     res_col_id=(freq_y_ind)[1,nb_restrict,2];
 
     res_pal=vector(#res_y_spec,0);
@@ -26651,25 +26657,25 @@ u "{$1}"\
 "{$48}_"$set_e\
 "{$49}"\
 "{$50}"
-#@gui Picture Mosaic:fx_rep_photomosaic,fx_rep_photomosaic_preview
-#@gui:_=note("Generates picture mosaic using indexing,color searching, and scaling.\n\n<b>Note - </b>Instruction are found below!"),_=separator()
-#@gui:_=note("<b>- Input -<b>")
-#@gui:Use Folder?=bool(0)
-#@gui:Mosaic Tile Pictures=folder()
-#@gui:Target Layer=choice(0,"Top","Bottom"),_=separator(),_=note("<b>- Mosaic Generation -</b>\n\n<small><i>Note: When either tile_height or tile_width is equal to 0, it will automatically create the tile ratio based on which side is smaller.</i></small>")
-#@gui:Tile Width=int(15,0,50)
-#@gui:Tile Height=int(0,0,50)
-#@gui:Dithering (%)=float(50,0,100)
-#@gui:Scaling Interpolation=choice(0,"Nearest","Average","Linear","Grid","Bicubic","Lanczos")
-#@gui:Palette Choice=choice(0,"Average","Median")
-#@gui:Autocrop=bool(0)
-#@gui:Preserve Original Dimension=bool(0),_=separator(),_=note("<b>Paint.NET Workaround</b>")
-#@gui:Workaround Mode=choice(1,"Export","Clipped-Center",Both")
-#@gui:Folder=folder()
-#@gui:Filename=text("mosaic.png")
-#@gui:_=note("<small>This section is only for Paint.NET users! If you don't use this this software, then you don't need use this section!</small>")
-#@gui:_=separator(),_=note("<b>- Information -</b>\n\n<b>Do not be alarmed when multiple command prompt shows up when using folder input as it is a normal process!</b>\n\nThis filter is used for generation of mosaic pictures. Also, the mosaic cli command cannot support a number of images that is less than 3, so this gui filter will automatically use folder input option instead. So, you need at least 2 images inside a folder for the mosaic filter to work when using folder input. For more information, see below.\n\n<b>-Software Usage -</b>\n\n<b>For Krita, and GIMP: </b> Set to input layers to <b>All</b> assuming 3 or more layers are in your file to create mosaic using the top image as a mosaic target.If you are using folder input instead, it is recommended to set layer input to <b>Active</b>.\n\n<b>For Paint.NET: </b> Using 3 or more layer is unsupported due to the Paint.NET plugin restriction, so you can only use folder input. This is a workaround as G'MIC itself supports more than 2 layers.")
-#@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2020/5/1</i>.</small>")
+# #@gui Picture Mosaic:fx_rep_photomosaic,fx_rep_photomosaic_preview
+# #@gui:_=note("Generates picture mosaic using indexing,color searching, and scaling.\n\n<b>Note - </b>Instruction are found below!"),_=separator()
+# #@gui:_=note("<b>- Input -<b>")
+# #@gui:Use Folder?=bool(0)
+# #@gui:Mosaic Tile Pictures=folder()
+# #@gui:Target Layer=choice(0,"Top","Bottom"),_=separator(),_=note("<b>- Mosaic Generation -</b>\n\n<small><i>Note: When either tile_height or tile_width is equal to 0, it will automatically create the tile ratio based on which side is smaller.</i></small>")
+# #@gui:Tile Width=int(15,0,50)
+# #@gui:Tile Height=int(0,0,50)
+# #@gui:Dithering (%)=float(50,0,100)
+# #@gui:Scaling Interpolation=choice(0,"Nearest","Average","Linear","Grid","Bicubic","Lanczos")
+# #@gui:Palette Choice=choice(0,"Average","Median")
+# #@gui:Autocrop=bool(0)
+# #@gui:Preserve Original Dimension=bool(0),_=separator(),_=note("<b>Paint.NET Workaround</b>")
+# #@gui:Workaround Mode=choice(1,"Export","Clipped-Center",Both")
+# #@gui:Folder=folder()
+# #@gui:Filename=text("mosaic.png")
+# #@gui:_=note("<small>This section is only for Paint.NET users! If you don't use this this software, then you don't need use this section!</small>")
+# #@gui:_=separator(),_=note("<b>- Information -</b>\n\n<b>Do not be alarmed when multiple command prompt shows up when using folder input as it is a normal process!</b>\n\nThis filter is used for generation of mosaic pictures. Also, the mosaic cli command cannot support a number of images that is less than 3, so this gui filter will automatically use folder input option instead. So, you need at least 2 images inside a folder for the mosaic filter to work when using folder input. For more information, see below.\n\n<b>-Software Usage -</b>\n\n<b>For Krita, and GIMP: </b> Set to input layers to <b>All</b> assuming 3 or more layers are in your file to create mosaic using the top image as a mosaic target.If you are using folder input instead, it is recommended to set layer input to <b>Active</b>.\n\n<b>For Paint.NET: </b> Using 3 or more layer is unsupported due to the Paint.NET plugin restriction, so you can only use folder input. This is a workaround as G'MIC itself supports more than 2 layers.")
+# #@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2020/5/1</i>.</small>")
 fx_rep_photomosaic:
 fileloc="$2"
 filename="$12/$13"
@@ -27236,23 +27242,23 @@ u "{$1}"\
 #@gui:Interpolation=choice(2,"Nearest","Average","Linear","Grid","Bicubic","Lanczos")
 #@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2019/9/7</i>.</small>")
 gui_rep_polkal: rep_polkal ${1-3},{($4-50)*2}%,{($5-50)*-2}%,${6--1}
-#@gui Object Size Filtering: gui_rep_objvf,gui_rep_objvf_preview(0)
-#@gui:Mode of Object Filtering=choice(0,"Auto","Alpha","Colour")
-#@gui:Threshold for Auto-Mode Switching(%)=float(10,0,100)
-#@gui:_=separator(),_=note("<b>Object Filtering Options</b>")
-#@gui:Volume 1 (%)=float(1,0,100)
-#@gui:Volume 2 (%)=float(99,0,100)
-#@gui:Preserve=choice(0,"Inclusive","Exclusive")
-#@gui:Preserve=choice(0,"Inclusive by Secondary Max Area","Exclusive by Secondary Max Area")
-#@gui:Use Secondary Maximum Area?=bool(0)
-#@gui:Colour=color(0,0,0,0)
-#@gui:_=separator(),_=note("<b>Preview Settings</b>")
-#@gui:Reveal Erased Objects?=bool(1)
-#@gui:Colour of Erased Object=color(127,127,127)
-#@gui:Render Mode=choice(0,"Main","Removed Alpha Mode","Alpha Details")
-#@gui:List Percentiles?=bool(0)_0
-#@gui:_=separator(),_=note("<b>-Instruction-</b>\n\nThe purpose of this filter is to filter objects based on their volume. It is based on the principle of the <a href="https://forums.getpaint.net/topic/113962-object-pruner/">Object Pruner plugin</a> for Paint.NET made by <b>MJW</b>.\n\n<b>Note:</b> Use Colour Mode for fully opaque image.\n<b>Alternative Note:</b> Use Colour Mode with Alpha or Auto.\n\n<b>Special Note:</b> If you're seeing error, switch the render mode and pick the colors until error no longer show up on Main Render Mode.Sometimes changing Mode of Object Filtering can resolve it.\n----\n<b>Warning:</b> Untested on GIMP!")
-#@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2020/2/21</i>.</small>")
+# #@gui Object Size Filtering: gui_rep_objvf,gui_rep_objvf_preview(0)
+# #@gui:Mode of Object Filtering=choice(0,"Auto","Alpha","Colour")
+# #@gui:Threshold for Auto-Mode Switching(%)=float(10,0,100)
+# #@gui:_=separator(),_=note("<b>Object Filtering Options</b>")
+# #@gui:Volume 1 (%)=float(1,0,100)
+# #@gui:Volume 2 (%)=float(99,0,100)
+# #@gui:Preserve=choice(0,"Inclusive","Exclusive")
+# #@gui:Preserve=choice(0,"Inclusive by Secondary Max Area","Exclusive by Secondary Max Area")
+# #@gui:Use Secondary Maximum Area?=bool(0)
+# #@gui:Colour=color(0,0,0,0)
+# #@gui:_=separator(),_=note("<b>Preview Settings</b>")
+# #@gui:Reveal Erased Objects?=bool(1)
+# #@gui:Colour of Erased Object=color(127,127,127)
+# #@gui:Render Mode=choice(0,"Main","Removed Alpha Mode","Alpha Details")
+# #@gui:List Percentiles?=bool(0)_0
+# #@gui:_=separator(),_=note("<b>-Instruction-</b>\n\nThe purpose of this filter is to filter objects based on their volume. It is based on the principle of the <a href="https://forums.getpaint.net/topic/113962-object-pruner/">Object Pruner plugin</a> for Paint.NET made by <b>MJW</b>.\n\n<b>Note:</b> Use Colour Mode for fully opaque image.\n<b>Alternative Note:</b> Use Colour Mode with Alpha or Auto.\n\n<b>Special Note:</b> If you're seeing error, switch the render mode and pick the colors until error no longer show up on Main Render Mode.Sometimes changing Mode of Object Filtering can resolve it.\n----\n<b>Warning:</b> Untested on GIMP!")
+# #@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2020/2/21</i>.</small>")
 gui_rep_objvf:
 if $7 preserve_choice={($6+1)*-1}
 else preserve_choice=$5
@@ -27805,13 +27811,18 @@ remove[-1]
 status $out
 #@gui _<b>Testing</b>
 #@gui <i>Reptorian</i>
-#@gui Z-Time:rep_z_render:*
+#@gui Z-Time:fx_rep_z_render:*
 #@gui:_=note("Z-Time Rendering is a filter that utilize the value of a layer to represent the frame where frames are interpolated and normalized to the value of that layer. In other word, the reference layer can be seen as a representative of time.<b>Note:</b>Try to use a gradient for top or bottom layer depending on option you use.\n\n<b>Z-Depth Values</b> is recommended to be altered when using float image as reference. Use values less than 255 in order to posterize.\n\n<b>This filter do not work with Paint.NET as you need 3 images!</b>"), _=separator()
 #@gui:Layer to use as time reference?=choice(0,"Top Layer","Bottom Layer")
 #@gui:Z-Depth Values=int(255,3,1024)
 #@gui:Mirror Frame Ordering?=bool(0)
 #@gui:Separate time by channels?=bool(0)
 #@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2019/10/13</i>.</small>")
+fx_rep_z_render :
+  if $!<3 gui_error_preview "You need at least 3 images!"
+  else rep_r_render $"*"
+  fi
+
 #@gui Bricks: gui_rep_shape_brick
 #@gui:_=note("This filter on the <a href="https://forums.getpaint.net/topic/8251-bricks-updated-with-examples/">Bricks plugin for Paint.NET</a> made by <a href="https://forums.getpaint.net/profile/49909-jchunn/">Jesse Chunn</a> as part of his <a href="https://forums.getpaint.net/index.php?/topic/8408-jesse-chunn-plugin-pack-march-8-2008/">plugin pack</a>.\n\n This is a extended version of the bricks filter with bevel options, and blending mode option.")
 #@gui:_=separator(),_=note("<b>Brick Main Setting</b>")
@@ -29046,22 +29057,22 @@ u "{"$use_reverse_permutation"}"\
 "{"$visited_16"}"\
 "{$-3}"\
 "{$-2,$-1}"
-#@gui Graphical Tiling Glitch (Interactive): fx_rep_x_graphical_tiling,fx_rep_x_graphical_tiling_preview(0)
-#@gui:_=note("Launch the interactive graphical tiling window.\n\nDetails: The main purpose of this filter is to stimulate graphical tiling glitch observed in Microsoft Windows XP Operating System. However, you can also use it to tile images by hand to artistic purpose.\n\n<u>Please Read Instruction Below!</b>")
-#@gui:_=separator(),_=note("<b>Main</b>)
-#@gui:Initial Insertion Rate (milliseconds)=int(0,0,1000)
-#@gui:Background Color=color(0,0,0)
-#@gui:Autocrop and Separate?=bool(0)
-#@gui:Reverse Layers?=bool(0)
-#@gui:Output Mode=choice(1,"Tiled Only","New Layer","Blended")
-#@gui:_=separator(),_=note("<b>Preview</b>)
-#@gui:Background Mode=choice(0,"Image","Colored","Alpha")
-#@gui:Offset=point(50,50,0,1,255,255,255,255)
-#@gui:Duplicates=int(5,1,50)
-#@gui:Display Message?=bool(1)
-#@gui:_=separator(),_=note("<b><u>Instruction</u></b>)
-#@gui:_=note("\n<b>All Mode</b>\n\n- O: Change Preview Mode\n- SPACE: Switch Mode\n- ESC: End Interactive Window\n\n<u>Important Note: Check the message in the title bar.</u>\n\n<b>Image Placement Mode</b>\n\n- D: Display Overlay Image\n- H: Flip Image Horizontally\n- V: Flip Image Vertically\n- Mouse Click: Move/Place Image\n- ARROW UP/DOWN: Change Tiling Image\n- ARROW LEFT/RIGHT: Rotate Image\n\n<b>Tiling Mode</b>\n\n- Mouse Move: Place Tile at Insertion Rate\n- ARROW UP/DOWN: Add/Subtract Insertion Rate by 100 ms\n- ARROW LEFT/RIGHT: Add/Subtract Insertion rate by 10 ms")
-#@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2020/8/9</i>.</small>")
+# #@gui Graphical Tiling Glitch (Interactive): fx_rep_x_graphical_tiling,fx_rep_x_graphical_tiling_preview(0)
+# #@gui:_=note("Launch the interactive graphical tiling window.\n\nDetails: The main purpose of this filter is to stimulate graphical tiling glitch observed in Microsoft Windows XP Operating System. However, you can also use it to tile images by hand to artistic purpose.\n\n<u>Please Read Instruction Below!</b>")
+# #@gui:_=separator(),_=note("<b>Main</b>)
+# #@gui:Initial Insertion Rate (milliseconds)=int(0,0,1000)
+# #@gui:Background Color=color(0,0,0)
+# #@gui:Autocrop and Separate?=bool(0)
+# #@gui:Reverse Layers?=bool(0)
+# #@gui:Output Mode=choice(1,"Tiled Only","New Layer","Blended")
+# #@gui:_=separator(),_=note("<b>Preview</b>)
+# #@gui:Background Mode=choice(0,"Image","Colored","Alpha")
+# #@gui:Offset=point(50,50,0,1,255,255,255,255)
+# #@gui:Duplicates=int(5,1,50)
+# #@gui:Display Message?=bool(1)
+# #@gui:_=separator(),_=note("<b><u>Instruction</u></b>)
+# #@gui:_=note("\n<b>All Mode</b>\n\n- O: Change Preview Mode\n- SPACE: Switch Mode\n- ESC: End Interactive Window\n\n<u>Important Note: Check the message in the title bar.</u>\n\n<b>Image Placement Mode</b>\n\n- D: Display Overlay Image\n- H: Flip Image Horizontally\n- V: Flip Image Vertically\n- Mouse Click: Move/Place Image\n- ARROW UP/DOWN: Change Tiling Image\n- ARROW LEFT/RIGHT: Rotate Image\n\n<b>Tiling Mode</b>\n\n- Mouse Move: Place Tile at Insertion Rate\n- ARROW UP/DOWN: Add/Subtract Insertion Rate by 100 ms\n- ARROW LEFT/RIGHT: Add/Subtract Insertion rate by 10 ms")
+# #@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2020/8/9</i>.</small>")
 fx_rep_x_graphical_tiling:
 if !$6 rv fi
 
@@ -30446,7 +30457,7 @@ fx_rep_array_random_jumble_by_px_preview:
        );
        tile=crop(#0,i0,i1,0,0,mini_w,mini_h,depth,spectrum);
        draw(#1,tile,x*mini_w,y*mini_h,0,0,mini_w,mini_h,depth,spectrum);
-       I;"
+       null;"
 
       keep[1]
 
@@ -33552,25 +33563,25 @@ u "{$1}"\
  "{$158}"\
  "{"$_fx_rep_lavander_binary_map_seed"}"\
  "{$160}"
-#@gui Red Acrylic Plastic Filter:fx_rep_red_acrylic_filter,fx_rep_red_acrylic_filter_preview(1):+
-#@gui:_=note("This generates image in which you use red acrylic plastic cover in order to reveal a image.\n\nThis filter require multiple images.")
-#@gui:_=separator(),_=note("<b>Initial</b>")
-#@gui:Use Imported Image?=bool(0)
-#@gui:Image Location=file()
-#@gui:Use Reference Layer=bool(0)
-#@gui:Reference Layer=choice(0,"Top","Bottom")
-#@gui:_=separator(),_=note("<b>Effect</b>")
-#@gui:Luminosity Blend=float(0,0,100)
-#@gui:Green Cut Point=float(0,0,100)
-#@gui:Green Visibility=float(100,0,100)
-#@gui:Use Imported Image?=bool(0)_0
-#@gui:Image Location=file()_0
-#@gui:Use Reference Layer=bool(0)_0
-#@gui:Reference Layer=choice(0,"Top","Bottom")_0
-#@gui:Luminosity Blend=float(0,0,100)_0
-#@gui:Green Cut Point=float(0,0,100)_0
-#@gui:Green Visibility=float(100,0,100)_0
-#@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2022/09/12</i>.</small>")
+# #@gui Red Acrylic Plastic Filter:fx_rep_red_acrylic_filter,fx_rep_red_acrylic_filter_preview(1):+
+# #@gui:_=note("This generates image in which you use red acrylic plastic cover in order to reveal a image.\n\nThis filter require multiple images.")
+# #@gui:_=separator(),_=note("<b>Initial</b>")
+# #@gui:Use Imported Image?=bool(0)
+# #@gui:Image Location=file()
+# #@gui:Use Reference Layer=bool(0)
+# #@gui:Reference Layer=choice(0,"Top","Bottom")
+# #@gui:_=separator(),_=note("<b>Effect</b>")
+# #@gui:Luminosity Blend=float(0,0,100)
+# #@gui:Green Cut Point=float(0,0,100)
+# #@gui:Green Visibility=float(100,0,100)
+# #@gui:Use Imported Image?=bool(0)_0
+# #@gui:Image Location=file()_0
+# #@gui:Use Reference Layer=bool(0)_0
+# #@gui:Reference Layer=choice(0,"Top","Bottom")_0
+# #@gui:Luminosity Blend=float(0,0,100)_0
+# #@gui:Green Cut Point=float(0,0,100)_0
+# #@gui:Green Visibility=float(100,0,100)_0
+# #@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2022/09/12</i>.</small>")
 fx_rep_red_acrylic_filter:
 skip "${2=}","${9=}"
 
