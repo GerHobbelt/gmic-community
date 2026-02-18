@@ -280,7 +280,7 @@ u {`$3?'0x'`}{`$2&&$1<16?vector(#$P,_'0')`}{`"
 	str;
 "`}
 #@cli rep_cs_arg: direction={ 0=backward | 1=forward | 2=bidirectional},cs_arg_num,cs_arg_0,cs_arg_1
-#@cli : Generates strings for color space conversion string.
+#@cli : Generates strings for color space conversion.
 rep_cs_arg:
 skip "$*"
 check isint($1,0,2)&&isint($2,0,$#-3)
@@ -598,284 +598,404 @@ _rep_colors_freqstat:
 check "isint($1,-2,1)"
 
 use_color_counts:=$1>-2
-
 original_status=${}
-
-bitshift_factor=8
-buckets_per_threads,mt_dictionary_buckets:=[1,$_cpus]<<$bitshift_factor
-t_buckets:=($buckets_per_threads<<3)
-
-if $use_color_counts
-	m __$0_process_dictionary:"permute yzcx s c,-{s-1}"
-else
-	m __$0_process_dictionary:"permute yzcx"
-fi
 
 if isbool($1)
 	highest_color_frequency_mode=1
-
-	if $1 m __$0_header:"output_dimensions:=[w#-1,h#-1,d#-1,s#-1]"
-	else  m __$0_header:"output_dimensions:=[1,1,1,s#-1]"
-	fi
-
-	m __$0_finalize_single_thread:"
-		eval[-1] begin(m=0);if(i==iM#-1,++m;);end(merge(m,+);set('t_color',m););
-		if $t_color>1 $output_dimensions,[{vector(#s#0,nan)}]
-		else     $output_dimensions,[{I[#0,xM#1]}]
-		fi
-		keep[-1]"
+	mt_cmd=fill
 else
 	highest_color_frequency_mode=0
-
-	m __$0_header:"skip ,"
-
-	if $use_color_counts m __$0_finalize_single_thread:"a[-2,-1] c"
-	else  m __$0_finalize_single_thread:"skip ,"
-	fi
+	mt_cmd=eval
 fi
 
 foreach {
-	spec_size:=s
-	__$0_header
-	mt_mode:=whd>0x8000
+	# Skip processing images when not needed
+	if whd<=1 continue fi
 
-	if $mt_mode
-		dictionary_buckets,p_mode=$mt_dictionary_buckets,:
-	else
-		dictionary_buckets,p_mode=$buckets_per_threads,>
+	# Set up important variables
+	cpus_to_use,mt_mode,pxs_to_process_per_threads,bitshift_factor,dictionary_buckets_per_threads,bit_mask:="
+		cpus_to_use=cut(int(whd#0/0x8000),1,$_cpus);
+		mt_mode=cpus_to_use>1;
+		pxs_to_process_per_threads=ceil(whd/cpus_to_use);
+		bitshift_factor=cut(int(log2(sqrt(pxs_to_process_per_threads)))+1,8,16);
+		dictionary_buckets_per_threads=1<<bitshift_factor;
+		bit_mask=dictionary_buckets_per_threads-1;
+		cpus_to_use,mt_mode,pxs_to_process_per_threads,bitshift_factor,dictionary_buckets_per_threads,bit_mask;
+	"
+
+	S={s}
+	if $highest_color_frequency_mode
+		if $1==1
+			od:=w,h,d
+		else
+			od={vector(#3,1)}
+		fi
 	fi
 
 	# Create Hashmap
-	100%,100%,100%,1,$p_mode"
-		begin_t(
+	100%,100%,100%,{1+$mt_mode}," # Second channel is used to post merge
+		begin(
+			const M=(1<<16)-1;
 			const bf=$bitshift_factor;
-			seed=v(0x1234,0xabcd);
-			offset=2+(t<<bf);
+			const bit_mask=$bit_mask;
+			const seed="{v(0x1234,0xabcd)}";
+			const S=$S;
+			S==1?(
+				const second_seed=seed<<1;
+				const Z=0x45d9f;
+				hash(v)=(
+					nv=v;
+					repeat(2,nv=xor(nv>>16,nv)*Z;);
+					xor(nv>>16,nv);
+				);
+				hash_a(v)=hash(v+seed);
+				hash_b(v)=hash(v+second_seed);
+			):(
+				hash(v)=(C=v;isint(C)?C:C*M);
+				hash_a(v)=hash(v);
+				hash_b(v)=hash(v);
+			);
+
+			s==2?(
+				const lc=S-1;
+				init()=(hash_value_a=hash_value_b=0);
+				hash_color()=repeat(S,p,
+					hash_value_a=xor(((hash_value_a<<1)-hash_value_a)*seed,hash_a(c[p]));
+					hash_value_b=xor(((hash_value_b<<1)-hash_value_b)*seed,hash_b(c[lc-p]));
+					hash_value_a&=bit_mask;
+					hash_value_b&=bit_mask;
+				);
+				result()=[hash_value_a,hash_value_b];
+				0;
+			):(
+				init()=hash_value=0;
+				hash_color()=repeat(S,p,
+					hash_value=xor(((hash_value<<1)-hash_value)*seed,hash_a(c[p]));
+					hash_value&=bit_mask;
+				);
+				result()=hash_value;
+				0;
+			);
 		);
-		channels=I#0;
-		hash_value=0;
-		repeat($spec_size,p,
-			hash_value=xor(((hash_value<<1)-hash_value)*seed,channels[p]);
-			hash_value&=0xff;
-		);
-		hash_value+offset;"
+		c=I#0;
+		init();
+		hash_color();
+		result();"
+
+	# Image to use for processing all the other images on the list
+	$cpus_to_use,1,1,2,v=whd#-1-(w-1-x)*int(whd#-1/w);[v>>24,v&0xffffff]
+
+	# Create dictionary buckets and reference image
+	total_num_of_buckets_per_section={($cpus_to_use*$dictionary_buckets_per_threads)}
+	0x$total_num_of_buckets_per_section
+	$dictionary_buckets_per_threads,$cpus_to_use
 
 	# Find Frequency of Colors
 
-	0x$dictionary_buckets
-	eval[0] $p_mode"
-		begin_t(
-			const use_color_counts=$use_color_counts;
-			const bf=$bitshift_factor;
-			const spec_size=$spec_size;
-			const vector_insertion_size=spec_size+use_color_counts;
-			sizes=found_vectors=vector(#$mt_dictionary_buckets);
-			count_of_found_vector=0;
-			last_color=vectors(nan);
-			offset=2+(t<<bf);
-			use_color_counts?(
-				const dec_spec_size=spec_size-1;
-				last_p=nan;
-				process()=(
-					(H?(p=same_color?last_p:find(#key,I,(H-1)*vector_insertion_size,-vector_insertion_size)+1))?(
-						if(!same_color,p+=dec_spec_size;);
-						++i[#key,p];
-						last_p=p;
-					):(
-						if(H==h(#key),
-							new_size=max(8,h(#key)<<1);
-							resize(#key,vector_insertion_size,new_size,1,1,-1);
-						);
-						copy(i(#key,0,H,0,0),[I,1]);
-						last_p=(H+1)*vector_insertion_size-1;
-						++sizes[ref_sizes_ind];
-					);
+	eval[2] :"
+		begin(
+			const S=s#0;
+			const mt_mode=$mt_mode;
+			const calculate_max_freq_num_mode=!mt_mode&&$highest_color_frequency_mode;
+			const color_count_mode=$use_color_counts;
+			const vector_insertion_size=S+color_count_mode+mt_mode;
+			const hash2_pos=S+color_count_mode;
+
+			calculate_max_freq_num_mode?(
+				maxima_a=maxima_b=0;
+				maxima_color=vector(#S,nan);
+				str_NaN=v2s(maxima_color);
+				chkfreq(count_value)=if((current_count=count_value)>=maxima_a,
+					maxima_color=current_color;
+					maxima_b=maxima_a;
+					maxima_a=current_count;
 				);
 			):(
-				process()=(
-					!(H?(same_color?1:find(#key,I,(H-1)*vector_insertion_size,-vector_insertion_size)+1))?(
-						if(H==h(#key),
-							new_size=max(8,h(#key)<<1);
-							resize(#key,vector_insertion_size,new_size,1,1,-1);
+				chkfreq(count_value)=count_value;
+			);
+
+			P1_off()=P+whd#0;
+		);
+
+		list_of_ins_pos=vector(#$dictionary_buckets_per_threads);
+		offset=$dictionary_buckets_per_threads*x+k+1;
+
+		O=J(-1);
+		P=O[0]<<24|O[1];
+		Q=i0<<24|i1;
+
+		last_color=I[#0,P];
+		key=i[#1,P];
+		door_pos=key+offset;
+		resize(#door_pos,vector_insertion_size,8,1,1,-1);
+		copy(i[#door_pos,0],last_color);
+		list_of_ins_pos[key]=vector_insertion_size;
+		i(#-1,key,x)=1;
+		if(color_count_mode,
+			if(calculate_max_freq_num_mode,
+				maxima_color=last_color;
+				maxima_a=1;
+			);
+			i[#door_pos,count_pos=S]=1;
+		);
+		if(mt_mode,i[#door_pos,hash2_pos]=i[#1,P1_off()]);
+
+		color_count_mode?(
+			while(++P<Q,
+				current_color=I[#0,P];
+				same_color=same(current_color,last_color);
+				same_color?(
+					chkfreq(++i[#door_pos,count_pos]);
+				):(
+					key=i[#1,P];
+					door_pos=key+offset;
+					H=i(#-1,key,x);
+					ins_pos=list_of_ins_pos[key];
+					(H?(count_pos=find(#door_pos,current_color,ins_pos-vector_insertion_size,-vector_insertion_size))!=-1)?(
+						count_pos+=S;
+						chkfreq(++i[#door_pos,count_pos]);
+					):(
+						ch=h(#door_pos);
+						if(H==ch,
+							new_size=max(8,ch<<1);
+							resize(#door_pos,vector_insertion_size,new_size,1,1,-1);
 						);
-						copy(i(#key,0,H,0,0),I);
-						++sizes[ref_sizes_ind];
+						copy(i[#door_pos,ins_pos],current_color);
+						count_pos=ins_pos+S;
+						chkfreq(i[#door_pos,count_pos]=1);
+						if(mt_mode,i[#door_pos,ins_pos+hash2_pos]=i[#1,P1_off()];);
+						list_of_ins_pos[key]+=vector_insertion_size;
+						++i(#-1,key,x);
 					);
 				);
+				last_color=current_color;
+			);
+		):(
+			while(++P<Q,
+				current_color=I[#0,P];
+				if(!same(current_color,last_color),
+					key=i[#1,P];
+					door_pos=key+offset;
+					H=i(#-1,key,x);
+					ins_pos=list_of_ins_pos[key];
+					!H||find(#door_pos,current_color,ins_pos-vector_insertion_size,-vector_insertion_size)==-1?(
+						ch=h(#door_pos);
+						if(H==ch,
+							new_size=max(8,ch<<1);
+							resize(#door_pos,vector_insertion_size,new_size,1,1,-1);
+						);
+						copy(i[#door_pos,ins_pos],current_color);
+						if(mt_mode,i[#door_pos,ins_pos+hash2_pos]=i[#1,P1_off()]);
+						list_of_ins_pos[key]+=vector_insertion_size;
+						++i(#-1,key,x);
+					);
+				);
+				last_color=current_color;
 			);
 		);
-		key=i#1;
-		ref_sizes_ind=key-offset;
-		H=sizes[ref_sizes_ind];
 
-		if(!H,
-			found_vectors[count_of_found_vector++]=key;
-		);
-
-		same_color=same(I,last_color);
-		process();
-		last_color=I;
 		I;
-
-		end_t(
-			repeat(count_of_found_vector,p,
-				img_pos=found_vectors[p];
-				resize(#img_pos,vector_insertion_size,sizes[img_pos-offset],1,1,-1);
+		end(
+			if(calculate_max_freq_num_mode,
+				if(maxima_a>maxima_b
+				,set('{}',v2s(maxima_color));
+				,set('{}',str_NaN);
+				);
 			);
 		);"
 
-	rm[0,1]
-	a y
-	__$0_process_dictionary
+	if $mt_mode
+		rm[0,1]
+		L={max(1,min(int(is#-1/0x8000),$_cpus,$dictionary_buckets_per_threads))}
 
-	if !$mt_mode
-		__$0_finalize_single_thread
-		continue
-	fi
+		r[0] $L,100%,100%,{$highest_color_frequency_mode?$S+2:1},-1
 
-	{w#0},1,1,1,"begin(
-			const mask=$t_buckets-1;
-			const spec_size=$spec_size;
-			const offset=1+$!;
-			seed=v(0x1234,0xabcd);
-		);
-		channels=I#0;
-		hash_value=0;
-		repeat(spec_size,p,
-			hash_value=xor(((hash_value<<1)-hash_value)*seed,channels[p]);
-			hash_value&=mask;
-		);
-		hash_value+offset;" => hashmap
+		T=$!
+		0x{$L*$dictionary_buckets_per_threads}
 
-	0x$t_buckets
+		$mt_cmd[0] :"
+			begin(
+				const S=$S;
+				const d_S=S-1;
+				const cpus=$_cpus;
+				const calculate_max_freq_num_mode=$highest_color_frequency_mode;
+				const color_count_mode=$use_color_counts;
+				const hash2_pos=S+color_count_mode;
+				const D=$dictionary_buckets_per_threads;
+				const T=$T;
+				const img_ref=T-1;
+				const offset_bucket_size=w#img_ref;
+				const levels=h#img_ref;
+				const current_bucket_vector_size=hash2_pos+1;
 
-	if $highest_color_frequency_mode
-		eval[0] >"begin(
-				const hashmap=$hashmap;
-				const offset=hashmap+1;
-				const step_s=s+1;
-				const back_s=s-1;
-				current_maximum_color=vectors(nan);
-				maxima_a=maxima_b=0;
-				chval(value)=if(value>=maxima_a,
-					current_maximum_color=I;
-					maxima_b=maxima_a;
-					maxima_a=value;
+				init_current_color=vector(#S);
+				init_number_of_keys=vector(#D);
+
+				if(calculate_max_freq_num_mode,
+					maxima_a=maxima_b=0;
+					maxima_color=vector(#S,nan);
+					str_NaN=v2s(maxima_color);
+					chkfreq(count_value)=if((current_count=count_value)>=maxima_a,
+						maxima_color=current_color;
+						maxima_b=maxima_a;
+						maxima_a=current_count;
+					);
 				);
-				last_color=vectors(nan);
-				last_p=nan;
-				sizes=found_vectors=vector(#$t_buckets);
 			);
-			key=i#hashmap;
-			ref_sizes_ind=key-offset;
-			H=sizes[ref_sizes_ind];
+			img_ind_of_start_of_secondary_dictionary=D*x+T;
+			for(current_bucket=x+1,current_bucket<=D,current_bucket+=w,
+				bucket_id=current_bucket-1;
+				current_bucket_ins_pos=current_level=0;
 
-			same_color=same(I,last_color);
-			(H?(p=same_color?last_p:find(#key,I,(H-1)*step_s,-step_s)+1))?(
-				if(!same_color,p+=back_s;);
-				current_number_of_color=i[#key,p]+=i#1;
-				chval(current_number_of_color);
-				last_p=p;
-			):(
-				if(H==h(#key),
-					new_size=max(8,h(#key)<<1);
-					resize(#key,step_s,new_size,1,1,-1);
+				secondary_insert_positions_list=init_number_of_keys;
+
+				current_color=init_current_color;
+
+				count_per_current_level=i(#img_ref,bucket_id,current_level);
+
+				current_bucket_pos=0;
+				repeat(count_per_current_level,current_bucket_pos,
+					copy(current_color,i[#current_bucket,current_bucket_ins_pos],S);
+
+					secondary_hash_pos=current_bucket_ins_pos+hash2_pos;
+					second_dictionary_key=i[#current_bucket,secondary_hash_pos];
+					secondary_dictionary_ind=second_dictionary_key+img_ind_of_start_of_secondary_dictionary;
+
+					current_secondary_ins_pos=secondary_insert_positions_list[second_dictionary_key];
+
+					secondary_dictionary_dimension=wh(#secondary_dictionary_ind);
+					if(current_secondary_ins_pos>=secondary_dictionary_dimension,
+						new_size=max(8,h(#secondary_dictionary_ind)<<1);
+						resize(#secondary_dictionary_ind,hash2_pos,new_size,1,1,-1);
+					);
+
+					copy(i[#secondary_dictionary_ind,current_secondary_ins_pos],current_color,S);
+
+					if(color_count_mode,
+						color_count_pos=current_bucket_ins_pos+S;
+						if(calculate_max_freq_num_mode,chkfreq(i[#current_bucket,color_count_pos]));
+						i[#secondary_dictionary_ind,current_secondary_ins_pos+S]=color_count_pos;
+					);
+
+					secondary_insert_positions_list[second_dictionary_key]+=hash2_pos;
+					current_bucket_ins_pos+=current_bucket_vector_size;
 				);
-				current_number_of_color=i#1;
-				chval(current_number_of_color);
-				copy(i(#key,0,H,0,0),[I,current_number_of_color]);
-				last_p=(H+1)*step_s-1;
-				++sizes[ref_sizes_ind];
-			);
-			last_color=I;
-			I;
 
-			end(
-				maxima_a>maxima_b?(
-					set('{}',v2s(current_maximum_color));
-				):(
-					set('{}',v2s(vectors(nan)););
-				);
-			);"
-		rm $output_dimensions,[${}]
-	else
-		eval[0] >"begin(
-				const hashmap=$hashmap;
-				const offset=hashmap+1;
-				const spec_size=$spec_size;
-				const use_color_counts=$use_color_counts;
-				const vector_insertion_size=spec_size+use_color_counts;
+				offset_bucket=current_bucket+offset_bucket_size;
+				while(++current_level<levels,
+					count_per_current_level=i(#img_ref,bucket_id,current_level);
+					current_offset_bucket_pos=0;
 
-				sizes=found_vectors=vector(#$t_buckets);
-				count_of_found_vector=0;
-				last_color=vectors(nan);
+					repeat(count_per_current_level,
+						copy(current_color,i[#offset_bucket,current_offset_bucket_pos],S);
+						if(color_count_mode,
+							current_count_in_offset_bucket=i[#offset_bucket,current_offset_bucket_pos+S];
+						);
 
-				use_color_counts?(
-					const color_counts_pos=hashmap-1;
-					const dec_spec_size=spec_size-1;
-					last_p=nan;
-					process()=(
-						(H?(p=same_color?last_p:find(#key,I,(H-1)*vector_insertion_size,-vector_insertion_size)+1))?(
-							if(!same_color,p+=dec_spec_size;);
-							i[#key,p]+=i#color_counts_pos;
-							last_p=p;
+						offset_hash_pos=current_offset_bucket_pos+hash2_pos;
+						second_dictionary_key=i[#offset_bucket,offset_hash_pos];
+						secondary_dictionary_ind=second_dictionary_key+img_ind_of_start_of_secondary_dictionary;
+
+						current_secondary_ins_pos=secondary_insert_positions_list[second_dictionary_key];
+						color_pos=find(#secondary_dictionary_ind,current_color,current_secondary_ins_pos-hash2_pos,-hash2_pos);
+
+						color_count_mode?(
+							color_pos!=-1?(
+								calculate_max_freq_num_mode?(
+									chkfreq(i[#current_bucket,i[#secondary_dictionary_ind,color_pos+S]]+=current_count_in_offset_bucket;);
+								):(
+									i[#current_bucket,i[#secondary_dictionary_ind,color_pos+S]]+=current_count_in_offset_bucket;
+								);
+							):(
+								if(calculate_max_freq_num_mode,chkfreq(current_count_in_offset_bucket););
+								secondary_dictionary_dimension=wh(#secondary_dictionary_ind);
+								if(current_secondary_ins_pos>=secondary_dictionary_dimension,
+									new_size=max(8,h(#secondary_dictionary_ind)<<1);
+									resize(#secondary_dictionary_ind,hash2_pos,new_size,1,1,-1);
+								);
+								copy(i[#secondary_dictionary_ind,current_secondary_ins_pos],current_color,S);
+								i[#secondary_dictionary_ind,current_secondary_ins_pos+S]=current_bucket_ins_pos+S;
+								secondary_insert_positions_list[second_dictionary_key]+=hash2_pos;
+								current_bucket_dimension=wh(#current_bucket);
+								if(current_bucket_ins_pos>=current_bucket_dimension,
+									new_size=max(8,h(#current_bucket)<<1);
+									resize(#current_bucket,current_bucket_vector_size,new_size,1,1,-1);
+								);
+								copy(i[#current_bucket,current_bucket_ins_pos],current_color,S);
+								i[#current_bucket,current_bucket_ins_pos+S]=current_count_in_offset_bucket;
+								current_bucket_ins_pos+=current_bucket_vector_size;
+								++current_bucket_pos;
+							);
 						):(
-							if(H==h(#key),
-								new_size=max(8,h(#key)<<1);
-								resize(#key,vector_insertion_size,new_size,1,1,-1);
+							color_pos==-1?(
+								secondary_dictionary_dimension=wh(#secondary_dictionary_ind);
+								if(current_secondary_ins_pos>=secondary_dictionary_dimension,
+									new_size=max(8,h(#secondary_dictionary_ind)<<1);
+									resize(#secondary_dictionary_ind,hash2_pos,new_size,1,1,-1);
+								);
+								copy(i[#secondary_dictionary_ind,current_secondary_ins_pos],current_color,S);
+								secondary_insert_positions_list[second_dictionary_key]+=hash2_pos;
+								current_bucket_dimension=wh(#current_bucket);
+								if(current_bucket_ins_pos>=current_bucket_dimension,
+									new_size=max(8,h(#current_bucket)<<1);
+									resize(#current_bucket,current_bucket_vector_size,new_size,1,1,-1);
+								);
+								copy(i[#current_bucket,current_bucket_ins_pos],current_color,S);
+								current_bucket_ins_pos+=current_bucket_vector_size;
+								++current_bucket_pos;
 							);
-							copy(i(#key,0,H,0,0),[I,i#color_counts_pos]);
-							last_p=(H+1)*vector_insertion_size-1;
-							++sizes[key-offset];
 						);
+
+						current_offset_bucket_pos+=current_bucket_vector_size;
 					);
-				):(
-					process()=(
-						!(H?(same_color?1:find(#key,I,(H-1)*vector_insertion_size,-vector_insertion_size)+1))?(
-							if(H==h(#key),
-								new_size=max(8,h(#key)<<1);
-								resize(#key,vector_insertion_size,new_size,1,1,-1);
-							);
-							copy(i(#key,0,H,0,0),I);
-							++sizes[ref_sizes_ind];
-						);
-					);
+
+					offset_bucket+=offset_bucket_size;
+				);
+
+				if(current_bucket_pos,
+					resize(#current_bucket,hash2_pos,current_bucket_pos,1,1,0);
 				);
 			);
-
-			key=i#hashmap;
-			ref_sizes_ind=key-offset;
-			H=sizes[ref_sizes_ind];
-
-			if(!H,
-				found_vectors[count_of_found_vector++]=key;
-			);
-
-			same_color=same(I,last_color);
-			process();
-			last_color=I;
-			I;
-
-			end(
-				repeat(count_of_found_vector,p,
-					img_pos=found_vectors[p];
-					resize(#img_pos,vector_insertion_size,sizes[img_pos-offset],1,1,-1);
-				);
-			);
+			calculate_max_freq_num_mode?([maxima_color,maxima_a,maxima_b]):(I);
 			"
 
-		rm[0-$hashmap]
-		a y
-		permute yzcx
+			if $highest_color_frequency_mode
+				k[0]
+				$od,$S,[{"const s=$S;
+				    aM=argmax(crop(#0,0,0,0,s,w#0,1,1,1));
+				    am=argmax(crop(#0,0,0,0,s+1,w#0,1,1,1));
+				    vM=i(#0,aM,0,0,s);
+				    vm=i(#0,am,0,0,s+1);
+				    vM>vm?I[#0,aM][0,s]:vector(#s,nan);
+				"}]
+				k[1]
+			else
+				k[1-$dictionary_buckets_per_threads] a y permute yzcx
+			fi
+	else
+		if $highest_color_frequency_mode
+			if $1
+				k[0]
+				f [${}]
+			else
+				rm
+				1,1,1,$S,[${}]
+			fi
+		else
+			k[3--1]
+			eval. if(i,resize(#x,{$S+$use_color_counts},i,1,1,-1));
+			rm.
+			a y
+			permute yzcx
+		fi
 	fi
 }
 
 status $original_status
-
-um __$0_process_dictionary,__$0_header,__$0_finalize_single_thread
 #@cli rep_mode_blend
 #@cli : Blend Layers via statistical mode of colors.
-#@cli : Author: Reptorian.
+#@cli :
+#@cli : Author: Reptorian
 rep_mode_blend:
 
 is_dimensions_valid={"
@@ -900,176 +1020,150 @@ is_dimensions_valid={"
 		dimension_valid;
 	"}
 
-if !$is_dimensions_valid    error inv_dim_det@[$img_checked] fi
-if $!==1 return fi
-if $!==2 100%,100%,100%,100%,I#-2==I#-1?I#-1:vector(#s,nan) rm[-3,-2] return fi
+if !$is_dimensions_valid
+	error inv_dim_det@[$img_checked]
+elif $!<3
+	if $!==2
+		100%,100%,100%,100%,I#-2==I#-1?I#-1:vector(#s,nan)
+		rm[-3,-2]
+	fi
+	return
+fi
 
-spectrum_size,number_of_images:=s,$!
-use_hashmap_processing:=$number_of_images>20
-d_s:=$spectrum_size-1
+use_hashmap_processing={$!>21}
 
 if $use_hashmap_processing
-	dictionary_buckets:=$_cpus<<8
+	bf,layers,d_s:=8,$!,s-1
+	dictionary_buckets,seed,bit_mask:=$_cpus<<$bf,v(0x1b3d,0xf1c3ef),(1<<$bf)-1
 
-	# Create Hash Values
-	100%,100%,100%,2,:"begin_t(
-			k=v(0x1b3d,0xf1c3ef)|0b101;
-			m=2+(t<<8);
+	100%,100%,100%,$!,:"begin(
+			const M=(1<<16)-1;
+			const S=s#0;
+			const seed=$seed;
+			const bit_mask=$bit_mask;
+			V=vector(#S);
 		);
-		[k,m];"
-	s. c
+		copy(V[0],i(#c,x,y,z,0),S,1,whd);
+		hash_value=0;
+		repeat(S,p,
+			hash_value=xor(((hash_value<<1)-hash_value)*seed,C=V[p];isint(C)?C:C*M);
+			hash_value&=bit_mask;
+		);
+		hash_value;
+		"
 
-	repeat $number_of_images {
-		+s[$>] c
-		&[-1] 0xff
-		repeat $d_s {
-			[-2]
-			<<[-2] 1
-			rv[-3,-2]
-			-[-3,-2]
-			*[-2] [$number_of_images] &[-2] 0xff
-			xor[-2,-1]
-		}
-	}
-
-	# Merge set of images
-	rm[$number_of_images]
-	a[-$number_of_images--1] c
-	+[-1] [-2]
-	rm[-2]
-	a[^-1] c
-
-	#Find Mode of Color
 	0x$dictionary_buckets
 
-	eval[1] :"begin_t(
-			const spec_size=$spectrum_size;
-			const inc_spec_size=spec_size+1;
-			const dec_spec_size=spec_size-1;
+	f[$layers] :"begin_t(
+			const S=s#0;
+			const inc_S=S+1;
+			const dec_S=S-1;
 			const count_boundary=s>>1;
-			const maximum_vector_size=spec_size*s;
-
-			offset_pos=(t<<8)+2;
-
-			chval(value)=if(value>=maxima_a,
-					current_maximum_color=current_color;
-					if(value>count_boundary,maxima_a=value;break());
-					maxima_b=maxima_a;
-					maxima_a=value;
-			);
-		);
-
-		size_table=vector(#0x100);
-		maxima_a=maxima_b=number_of_buckets=color_pos=last_p=0;
-
-		keys=I;
-		colors=I#0;
-
-		current_maximum_color=old_color=vector(#spec_size,nan);
-		repeat(s,v,
-			current_color=(colors)[color_pos,spec_size];
-
-			key=keys[v];
-			relative_key=key-offset_pos;
-
-			current_size=size_table[relative_key];
-			H=h(#key);
-
-			same_color=current_color==old_color;
-			(current_size?(p=same_color?last_p:find(#key,current_color,current_size-inc_spec_size,-inc_spec_size)+1))?(
-				if(!same_color,p+=dec_spec_size);
-				current_number_of_color=++i[#key,p];
-				chval(current_number_of_color);
-				last_p=p;
-			):(
-				if(inrange(H,0,maximum_vector_size,1,0),
-					if(current_size+inc_spec_size>=H,
-						new_size=cut(H<<1,inc_spec_size,maximum_vector_size);
-						resize(#key,1,new_size,1,1,-1);
-					);
+			offset=(t<<$bf)+k+1;
+			const dictionary_buckets=$dictionary_buckets;
+			current_color=v_NaN=last_color=maxima_color=vector(#S,nan);
+			chval(count_value)=(
+				current_count=count_value;
+				if(current_count>=current_maxima,
+					maxima_color=current_color;
+					if(current_count>count_boundary,break(););
+					old_maxima=current_maxima;
+					current_maxima=current_count;
 				);
-				copy(i[#key,current_size],[current_color,1]);
-				chval(1);
-				last_p=current_size+spec_size;
-				size_table[relative_key]+=inc_spec_size;
 			);
-
-
-			color_pos+=spec_size;
-			old_color=current_color;
+			last_ind=nan;
 		);
-
-		maxima_a>maxima_b?(
-			draw(#0,current_maximum_color,x,y,z,0,1,1,1,spec_size);
-		):(
-			draw(#0,vector(#spec_size,nan),x,y,z,0,1,1,1,spec_size);
+		hash=I;
+		sizes=vector(#dictionary_buckets);
+		current_maxima=old_maxima=0;
+		repeat(s,p,
+			copy(current_color[0],i(#p,x,y,z,0),S,1,whd);
+			current_hash=hash[p];
+			H=sizes[current_hash];
+			key=current_hash+offset;
+			same_color=same(current_color,last_color);
+			(H?(same_color?1:(last_ind=find(#key,current_color,(H-1)*inc_S,-inc_S)+1)))?(
+				if(!same_color,last_ind+=dec_S);
+				chval(++i[#key,last_ind]);
+			):(
+				if(H==h(#key),
+					new_size=min(max(8,h(#key)<<1),s);
+					resize(#key,inc_S,new_size,1,1,-1);
+				);
+				copy(i(#key,0,H,0,0),[current_color,1]);
+				++sizes[current_hash];
+				last_ind=(H+1)*inc_S-1;
+			);
+			last_color=current_color;
 		);
-
+		copy(i(#0,x,y,z,0),current_maxima>old_maxima?maxima_color:v_NaN,S,whd,1);
 		I;"
-
-	keep[0]
 else
-	a c
-
-	f "begin(
-			const S=$spectrum_size;
-			const layers=$number_of_images;
+	f[0] "begin(
+			const layers="$!";
 			const count_boundary=layers>>1;
+
+			init_color_collection=vector(#s*layers);
 			init_new_counts=vector(#layers);
 			init_new_counts[0]=1;
 
-			v_NaN=vector(#S,nan);
+			current_color=vector(#s);
+			v_NaN=vector(#s,nan);
 		);
-
-		colors=I;
-		counts=init_new_counts;
-		last_nonduplicate_pos=S;
+		last_color=I;
+		last_nonduplicate_pos=s;
 		current_maxima=old_maxima=1;
-		found_at_least_one_duplicate=0;
-		maxima_color=old_color=v_NaN;
+		maxima_color=v_NaN;
 
-		for(pos=S,pos<s,pos+=S,
-			current_color=(colors)[pos,S];
+		colors=init_color_collection;
+		copy(colors[0],last_color);
+		counts=init_new_counts;
 
-			same(current_color,old_color)?(
+		p=0;
+		q=[0,0];
+		while(++p<layers,
+			copy(current_color[0],i(#p,x,y,z,0),s,1,whd);
+
+			same(current_color,last_color)?(
 				found_duplicate=1;
 			):(
 				found_duplicate=0;
-				for(q_pos=[0,0],q_pos[0]<last_nonduplicate_pos,q_pos+=[S,1],
-					if( same( current_color , (colors)[q_pos[0],S] ),
+				q=[0,0];
+				while(q[0]<last_nonduplicate_pos,
+					if(same(current_color,colors[q[0],s]),
 						found_duplicate=1;
 						break();
 					);
+					q+=[s,1];
 				);
+				0;
 			);
 
-			old_color=current_color;
-			current_count=++counts[q_pos[1]];
+			last_color=current_color;
+			current_count=++counts[q[1]];
 
 			if(current_count>count_boundary,
-				maxima_color=current_color;
 				current_maxima=current_count;
+				maxima_color=current_color;
 				break();
 			);
 
 			found_duplicate?(
 				if(current_count>=current_maxima,
+					maxima_color=current_color;
 					old_maxima=current_maxima;
 					current_maxima=current_count;
-					maxima_color=current_color;
 				);
-				found_at_least_one_duplicate=1;
 			):(
-				copy(colors[q_pos[0]],current_color);
-				last_nonduplicate_pos+=S;
+				copy(colors[last_nonduplicate_pos],current_color);
+				last_nonduplicate_pos+=s;
 			);
 		);
 
-		current_maxima>old_maxima?maxima_color:v_NaN;
-		"
+		current_maxima>old_maxima?maxima_color:v_NaN;"
 fi
 
-channels 0,$d_s
+k[0]
 #@cli rep_val2order: map_2_img={ 0=False | 1=True },value_mode={ 0=scalar | 1=vector },_keep_set_vals={ 0=no | 1=values | 2=values+count | 3=values+status_counts | 4=status_counts }
 #@cli : This command can change images to order of appearance representation(s). map_2_img simply convert values to the order of their appearance starting from zero. set_vals can contain unique values with optional count of unique values.
 rep_val2order:
@@ -1107,6 +1201,7 @@ foreach {
 	# Compute Hash Map
 	100%,100%,100%,{$use_vector_values?1:s#-1},"
 		begin(
+			const M=(1<<16)-1;
 			const seed=$seed;
 			const bit_mask=$max_index;
 			const multiplier=31*$seed;
@@ -1115,7 +1210,7 @@ foreach {
 				hash_value(n)=(
 					hash_value=0;
 					repeat(s#-1,p,
-						hash_value=xor(((hash_value<<1)-hash_value)*seed,n[p]);
+						hash_value=xor(((hash_value<<1)-hash_value)*seed,C=n[p];isint(C)?C:C*M);
 						hash_value&=bit_mask;
 					);
 					hash_value+2;
@@ -2246,95 +2341,118 @@ repeat $! {
 }
 #@cli rep_cin: '_message'
 #@cli : Allows users to input into status.
-#@cli : Note #1: The black scratchpad exists as a way to manually detect cursor. If you move your mouse cursor, it is used to display current cursor position.
-#@cli : Note #2: You can also hold shift to find cursor position.
 #@cli : Default values: '_message=G'MIC rep_cin output:'
 #@cli : $ echo ${-rep_cin}
 #@cli : $ rep_cin , echo "Status Output: "${}
 #@cli : $ rep_cin "Input: " echo "Status Output: "${}
-#@cli : $ m=${rep_cin\ "\"Input: \""} echo "Status Output: "$m
-#@cli : $ m=${rep_cin\ {'"Input: "'}} echo "Status Output: "$m
+#@cli : $ m=${"rep_cin \"Test A: \""} echo "Status Output: "$m
 rep_cin:
 skip "${1=}"
 screen_w,screen_h:={*,u},{*,v}>>1
 stack_size,case,n0:=(1<<10)+1,_'A'-_'a',_'0'
 insertion_pos,started,mode=0
 old_insertion_pos,old_da_size=nan
-
-if $#>1
-	message={`[$*]`}
-else
-	if narg({``$1})
-		message={``$1}
-	else
-		message="G'MIC rep_cin input: "
-	fi
-fi
-
+message="$1"
 1,$stack_size,1,1
+iteration,break_all=0
 
 do {
 	if {*,ENTER}" || "{*,ESC} w[] 0,0 break fi
 	use_key=1
 
-	if {*,BACKSPACE}" && "da_size(#-1)&&$insertion_pos
-		use_key=0
-		eval da_remove(#-1,cut($insertion_pos-1,0,da_size(#-1)-1))
-		insertion_pos:=cut($insertion_pos-1,0,da_size(#-1))
-	fi
+	__rep_cin_nstr
 
-	arrow_pressed={{*,ARROWLEFT}||{*,ARROWRIGHT}}
-
-	if $arrow_pressed
-		ARROWLEFT={*,ARROWLEFT}
-		ARROWRIGHT={*,ARROWRIGHT}
-		insertion_pos={cut($insertion_pos-$ARROWLEFT+$ARROWRIGHT,0,da_size(#-1))}
-	elif $use_key
-		__rep_cin_key2int
-		if ${}
-			eval da_insert(#-1,$insertion_pos,${})
-			insertion_pos+=1
-		fi
-	fi
-
-	if $insertion_pos!=$old_insertion_pos||da_size(#-1)!=$old_da_size
-		if !da_size(#-1)
-			M0=
-			M1=_
-		else
-			if ($insertion_pos>=(da_size(#-1)))||!$insertion_pos
-				M0=${_rep_cin_values2str\ {crop(#-1,0,0,0,0,1,{da_size(#-1)},1,1)}}
-				M1=$M0
-				if $insertion_pos
-					M1.=_
-				else
-					M1..=_
-				fi
-			else
-				left={`crop(#-1,0,0,0,0,1,$insertion_pos,1,1)`}
-				right=${_rep_cin_values2str\ {crop(#-1,0,$insertion_pos,0,0,1,{da_size(#-1)-$insertion_pos},1,1)}}
-				M0=$left$right
-				M1=${left}_$right
-			fi
-		fi
-	fi
-
-	if $started
-		w[] $screen_w,50,0,0,$message${M$mode}
-	else
-		w[] $screen_w,50,0,0,0,$screen_h,$message$M0
-		started=1
-	fi
-
-	mode={!$mode}
 	old_insertion_pos=$insertion_pos
 	old_da_size:=da_size(#-1)
-	wait
+
+	if $arrow_pressed||$key
+		w[] $screen_w,1,0,0,$message$M1
+		wait
+	elif {*,BACKSPACE}
+		w[] $screen_w,1,0,0,$message$M1
+		wait 150
+	else
+		do {
+			if {*,k}
+				__rep_cin_nstr
+
+				w[] $screen_w,1,0,0,$message$M1
+
+				if $arrow_pressed||$key
+					wait
+					w[] $screen_w,1,0,0,$message$M1
+				elif {*,BACKSPACE}
+					w[] $screen_w,1,0,0,$message$M1
+					wait 150
+				fi
+
+				break
+			fi
+
+			if $started
+				if $iteration==60
+					w[] $screen_w,1,0,0,$message${M$mode}
+					mode={!$mode}
+					iteration=0
+				fi
+			else
+				w[] $screen_w,1,0,0,0,$screen_h,$message$M0
+				started=1
+			fi
+
+			iteration+=1
+			wait 2
+		} while !{*,k}&&{*}
+	fi
 } while {*}
 
 rm.
 
-u $M0 wait
+u $M0
+__rep_cin_nstr:
+if {*,BACKSPACE}" && "da_size(#-1)&&$insertion_pos
+	use_key=0
+	eval da_remove(#-1,cut($insertion_pos-1,0,da_size(#-1)-1))
+	insertion_pos:=cut($insertion_pos-1,0,da_size(#-1))
+fi
+
+arrow_pressed={{*,ARROWLEFT}||{*,ARROWRIGHT}}
+
+if $arrow_pressed
+	ARROWLEFT={*,ARROWLEFT}
+	ARROWRIGHT={*,ARROWRIGHT}
+	insertion_pos={cut($insertion_pos-$ARROWLEFT+$ARROWRIGHT,0,da_size(#-1))}
+elif $use_key
+	__rep_cin_key2int
+	if ${}
+		eval da_insert(#-1,$insertion_pos,${})
+		insertion_pos+=1
+	fi
+fi
+
+if $insertion_pos!=$old_insertion_pos||da_size(#-1)!=$old_da_size
+	if !da_size(#-1)
+		M0=
+		M1=_
+	else
+		if ($insertion_pos>=(da_size(#-1)))||!$insertion_pos
+			M0=${_rep_cin_values2str\ {crop(#-1,0,0,0,0,1,{da_size(#-1)},1,1)}}
+			M1=$M0
+
+			if $insertion_pos
+				M1.=_
+			else
+				M1..=_
+			fi
+		else
+			left=${_rep_cin_values2str\ {crop(#-1,0,0,0,0,1,$insertion_pos,1,1)}}
+			right=${_rep_cin_values2str\ {crop(#-1,0,$insertion_pos,0,0,1,{da_size(#-1)-$insertion_pos},1,1)}}
+
+			M0=$left$right
+			M1=${left}_$right
+		fi
+	fi
+fi
 
 # Below is the reference I used to help create the above code:
 # ;=,-./` [\]'
@@ -5150,7 +5268,7 @@ repeat $# {
 }
 
 u $r
-#@cli rep_roman2int: roman_numeral_string_a,....,is_strict={ 0=false | 1= true }
+#@cli rep_roman2int: roman_numeral_string_a,....,is_strict={ 0=false | 1=true }
 #@cli : Return Roman Numeral as integer number.
 rep_roman2int:
 if isnum($-1)
@@ -5167,14 +5285,13 @@ repeat $I {
 	struppercase ${a{$>+1}}
 
 	r.=$s{"
-		char_rank=old_char_rank=is_odd_char_rank=ans=num=0;
+		older_char_rank=char_rank=old_char_rank=is_odd_char_rank=ans=num=0;
 		old_character_idx=-1;
 		const _H=_'H';
 
 		roman_chars='IVXLCDM';
 		roman_num='"${}"';
 		const chars_count=size(roman_chars);
-		last_known_odd_pos_in_roman_str=chars_count-1;
 
 		const is_strict=$is_strict;
 		symbol_vals=expr('(x&1?5:1)*10^(x>>1)',chars_count);
@@ -5205,11 +5322,6 @@ repeat $I {
 					);
 				);
 
-				current_char_rank_is_odd_char_rank=char_rank&1;
-				if(current_char_rank_is_odd_char_rank,
-					last_known_odd_pos_in_roman_str=pos_in_roman_str;
-				);
-
 				num=symbol_vals[char_rank];
 			);
 
@@ -5219,40 +5331,44 @@ repeat $I {
 
 			if(is_strict,
 				if(subtractive_mode,
-					if(char_rank==old_char_rank,
+					if(char_rank==old_char_rank||char_rank==old_char_rank+1,
 						run('error inval_sect_adj_sub');
 					);
 				);
 			);
 
 			(old_char_rank>char_rank)?(
-				if(is_strict,subtractive_mode=1;);
-
-				if(char_rank&1,run('error inval_sub_char'););
+				if(is_strict,
+					subtractive_mode=1;
+					if(char_rank&1,run('error inval_char_sub'););
+				);
 
 				if(!(old_char_rank&1),char_limits[old_char_rank]=4;);
 
 				check_forward_pos_in_roman_str=pos_in_roman_str+2;
 				if(check_forward_pos_in_roman_str<roman_num_length,
-					LF=roman_num[check_forward_pos_in_roman_str];
-					if(old_character_idx==LF||character_idx==LF,
+					if(char_rank==old_char_rank||older_char_rank>=char_rank,
 						run('error inval_sect_sub');
 					);
 				);
 
+				older_char_rank=old_char_rank;
 				ans-=num;
 			):(
 				if(is_strict,subtractive_mode=0;);
 				ans+=num;
 			);
 
+			older_char_rank=old_char_rank;
 			old_character_idx=character_idx;
 			old_char_rank=char_rank;
 		);
 
 		if(!isint(ans,1,3999),run('error out_of_bound_val'););
 
-		ans;"}
+		ans;
+	"}
+
 	s=,
 }
 
@@ -11300,101 +11416,90 @@ foreach {
 		if $13==3 hsv2rgb. fi
 		if $sub!=1 r. $ow,$oh,100%,100%,5 fi
 }
-#@cli rep_skew: angle,-100%<=_position_skew[%]<=100%,_axis={x|y|z},_boundary={0= 0=dirichlet | 1=neummann | 2=periodic | 3=mirror},_interpolation={ 0=nearest | 1=linear | 2=cubic },_enlarged_mode={ 0=preserve | 1=enlarge }
-#@cli : Skew Image Based on angle. Note that axis==z condition has not been tested!
-#@cli : Default values: _position_skew[%]=0%,_axis=0
-rep_skew:
-skip ${2=0},${3=0},${4=3},${5=1},${6=1}
+#@cli rep_shear: combined_axis={ 0,xy | 1,xz | 2,xc | 3,yx | 4,yz | 5,yc | 6,zx | 7,zy | 8,zc | 9,cx | 10,cy | 11,cz },angle,centre,_boundary={ 0=none | 1=neumann | 2=periodic | 3=mirror },_interpolation={ 0=nearest | 1=linear | 2=bicubic },_output_mode={ 0=cropped | 1=full }
+#@cli : Shear Image Based on angle.
+#@cli : Default values: '_boundary=2','_interpolation=2','_output_mode=0'
+rep_shear:
+skip ${4=2},${5=2},${6=0}
 
-check (abs($1)<90)&&(abs($2)<=1)&&((($3==0)||($3==1)||($3==2))||inrange(_'$3',_'x',_'z',1,1))
+check inrange($2,-90,90,0,0)&&isfinite($3)&&isint($4,0,3)&&isint($5,0,2)&&isbool($6)
+if !$2 return fi
 
-if $1==0 return fi
+x,y,z,c,centre=0,1,2,3,{ispercentage($3)?$3:($3+1)/2}
+
+check inrange($centre,0,1,1,1)
+
+if isnum($1)
+	check isint($1,0,11)
+	loc=${arg\ $1+1,xy,xz,xc,yx,yz,yc,zx,zy,zc,cx,cy,cz}
+else
+	loc={'xyzc'}
+	check v='$1';size(v)==2?(isin(v[0],$loc)&&isin(v[1],$loc)&&v[0]!=v[1]);
+	loc=$1
+fi
+
+d,l={`v='$loc';[v[0],_',',v[1]]`} # distance/distancia & line/linea
+
+t_length,t_mult=${arg0\ ${$l},w,h,d,s},{tan($2°)}
+ref_length,shift_scale=$t_length-1,$t_mult*half_ref_length
+c_interpolation_mode={${$d}==3}
+
+# Workaround as G'MIC JIT compiler doesn't support interpolation within non-spatial dimension c
+if $c_interpolation_mode&&$5
+	p_arg,s_arg=${arg0\ ${$l},xczy,cyzx,xycz},${arg0\ ${$l},yx,xy,zc}
+	permute $p_arg
+	rep_shear $s_arg,${2-6}
+	permute $p_arg
+	return
+fi
+
+contain_c={same(_'$d',_'c')||same(_'$l',_'c')}
+
+c0,c1,c2,c3=0
+d0,d1,d2,d3=w,h,d,s
 
 if $6
+	ins_l=#-1,
+	t_dim=${arg0\ ${$d},w,h,d,s}
+	df=ceil($t_dim+(abs($t_mult)*$t_length))
+	c${$d}=($l-half_ref_length)/half_ref_length*shift_scale-offset
+else
+	c${$d}=($l-centre)/half_ref_length*shift_scale
+fi
 
-	ang={($1/180)*pi}
-	tang={tan($ang)}
+if $contain_c
+	skew_expr=j($ins_l$c0,$c1,$c2,$c3,$5,$4)
+else
+	skew_expr=J($ins_l$c0,$c1,$c2,$5,$4)
+fi
 
+if $6
 	foreach {
-		if same('$3','z')||$3==2
-			echo[] "TODO: Add depth. Possible TODO: zx,zy,xz,zy" return
-		elif same('$3','y')||$3==1
+		dist={$df}
+		d${$d}=$dist
+		offset={($dist-$t_dim)/2}
 
-			dist={abs(w*$tang)}
-			new_height={h+$dist}
+		if prod($d0,$d1,$d2,$d3)/$_cpus>0x400000 error exc_dim_lim fi
 
-			100%,$new_height,100%,100%,"begin(
-					const ang=$ang*-1;
-					const offpos=(h-h#-1)/2;
-					const ww=w-1;
-					const half_w=(w-1)/2;
-					const dist=ww*tan(ang);
-				);
-				ypos=(x-half_w)/ww*dist-offpos;
-				I(#-1,x,y+ypos,z,$5,$4);"
+		{[$d0,$d1,$d2,$d3]},"begin(
+				const ref_length=max(1,"$ref_length");
+				const half_ref_length=ref_length/2;
+				const offset=$offset;
+				const shift_scale="$shift_scale";
+			);
+			"$skew_expr";
+			"
 
-		elif same('$3','x')||$3==0
-
-			dist={abs(h*$tang)}
-			new_width={w+$dist}
-
-			$new_width,100%,100%,100%,"begin(
-					const ang=$ang;
-					const offpos=(w-w#-1)/2;
-					const hh=h-1;
-					const half_h=(h-1)/2;
-					const dist=hh*tan(ang);
-				);
-				xpos=(y-half_h)/hh*dist-offpos;
-				I(#-1,x+xpos,y,z,$5,$4);"
-
-		else
-			error "Invalid input!"
-		fi
-
-		k.
+		rm..
 	}
 else
-
-	if same('$3','z')||$3==2
-
-		echo[] "Untested! Possible TODO: zx,zy,xz,zy"
-
-		f "begin(
-				const ang=($1/180)*pi;
-				const dd=d-1;
-				const pz=dd*($2*.5+.5);
-				const dist=dd*tan(ang);
-			);
-			zpos=(z-pz)/dd;
-			J(0,0,lerp(0,dist,zpos),$5,$4);"
-
-	elif same('$3','y')||$3==1
-
-		f "begin(
-				const ang=($1/180)*pi*-1;
-				const ww=w-1;
-				const px=ww*($2*.5+.5);
-				const dist=ww*tan(ang);
-			);
-			xpos=(x-px)/ww;
-			J(0,lerp(0,dist,xpos),0,$5,$4);"
-
-	elif same('$3','x')||$3==0
-
-		f "begin(
-				const ang=($1/180)*pi;
-				const hh=h-1;
-				const py=hh*(-$2*.5+.5);
-				const dist=hh*tan(ang);
-			);
-			ypos=(y-py)/hh;
-			J(lerp(0,dist,ypos),0,0,$5,$4);"
-
-	else
-		error "Invalid input!"
-	fi
-
+	fill "begin(
+			const ref_length="$ref_length";
+			const half_ref_length=ref_length/2;
+			const centre=ref_length*$centre;
+			const shift_scale="$shift_scale";
+		);
+		"$skew_expr";"
 fi
 #@cli rep_hpd: eq. to 'rep_henon_phase_diagram'
 rep_hpd:rep_henon_phase_diagram $*
@@ -11816,7 +11921,7 @@ start_hue,\
 cs_mode\
 ={[360/$1,[${2-3}]-1,cut($4,0,1),$5%360,int($6)%4]}
 
-convert_colors_bwd,convert_colors_fwd=${rep_cs_arg\ $cs_mode,hsi,hsl,hsv,hcy}
+convert_colors_bwd,convert_colors_fwd=${rep_cs_arg\ 2,$cs_mode,hsi,hsl,hsv,hcy}
 
 if $4
 
@@ -21226,7 +21331,7 @@ foreach {
 }
 #@cli rep_sptbwgp: eq. to 'rep_shift_pixel_to_boundary_with_group_pixels'
 rep_sptbwgp: rep_shift_pixel_to_boundary_with_group_pixels $*
-#@cli rep_shift_pixel_to_boundary_with_group_pixels: 1<=_position<=1,_axis={ x,0=Horizontal | y,1=Vertical },0%<_influence_factor[%]<=100%,0<=_threshold<=100%,channel_mode
+#@cli rep_shift_pixel_to_boundary_with_group_pixels: -1<=_position<=1,_axis={ x,0=Horizontal | y,1=Vertical },0%<_influence_factor[%]<=100%,0<=_threshold<=100%,channel_mode
 #@cli : Shifts pixels to boundary by percentage using grouped pixels. position less than .5 means shift will be negative, and position greater than .5 means shift will be positive.
 #@cli : If 'channel_mode' is position, cmyk mode is assumed. If negative, RGB is assumed. If negative, then always last channel would be used.
 #@cli : Default values: '_position=-1','_axis=1','_influence_factor=1','_threshold=0','_channel_mode=0'
@@ -22075,8 +22180,8 @@ repeat $diff_dim_mode?$!-1:1 {
 }
 
 rm.
-#@cli : +rep_find_nonduplicate_angles mode,pw2_buckets,angle_0,...,angle_n
-#@cli : Return all unique angles in radians.
+#@cli rep_find_nonduplicate_angles mode,pw2_buckets,angle_0,...,angle_n
+#@cli : Return all unique angles in radians as a image.
 #@cli : 'mode'       : deg180, deg360, pi, tau (valid string arguments, input angle units, and near maximum value)
 #@cli : 'pw2_buckets': 2^input hash buckets
 #@cli : 'angle_0',.. : List of input angles
@@ -22087,8 +22192,12 @@ mode,T,H=$$1,$!,{$!+2}
 
 eval[$T] >"
 	begin(
-		const mod_factor="{[180,360,pi,pi*2][$mode]}";
-		const convert_2_rad=$mode<2;
+		const tau=pi*2;
+		const mode=$mode;
+		const convert_2_rad=mode<2;
+		const main_mod=convert_2_rad?360:tau;
+		const mod_factor=arg(mode+1,180,360,pi,tau);
+		const offset=convert_2_rad?180:pi;
 		const insertion_point=k+1;
 		const start_of_hash=k+2;
 		const D=$ds;
@@ -22096,13 +22205,14 @@ eval[$T] >"
 		const M=D/mod_factor;
 		coa=0; # count of angles
 	);
-	current_angle_mod=i%mod_factor;
-	H=((v*M)&bit_mask)+start_of_hash;
+	current_angle=(i+offset)%main_mod;
+	current_angle_mod=current_angle>mod_factor?current_angle-mod_factor:current_angle;
+	H=((current_angle_mod*M)&bit_mask)+start_of_hash;
 	if(find(#H,current_angle_mod,da_size(#H)-1,-1)==-1,
 		da_push(#H,current_angle_mod);
 		if(convert_2_rad
-		,i[#insertion_point,coa++]=deg2rad(current_angle_mod);
-		,i[#insertion_point,coa++]=current_angle_mod;
+		,i[#insertion_point,coa++]=deg2rad(current_angle)-pi;
+		,i[#insertion_point,coa++]=current_angle-pi;
 		);
 	);
 	end(resize(#insertion_point,coa,1,1,1););"
@@ -26986,13 +27096,12 @@ foreach {
 }
 fx_rep_nebulous_preview:
 fx_rep_nebulous $*
-#@gui Grouped Pixel Axis-Based Shift:fx_rep_sptbwgp,fx_rep_sptbwgp_preview(1)
+#@gui Grouped Pixel Axis-Based Shift:fx_rep_sptbwgp
 #@gui:_=note("Based off MadJik's Paint.NET Gravity Plugin. New feature are shift position, and influence factor."),_=separator()
 #@gui:Shift Position (%)=float(0,-100,100)
 #@gui:Influence Factor (%)=float(0,0,100)
 #@gui:Threshold (%)=float(0,0,100)
 #@gui:Axis=choice(0,"Horizontal","Vertical")
-#@gui:_=separator(),Preview Type=choice("Full","Forward Horizontal","Forward Vertical","Backward Horizontal","Backward Vertical","Duplicate Top","Duplicate Left","Duplicate Bottom","Duplicate Right","Duplicate Horizontal","Duplicate Vertical","Checkered","Checkered Inverse"),Preview Split=point(50,50,0,0,200,200,200,0,10)_0
 #@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2022/11/24</i>.</small>")
 fx_rep_sptbwgp:
 rep_sptbwgp {$1%},$4,{vec_arg=[${2-3}]/100}
@@ -27952,7 +28061,7 @@ gui_split_preview "rep_sqrlogpindis_gui $*",${-3--1}
 #@gui:_=note("<b>Main</b>")
 #@gui:Offset by Half-Image-Diagonal(%)=float(5,-100,100)
 #@gui:Strip Thickness(%)=float(1,0,75)
-#@gui:Modulo=int(0,0,32)
+#@gui:Modulo=int(0,0,128)
 #@gui:Modulo Boundary=choice(0,"Periodic","Continuous")
 #@gui:Image Boundary=choice(3,"None","Neumann","Periodic","Mirror")
 #@gui:Offset Mode=choice(0,"Single Iteration of Randomization","Multiple Iteration of Randomization")
@@ -30572,19 +30681,16 @@ u "{$1}"\
 "{$10}"\
 "{$11}"\
 "{$12}_"{$11?2:1}
-#@gui HSX Posterize/Index: fx_rep_p_i,fx_rep_p_i_preview
+#@gui HSX Posterize/Index: fx_rep_p_i
 #@gui:Hue Bands=int(10,2,360)
 #@gui:Saturation Bands=int(10,2,100)
 #@gui:Luminosity Bands=int(10,2,100)
 #@gui:Dithering (%)=float(50,0,100)
 #@gui:Start Hue=float(0,0,360)
 #@gui:Colour Space=choice(2,"HSI","HSL","HSV","HCY")
-#@gui:_=separator(),Preview Type=choice("Full","Forward Horizontal","Forward Vertical","Backward Horizontal","Backward Vertical","Duplicate Top","Duplicate Left","Duplicate Bottom","Duplicate Right","Duplicate Horizontal","Duplicate Vertical","Checkered","Checkered Inverse"),Preview Split=point(50,50,0,0,200,200,200,0,10)_0
 #@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2022/12/08</i>.</small>")
 fx_rep_p_i:
 rep_hsx_poster_index ${1-3},{$4%},${5-6}
-fx_rep_p_i_preview:
-gui_split_preview "fx_rep_p_i ${1-6}",${-3--1}
 #@gui Tiled Zoom: fx_rep_tz,fx_rep_tz_preview(0)
 #@gui:_=note("Create tiled zoom."),_=separator()
 #@gui:Square Width - Half Image-Diagonal(%)=float(10,1,100)
@@ -30949,19 +31055,69 @@ foreach {
 }
 
 um __$0_average_per_channels
-#@gui Skew:rep_skew,rep_skew_preview
-#@gui:Angle=float(0,-89.99,89.99)
-#@gui:Position(%)=float(0,-100,100)
-#@gui:Axis=choice(0,"X","Y")
-#@gui:Boundary=choice(3,"None","Neumann","Periodic","Mirror")
-#@gui:Interpolation=choice(2,"Nearest","Linear","Bicubic")
-#@gui:Enlarge?=bool(0)
-#@gui:_=separator(),Preview Type=choice("Full","Forward Horizontal","Forward Vertical","Backward Horizontal","Backward Vertical","Duplicate Top","Duplicate Left","Duplicate Bottom","Duplicate Right","Duplicate Horizontal","Duplicate Vertical","Checkered","Checkered Inverse"),Preview Split=point(50,50,0,0,200,200,200,0,10)_0
-#@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2021/4/16</i>.</small>")
-fx_rep_skew:
-rep_skew $1,$2%,${3-6}
-rep_skew_preview:
-gui_split_preview "fx_rep_skew ${1-6}",${-3--1}
+#@gui Shear: fx_rep_shear,fx_rep_shear_preview
+#@gui:_=note("Shears image within 3/4 dimensions")
+#@gui:_=separator()
+#@gui:Axis-by-Axis Shear=~choice(0,"XY","XZ","XC","YX","YZ","YC","ZX","ZY","ZC","CX","CY","CZ")
+#@gui:Axis-by-Axis Shear=~choice(0,"XY","XC","YX","YC","CX","CY")
+#@gui:Axis-string=value("place_string_here")
+#@gui:Angle=~float(45,-89,89)
+#@gui:Centre (%)=~float(50,0,100)
+#@gui:Boundary=~choice(2,"None","Neumann","Periodic","Mirror")
+#@gui:Interpolation=~choice(2,"Nearest Neighbor","Linear","Bicubic")
+#@gui:Output Mode=choice("Cropped","Full")
+#@gui:_=separator(),_=note("<small>Author: Reptorian. Latest Update: <i>2025/11/10</i>.</small>")
+fx_rep_shear:
+use_full={v='$3';!(v[0]==_'c')}
+use_z_processing={isin(_'z',{'$3'})}
+if $use_z_processing a z fi
+to_automode
+rep_shear ${3-4},$5%,${6-7},{$8&&$use_full}
+if $use_z_processing s z fi
+fx_rep_shear_preview:
+__fx_rep_shear_preview_start
+
+if $is_all_dimensions_same
+	axis_string=${arg0\ $1,xy,xz,xc,yx,yz,yc,zx,zy,zc,cx,cy,cz}
+else
+	axis_string=${arg0\ $2,xy,xc,yx,yc,cx,cy}
+fi
+
+use_full={v='$axis_string';!(v[0]==_'c')}
+
+use_z_processing={isin(_'z',{'$axis_string'})}
+
+if $use_z_processing a z fi
+
+to_automode
+rep_shear $axis_string,$4,$5%,${6-7},{$8&&$use_full}
+
+if $use_z_processing s z fi
+
+u "{$1}_"$is_all_dimensions_same\
+  "{$2}_"$otherwise\
+  "{"$axis_string"}"\
+  "{$4}"\
+  "{$5}"\
+  "{$6}"\
+  "{$7}"\
+  "{$8}_"{$use_full+1}
+
+_persistent=$is_all_dimensions_same,$otherwise
+__fx_rep_shear_preview_start:
+if narg($_persistent)
+	is_all_dimensions_same,otherwise=$_persistent
+else
+	if $!>1
+		$!,1,1,4,[w#0,h#0,d#0,s#0]
+		rep_uniq_cols. 0
+		is_all_dimensions_same={(w#-1==1)<<1}
+		rm.
+	else
+		is_all_dimensions_same=0
+	fi
+	otherwise={2-$is_all_dimensions_same}
+fi
 #@gui Random Gradient Bars: fx_rep_randgradbar,fx_rep_randgradbar_preview
 #@gui:_=note("Create Random Gradient Bar.\n\n<b>Note -</b> Preview is only for giving a idea.")
 #@gui:_=separator(),_=note("<b>Main</b>")
