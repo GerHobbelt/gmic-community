@@ -344,11 +344,7 @@
 |[crop](https://gmic.eu/reference/crop.html#top)|Ref.|Yes|__z__
 |[diagonal](https://gmic.eu/reference/diagonal.html#top)|Ref.|No|*(none)*
 |[elevate](https://gmic.eu/reference/elevate.html#top)|Ref.|No|*(none)*
-|[expand_x](https://gmic.eu/reference/expand_x.html#top)|Ref.|No|*(none)*
-|[expand_xy](https://gmic.eu/reference/expand_xy.html#top)|Ref.|No|*(none)*
-|[expand_xyz](https://gmic.eu/reference/expand_xyz.html#top)|Ref.|No|*(none)*
-|[expand_y](https://gmic.eu/reference/expand_y.html#top)|Ref.|No|*(none)*
-|[expand_z](https://gmic.eu/reference/expand_z.html#top)|Ref.|No|*(none)*
+|[expand](https://gmic.eu/reference/expand.html#top)|Ref.|No|*(none)*
 |[extract](https://gmic.eu/reference/extract.html#top)|Ref.|No|*(none)*
 |[extract_region](https://gmic.eu/reference/extract_region.html#top)|Ref.|No|*(none)*
 |[mirror](https://gmic.eu/reference/mirror.html#top)|Ref.|Yes|*(none)*
@@ -358,12 +354,7 @@
 |[resize_as_image](https://gmic.eu/reference/resize_as_image.html#top)|Ref.|No|__ri__
 |[resize_mn](https://gmic.eu/reference/resize_mn.html#top)|Ref.|No|*(none)*
 |[resize_pow2](https://gmic.eu/reference/resize_pow2.html#top)|Ref.|No|*(none)*
-|[resize_ratio2d](https://gmic.eu/reference/resize_ratio2d.html#top)|Ref.|No|__rr2d__
-|[resize2dx](https://gmic.eu/reference/resize2dx.html#top)|Ref.|No|__r2dx__
-|[resize2dy](https://gmic.eu/reference/resize2dy.html#top)|Ref.|No|__r2dy__
-|[resize3dx](https://gmic.eu/reference/resize3dx.html#top)|Ref.|No|__r3dx__
-|[resize3dy](https://gmic.eu/reference/resize3dy.html#top)|Ref.|No|__r3dy__
-|[resize3dz](https://gmic.eu/reference/resize3dz.html#top)|Ref.|No|__r3dz__
+|[rescale2d](https://gmic.eu/reference/rescale2d.html#top)|Ref.|No|__rs__
 |[rotate](https://gmic.eu/reference/rotate.html#top)|Ref.|Yes|*(none)*
 |[rotate_tileable](https://gmic.eu/reference/rotate_tileable.html#top)|Ref.|No|*(none)*
 |[rows](https://gmic.eu/reference/rows.html#top)|Ref.|Yes|*(none)*
@@ -1033,4 +1024,3 @@
 |[x_whirl](https://gmic.eu/reference/x_whirl.html#top)|Ref.|No|*(none)*
 ---
 Updated: 03-June-2023 19:30 UTC Commit: 83bba0e533652ef18ed9f113bba8a3246b50950d
-

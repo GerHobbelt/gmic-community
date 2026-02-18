@@ -518,7 +518,7 @@ if {$MontType==1&&$ImgCar==1} Agr={$Agr-0.18} fi
 if {$MontType==3&&$ImgCar==1} Agr={$Agr-0.18} fi
 if {$MontType==4&&$ImgCar==1} Agr={$Agr-0.17} fi
 if {$MontType==5&&$ImgCar==1} Agr={$Agr-0.24} fi
-rr2d {$DimMax*$Agr},{$DimMax*$Agr},2,1
+rs {$DimMax*$Agr},{$DimMax*$Agr},2
 if $MontType==0
 	Hor={h/$Agr}
 	Wor={w/$Agr}
@@ -1978,9 +1978,9 @@ fill_color[-1] $Couleur_Fond_r,$Couleur_Fond_v,$Couleur_Fond_b,$Couleur_Fond_a
 repeat $Largeur_Origine/($Resolution_L+$Resolution_L)
  repeat $Hauteur_Origine/($Resolution_H+$Resolution_H)
   couleur_pixel=${at_ancien[0]\ {$Largeur},{$Hauteur}}
-  rouge_pixel=${arg\ 1,$couleur_pixel}
-  vert_pixel=${arg\ 2,$couleur_pixel}
-  bleu_pixel=${arg\ 3,$couleur_pixel}
+  rouge_pixel=${arg0\ 0,$couleur_pixel}
+  vert_pixel=${arg0\ 1,$couleur_pixel}
+  bleu_pixel=${arg0\ 2,$couleur_pixel}
   Moyenne_couleur={1+{{$rouge_pixel+$vert_pixel+$bleu_pixel}/$Variation_Couleur}}
   Rayon_Scintillement={$Rayon_Scintillement_Origine*$Moyenne_couleur}
   Angle_Variation_En_Cours=0
@@ -2139,9 +2139,9 @@ fill_color[-1] $Couleur_Fond_r,$Couleur_Fond_v,$Couleur_Fond_b,$Couleur_Fond_a
 repeat $Largeur_Origine/($Resolution+$Resolution)
  repeat $Hauteur_Origine/($Resolution+$Resolution)
   couleur_pixel=${at_ancien[0]\ {$Largeur},{$Hauteur}}
-  rouge_pixel=${arg\ 1,$couleur_pixel}
-  vert_pixel=${arg\ 2,$couleur_pixel}
-  bleu_pixel=${arg\ 3,$couleur_pixel}
+  rouge_pixel=${arg0\ 0,$couleur_pixel}
+  vert_pixel=${arg0\ 1,$couleur_pixel}
+  bleu_pixel=${arg0\ 2,$couleur_pixel}
   Moyenne_couleur={{$rouge_pixel+$vert_pixel+$bleu_pixel}/$Grossissement_A}
 
   KL={$Grossissement_B+(($Moyenne_couleur+$Variation_L)/512)}
@@ -2300,9 +2300,9 @@ fill_color[-1] $Couleur_Fond_r,$Couleur_Fond_v,$Couleur_Fond_b,$Couleur_Fond_a
 repeat $Largeur_Origine/($Resolution+$Resolution)
  repeat $Hauteur_Origine/($Resolution+$Resolution)
   couleur_pixel=${at_ancien[0]\ {$Largeur},{$Hauteur}}
-  rouge_pixel=${arg\ 1,$couleur_pixel}
-  vert_pixel=${arg\ 2,$couleur_pixel}
-  bleu_pixel=${arg\ 3,$couleur_pixel}
+  rouge_pixel=${arg0\ 0,$couleur_pixel}
+  vert_pixel=${arg0\ 1,$couleur_pixel}
+  bleu_pixel=${arg0\ 2,$couleur_pixel}
   Moyenne_couleur={{$rouge_pixel+$vert_pixel+$bleu_pixel}/$Grossissement_A}
 
   KL={$Grossissement_B+(($Moyenne_couleur+$Variation_L)/512)}
@@ -2437,9 +2437,9 @@ fill_color[-1] $Couleur_Fond_r,$Couleur_Fond_v,$Couleur_Fond_b,$Couleur_Fond_a
 repeat $Largeur_Origine/($Resolution+$Resolution)
  repeat $Hauteur_Origine/($Resolution+$Resolution)
   couleur_pixel=${at_ancien[0]\ {$Largeur},{$Hauteur}}
-  rouge_pixel=${arg\ 1,$couleur_pixel}
-  vert_pixel=${arg\ 2,$couleur_pixel}
-  bleu_pixel=${arg\ 3,$couleur_pixel}
+  rouge_pixel=${arg0\ 0,$couleur_pixel}
+  vert_pixel=${arg0\ 1,$couleur_pixel}
+  bleu_pixel=${arg0\ 2,$couleur_pixel}
   Moyenne_couleur={{$rouge_pixel+$vert_pixel+$bleu_pixel}/$Grossissement_A}
 
   KL={$Grossissement_B+(($Moyenne_couleur+$Variation_L)/512)}
@@ -2541,9 +2541,9 @@ fill_color[-1] $Couleur_Fond_r,$Couleur_Fond_v,$Couleur_Fond_b,$Couleur_Fond_a
 repeat $Largeur_Origine/($Rayon_L+$Rayon_L)
  repeat $Hauteur_Origine/($Rayon_H+$Rayon_H)
   couleur_pixel=${at_ancien[0]\ {$Largeur},{$Hauteur}}
-  rouge_pixel=${arg\ 1,$couleur_pixel}
-  vert_pixel=${arg\ 2,$couleur_pixel}
-  bleu_pixel=${arg\ 3,$couleur_pixel}
+  rouge_pixel=${arg0\ 0,$couleur_pixel}
+  vert_pixel=${arg0\ 1,$couleur_pixel}
+  bleu_pixel=${arg0\ 2,$couleur_pixel}
   if $Rendu==0
    if $rouge_pixel-$Couleur_Limite_r>=0&&$vert_pixel-$Couleur_Limite_v>=0&&$bleu_pixel-$Couleur_Limite_b>=0
     ellipse[-1] $Largeur,$Hauteur,$Rayon_L,$Rayon_H,0,1,$rouge_pixel,$vert_pixel,$bleu_pixel,$alpha_pixel
@@ -3460,7 +3460,7 @@ foreach {
  ripple {round({w}/$2)},$3,{$4+2},$5,$6
  if $12
   +samj_houghsketchbw_20230528 $7,$8,$9,$10,$11% # Version du 28 mai 2023 de houghsketchbw de David Tschumperlé
-  mode=${arg\ 1+$13,add,alpha,and,average,blue,burn,darken,difference,\
+  mode=${arg0\ $13,add,alpha,and,average,blue,burn,darken,difference,\
   ,divide,dodge,edges,exclusion,freeze,grainextract,grainmerge,green,hardlight,\
   ,hardmix,hue,interpolation,lighten,lightness,linearburn,linearlight,luminance,\
   ,multiply,negation,or,overlay,pinlight,red,reflect,saturation,seamless,seamless_mixed,\
@@ -3491,7 +3491,7 @@ gui_split_preview "samj_ripple_houghsketchbw $*",$-1
    nm={n}
 
    # Compute normalized Hough transform.
-   res={round(if(${is_percent\ $5},$5*max(w,h),$5))} w={w} h={h} rhomax={sqrt(w^2+h^2)/2}
+   res={round(if(ispercent($5),$5*max(w,h),$5))} w={w} h={h} rhomax={sqrt(w^2+h^2)/2}
    hough $res,$res n 0,255
 
    # Retrieve coordinates of maximas in hough space.
@@ -3577,7 +3577,7 @@ foreach {
 to_rgba
 +samj_Decoupage_Triangle $1,$2,$3,$4,$5
 samj_Decoupage_Triangle[-2] $6,$7,$8,$9,$10
-mode=${arg\ 1+$12,add,alpha,and,average,blue,burn,darken,difference,\
+mode=${arg0\ $12,add,alpha,and,average,blue,burn,darken,difference,\
 ,divide,dodge,edges,exclusion,freeze,grainextract,grainmerge,green,hardlight,\
 ,hardmix,hue,interpolation,lighten,lightness,linearburn,linearlight,luminance,\
 ,multiply,negation,or,overlay,pinlight,red,reflect,saturation,seamless,seamless_mixed,\
@@ -3687,7 +3687,8 @@ if $4==1 imagegrid_triangular $5,$6,$7,0,0,0,0 fi
 if $8==1 srand 123 spread $9 noise {$9*2.5} to_rgb blur $10 fi
 if $11==1 polygonize $12,$13,$14,$15,$16 fi
 if $17==1 repeat $18 kuwahara $19 done fi
-if $20>0 drawing 200 smooth 300 fi
+if $20>0 #drawing 200
+  smooth 300 fi
 n 0,255
 if $21==1
 	$24,$24,1,3
@@ -3761,7 +3762,7 @@ else
 		+samj_Hallucinogen[-1] $7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
 	fi
 	if $19==1 rv[-1,0] fi
-	mode=${arg\ 1+$20,add,alpha,and,average,blue,burn,darken,difference,\
+	mode=${arg0\ $20,add,alpha,and,average,blue,burn,darken,difference,\
 	,divide,dodge,edges,exclusion,freeze,grainextract,grainmerge,green,hardlight,\
 	,hardmix,hue,interpolation,lighten,lightness,linearburn,linearlight,luminance,\
 	,multiply,negation,or,overlay,pinlight,red,reflect,saturation,seamless,seamless_mixed,\
@@ -5564,7 +5565,7 @@ Smoothness_Abstraction=$12
 Levels_Abstraction=$13
 Contrast_Abstraction=$14
 Valider_Blend=$15
-mode=${arg\ 1+$16,add,alpha,and,average,blue,burn,darken,difference,\
+mode=${arg0\ $16,add,alpha,and,average,blue,burn,darken,difference,\
    divide,dodge,edges,exclusion,freeze,grainextract,grainmerge,green,hardlight,\
    hardmix,hue,interpolation,lighten,lightness,linearburn,linearlight,luminance,\
    multiply,negation,or,overlay,pinlight,red,reflect,saturation,\
@@ -5698,7 +5699,7 @@ Val_Skeleton=$2
 Deformation=$3
 Dilate_Contours=$4
 Degradation_Spread=$5
-mode=${arg\ 1+$6,add,alpha,and,average,blue,burn,darken,difference,\
+mode=${arg0\ $6,add,alpha,and,average,blue,burn,darken,difference,\
    divide,dodge,edges,exclusion,freeze,grainextract,grainmerge,green,hardlight,\
    hardmix,hue,interpolation,lighten,lightness,linearburn,linearlight,luminance,\
    multiply,negation,or,overlay,pinlight,red,reflect,saturation,\
@@ -6403,7 +6404,7 @@ Engrave_colore :
   Anti_Aliasing=1
  fi
 
- f={arg(1+$Anti_Aliasing,1,1.5,2,3)}
+ f={arg0($Anti_Aliasing,1,1.5,2,3)}
  r={$f*$Radius}
  nm=${-gui_layer_name}
  pos=${-gui_layer_pos}
@@ -6656,7 +6657,7 @@ engrave_modifie :
   Anti_Aliasing=1
  fi
 
- f={arg(1+$Anti_Aliasing,1,1.5,2,3)}
+ f={arg0($Anti_Aliasing,1,1.5,2,3)}
  r={$f*$Radius}
  nm=${-gui_layer_name}
  pos=${-gui_layer_pos}
@@ -8445,7 +8446,7 @@ samj_Fonction_Quelques_Isophotes_B :
 
 samj_Test_Mauvais_Contours:
 
-mode=${arg\ 1+$12,add,alpha,and,average,blue,burn,darken,difference,\
+mode=${arg0\ $12,add,alpha,and,average,blue,burn,darken,difference,\
    divide,dodge,edges,exclusion,freeze,grainextract,grainmerge,green,hardlight,\
    hardmix,hue,interpolation,lighten,lightness,linearburn,linearlight,luminance,\
    multiply,negation,or,overlay,pinlight,red,reflect,saturation,\
@@ -8547,10 +8548,10 @@ alpha_pixel=0
   OrigineV+=1
   repeat $Largeur_A
    couleur_pixel={I($OrigineH,$OrigineV)}
-   #rouge_pixel={arg(1,$couleur_pixel)}
-   #vert_pixel={arg(2,$couleur_pixel)}
-   #bleu_pixel={arg(3,$couleur_pixel)}
-   alpha_pixel={arg(4,$couleur_pixel)}
+   #rouge_pixel={arg0(0,$couleur_pixel)}
+   #vert_pixel={arg0(1,$couleur_pixel)}
+   #bleu_pixel={arg0(2,$couleur_pixel)}
+   alpha_pixel={arg0(3,$couleur_pixel)}
    if $alpha_pixel>0
     #point[-1] $OrigineH,$OrigineV,0,1,$rouge_pixel,$vert_pixel,$bleu_pixel,255
     point[-1] $OrigineH,$OrigineV,0,1,$R_a,$V_a,$B_a,$A_a
@@ -8693,10 +8694,10 @@ fill_color[-1] $Couleur_Fond_r,$Couleur_Fond_v,$Couleur_Fond_b,$Couleur_Fond_a
 repeat $Largeur_Origine/($Resolution_L+$Resolution_L)
  repeat $Hauteur_Origine/($Resolution_H+$Resolution_H)
   couleur_pixel=${at_ancien[-2]\ {$Largeur},{$Hauteur}}
-  rouge_pixel=${arg\ 1,$couleur_pixel}
-  vert_pixel=${arg\ 2,$couleur_pixel}
-  bleu_pixel=${arg\ 3,$couleur_pixel}
-  alpha_pixel=${arg\ 4,$couleur_pixel}
+  rouge_pixel=${arg0\ 0,$couleur_pixel}
+  vert_pixel=${arg0\ 1,$couleur_pixel}
+  bleu_pixel=${arg0\ 2,$couleur_pixel}
+  alpha_pixel=${arg0\ 3,$couleur_pixel}
   Moyenne_couleur={1+{{$rouge_pixel+$vert_pixel+$bleu_pixel}/$Variation_Couleur}}
   Rayon_Scintillement={$Rayon_Scintillement_Origine*$Moyenne_couleur}
   Angle_Variation_En_Cours=0
@@ -10076,10 +10077,10 @@ foreach {
   X2p={$X1p+round(u*$2/100*{h})+1}
   Y2p={$Y1p+round(u*$2/100*{h})+1}
   Pixel={I($X1p,$Y1p)}
-  Rp={arg(1,$Pixel)}
-  Vp={arg(2,$Pixel)}
-  Bp={arg(3,$Pixel)}
-  Ap={arg(4,$Pixel)}
+  Rp={arg0(0,$Pixel)}
+  Vp={arg0(1,$Pixel)}
+  Bp={arg0(2,$Pixel)}
+  Ap={arg0(3,$Pixel)}
   if $2>0
    line.. $X1p,$Y1p,$X2p,$Y2p,1,$Rp,$Vp,$Bp,$Ap
   else
@@ -10248,9 +10249,9 @@ $Largeur_Origine,$Hauteur_Origine,1,4
 repeat $Largeur_Origine/($Rayon_L+$Rayon_L)
  repeat $Hauteur_Origine/($Rayon_H+$Rayon_H)
   couleur_pixel=${at_ancien[0]\ {$Largeur},{$Hauteur}}
-  rouge_pixel=${arg\ 1,$couleur_pixel}
-  vert_pixel=${arg\ 2,$couleur_pixel}
-  bleu_pixel=${arg\ 3,$couleur_pixel}
+  rouge_pixel=${arg0\ 0,$couleur_pixel}
+  vert_pixel=${arg0\ 1,$couleur_pixel}
+  bleu_pixel=${arg0\ 2,$couleur_pixel}
   if $Rendu==0
    if $rouge_pixel-$Couleur_Limite_r>=0&&$vert_pixel-$Couleur_Limite_v>=0&&$bleu_pixel-$Couleur_Limite_b>=0
     ellipse[-1] $Largeur,$Hauteur,$Rayon_L,$Rayon_H,0,1,255
@@ -10764,10 +10765,10 @@ alpha_pixel=0
   OrigineV+=$Resolution
   repeat $Largeur_A
    couleur_pixel={I($OrigineH,$OrigineV)}
-   rouge_pixel={arg(1,$couleur_pixel)}
-   vert_pixel={arg(2,$couleur_pixel)}
-   bleu_pixel={arg(3,$couleur_pixel)}
-   alpha_pixel={arg(4,$couleur_pixel)}
+   rouge_pixel={arg0(0,$couleur_pixel)}
+   vert_pixel={arg0(1,$couleur_pixel)}
+   bleu_pixel={arg0(2,$couleur_pixel)}
+   alpha_pixel={arg0(3,$couleur_pixel)}
    if $alpha_pixel>0
     rectangle[-1] $OrigineH,$OrigineV,{$OrigineH+$Resolution-1},{$OrigineV+$Resolution-1},1,$rouge_pixel,$vert_pixel,$bleu_pixel,255
     if $Contour==1
@@ -10939,10 +10940,10 @@ alpha_pixel=0
   OrigineV+=$Resolution
   repeat $Largeur_A
    couleur_pixel={I($OrigineH,$OrigineV)}
-   rouge_pixel={arg(1,$couleur_pixel)}
-   vert_pixel={arg(2,$couleur_pixel)}
-   bleu_pixel={arg(3,$couleur_pixel)}
-   alpha_pixel={arg(4,$couleur_pixel)}
+   rouge_pixel={arg0(0,$couleur_pixel)}
+   vert_pixel={arg0(1,$couleur_pixel)}
+   bleu_pixel={arg0(2,$couleur_pixel)}
+   alpha_pixel={arg0(3,$couleur_pixel)}
    if $alpha_pixel>0
     rectangle[-2] $OrigineH,$OrigineV,{$OrigineH+$Resolution},{$OrigineV+$Resolution},1,$R_a,$V_a,$B_a,$A_a
     if $Contour==1
@@ -11402,7 +11403,7 @@ if $10==0
 	rm[0]
 else
 	to_rgba[0]
-	mode=${arg\ 1+$11,add,alpha,and,average,blue,burn,darken,difference,\
+	mode=${arg0\ $11,add,alpha,and,average,blue,burn,darken,difference,\
 	,divide,dodge,edges,exclusion,freeze,grainextract,grainmerge,green,hardlight,\
 	,hardmix,hue,interpolation,lighten,lightness,linearburn,linearlight,luminance,\
 	,multiply,negation,or,overlay,pinlight,red,reflect,saturation,seamless,seamless_mixed,\
@@ -25522,10 +25523,10 @@ foreach {
   Y4p={$Yori+round($Diag*sin(pi/180*{$Angle+270}))}
 
   couleur_pixel={I(#-1,$Xori,$Yori)}
-  Rp={arg(1,$couleur_pixel)}
-  Vp={arg(2,$couleur_pixel)}
-  Bp={arg(3,$couleur_pixel)}
-  Ap={arg(4,$couleur_pixel)}
+  Rp={arg0(0,$couleur_pixel)}
+  Vp={arg0(1,$couleur_pixel)}
+  Bp={arg0(2,$couleur_pixel)}
+  Ap={arg0(3,$couleur_pixel)}
 
   polygon.. 4,$X1p,$Y1p,$X2p,$Y2p,$X3p,$Y3p,$X4p,$Y4p,1,$Rp,$Vp,$Bp,{$AlphaPoly*$Ap}
 
@@ -25630,10 +25631,10 @@ foreach {
   OrigineV=$Y1p
 
   couleur_pixel={I(#-1,$OrigineH,$OrigineV)}
-  Rp={arg(1,$couleur_pixel)}
-  Vp={arg(2,$couleur_pixel)}
-  Bp={arg(3,$couleur_pixel)}
-  Ap={arg(4,$couleur_pixel)}
+  Rp={arg0(0,$couleur_pixel)}
+  Vp={arg0(1,$couleur_pixel)}
+  Bp={arg0(2,$couleur_pixel)}
+  Ap={arg0(3,$couleur_pixel)}
 
   polygon.. 3,$X1p,$Y1p,$X2p,$Y2p,$X3p,$Y3p,1,$Rp,$Vp,$Bp,{$AlphaPoly*$Ap}
 
@@ -25885,8 +25886,8 @@ erode. $7
 
 samj_blend_20220419 : skip ${1=alpha},${2=1},${3=1},${4=0}
   if ${"is_image_arg $1"}
-    n={narg($*)} mode=${arg\ 1+($n>=2),alpha,$2}
-    e[^-1] "Blend image$? with "${arg\ 1+$4,base,top}" layer $1, using '"$mode"' mode and opacity $3."
+    n={narg($*)} mode=${arg0\ ($n>=2),alpha,$2}
+    e[^-1] "Blend image$? with "${arg0\ $4,base,top}" layer $1, using '"$mode"' mode and opacity $3."
     repeat $! { pass$1 l[$>,-1] { if $4 rv fi blend $mode,$3 } } return
   fi
   e[^-1] "Blend all image$? together, using '$1' mode and opacity $2."
@@ -26206,7 +26207,7 @@ Liste.="<title>Test GMIC SVG</title>"$CRLF
 Liste.="<desc>SVG Symetries A</desc>"$CRLF
 if $12==1
  # Filtre Ombre Portée par https://learntutorials.net/fr/svg/topic/3262/des-filtres  Licence https://creativecommons.org/licenses/by-sa/3.0/
- Couleur=${arg\ 1+$15,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
+ Couleur=${arg0\ $15,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
  Liste.="<defs>"$CRLF
  Liste.="<filter id=\"drop-shadow\">"$CRLF
  Liste.="<feGaussianBlur in=\"SourceAlpha\" stdDeviation=\"4\"/>"$CRLF
@@ -26219,10 +26220,10 @@ if $12==1
  Liste.="</feMerge>"$CRLF
  Liste.="</filter>"$CRLF
  Liste.="</defs>"$CRLF
- Couleur=${arg\ 1+$10,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
+ Couleur=${arg0\ $10,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
  Liste.="<g filter=\"url(#drop-shadow)\" stroke=\""$Couleur"\" fill=\"transparent\" stroke-width=\""$11"\" mask=\"none\" fill-opacity=\"0\">"$CRLF
 else
- Couleur=${arg\ 1+$10,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
+ Couleur=${arg0\ $10,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
  Liste.="<g stroke=\""$Couleur"\" fill=\"transparent\" stroke-width=\""$11"\" mask=\"none\" fill-opacity=\"0\">"$CRLF
 fi
 Index=0
@@ -26459,7 +26460,7 @@ Liste.="<title>Test GMIC SVG</title>"$CRLF
 Liste.="<desc>Points et Segments</desc>"$CRLF
 if $9==1
  # Filtre Ombre Portée par https://learntutorials.net/fr/svg/topic/3262/des-filtres  Licence https://creativecommons.org/licenses/by-sa/3.0/
- Couleur=${arg\ 1+$12,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
+ Couleur=${arg0\ $12,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
  Liste.="<defs>"$CRLF
  Liste.="<filter id=\"drop-shadow\">"$CRLF
  Liste.="<feGaussianBlur in=\"SourceAlpha\" stdDeviation=\"4\"/>"$CRLF
@@ -26472,10 +26473,10 @@ if $9==1
  Liste.="</feMerge>"$CRLF
  Liste.="</filter>"$CRLF
  Liste.="</defs>"$CRLF
- Couleur=${arg\ 1+$6,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
+ Couleur=${arg0\ $6,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
  Liste.="<g filter=\"url(#drop-shadow)\" stroke=\""$Couleur"\" fill=\"transparent\" stroke-width=\""$7"\" mask=\"none\" fill-opacity=\"0\">"$CRLF
 else
- Couleur=${arg\ 1+$6,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
+ Couleur=${arg0\ $6,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
  Liste.="<g stroke=\""$Couleur"\" fill=\"transparent\" stroke-width=\""$7"\" mask=\"none\" fill-opacity=\"0\">"$CRLF
 fi
 Liste.="<polyline points=\""
@@ -26578,7 +26579,7 @@ Liste.="<title>Test GMIC SVG</title>"$CRLF
 Liste.="<desc>Points et Courbes de Bezier</desc>"$CRLF
 if $9==1
  # Filtre Ombre Portée par https://learntutorials.net/fr/svg/topic/3262/des-filtres  Licence https://creativecommons.org/licenses/by-sa/3.0/
- Couleur=${arg\ 1+$12,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
+ Couleur=${arg0\ $12,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
  Liste.="<defs>"$CRLF
  Liste.="<filter id=\"drop-shadow\">"$CRLF
  Liste.="<feGaussianBlur in=\"SourceAlpha\" stdDeviation=\"4\"/>"$CRLF
@@ -26591,10 +26592,10 @@ if $9==1
  Liste.="</feMerge>"$CRLF
  Liste.="</filter>"$CRLF
  Liste.="</defs>"$CRLF
- Couleur=${arg\ 1+$6,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
+ Couleur=${arg0\ $6,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
  Liste.="<g filter=\"url(#drop-shadow)\" stroke=\""$Couleur"\" fill=\"transparent\" stroke-width=\""$7"\" mask=\"none\" fill-opacity=\"0\">"$CRLF
 else
- Couleur=${arg\ 1+$6,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
+ Couleur=${arg0\ $6,Black,Blue,Brown,Chartreuse,Chocolate,Coral,Cyan,DarkRed,DeepPink,FireBrick,ForestGreen,Fuchsia,Gold,Green,HotPink,Indigo,Lime,Magenta,Maroon,Olive,Orange,Orchid,Pink,Purple,Red,Salmon,SeaGreen,Sienna,Violet,Wheat,White,Yellow}
  Liste.="<g stroke=\""$Couleur"\" fill=\"transparent\" stroke-width=\""$7"\" mask=\"none\" fill-opacity=\"0\">"$CRLF
 fi
 if w>h
@@ -27927,7 +27928,7 @@ at_ancien : skip ${1=0},${2=0},${3=0}
 # ancienne fonction gimp_blend pour ne pas avoir à refaire les scripts > gmic 1651
 
 gimp_blend_1651 :
-  mode=${arg\ 1+$1,add,alpha,and,average,blue,burn,darken,difference,\
+  mode=${arg0\ $1,add,alpha,and,average,blue,burn,darken,difference,\
        divide,dodge,edges,exclusion,freeze,grainextract,grainmerge,green,hardlight,\
        hardmix,hue,interpolation,lighten,lightness,linearburn,linearlight,luminance,\
        multiply,negation,or,overlay,pinlight,red,reflect,saturation,\
@@ -28308,7 +28309,7 @@ elif $1==3 # Courbe
 	fill "t=x/40;if(c==0,sin(t),cos(t))*(exp(cos(t))-2*cos(4*t)-sin(t/12)^5)"
 	if $6==1 display_parametric 512,512 fi
 elif $1==4 # Vector Painting
-	fill "dmax = -1; nmax = 0; for (n = 0, ++n<=8, p = arg(n,-$7,0,$7,-$7,$7,-$7,0,$7); q = arg(n,-$7,-$7,-$7,0,0,$7,$7,$7); d = (j(p,q,0,0,0,1)-i)^2; if(d>dmax,dmax = d; nmax = n,nmax) )"
+	fill "dmax = -1; nmax = 0; for (n = 0, ++n<=8, p = arg1(n,-$7,0,$7,-$7,$7,-$7,0,$7); q = arg1(n,-$7,-$7,-$7,0,0,$7,$7,$7); d = (j(p,q,0,0,0,1)-i)^2; if(d>dmax,dmax = d; nmax = n,nmax) )"
 elif $1==5 # Gradients
 	if $8==0
 		fill "1/w*x"
@@ -28370,7 +28371,7 @@ elif $1==11 # Artistic
 	elif $14==8
 		+blur {$15/4}
 		repeat 2
-			fill[-1] "dmax=-1; nmax=0; for (n=0, ++n<=8, p=arg(n,-4,0,4,-4,4,-4,0,4); q=arg(n,-4,-4,-4,0,0,4,4,4); d=(j(p,q,0,0,0,1)-i)^2; if(d>dmax,dmax=d; nmax=n,nmax))"
+			fill[-1] "dmax=-1; nmax=0; for (n=0, ++n<=8, p=arg1(n,-4,0,4,-4,4,-4,0,4); q=arg1(n,-4,-4,-4,0,0,4,4,4); d=(j(p,q,0,0,0,1)-i)^2; if(d>dmax,dmax=d; nmax=n,nmax))"
 		done
 		fill[-1] "[(R+G+B)/3,(R+G+B)/3,(R+G+B)/3]"
 		fill[-1] "-i"
@@ -28946,6 +28947,7 @@ Blend_Black_Lines_Opacity=$9
 #@gui :_=note("<small>samj - Latest update : <i>2016/11/16</i>.</small>")
 
 samj_Toile_D_Araignee :
+  return # <- Because this filter seems to never finish!
 
 Details=$1
 Polygonize_Resolution=$2
@@ -29504,6 +29506,7 @@ samj_CeKoaSa_004 :
 #@gui :_=separator()
 #@gui :_=note("<small>samj - Dernière mise à jour : <i>2020/11/24</i>.</small>")
 samj_CeKoaSa_003 :
+  return # <- Because this filter seems to never finish!
 
  Smoothness_thin_edges=$1
  Threshold_thin_edges=$2
@@ -30064,7 +30067,7 @@ samj_test_x_color_curves :
 #@gui :_=separator()
 #@gui :_=note("<small>Auteur / Author : <i>David Tschumperlé</i>.      Dernière mise à jour: <i>2013/01/18 samj</i>.</small>")
 gimp_recolorize_20130115_modifie :
-
+  if $!!=2 gui_error_preview "This filter requires two layers to work properly!" return fi
 Smoothness=$1
 Nuances=$2
 Normalize_A=$3

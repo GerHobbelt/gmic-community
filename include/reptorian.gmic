@@ -48,6 +48,162 @@
 #
 #-------------------------------
 
+#@cli rep_pf_args: prefix,postfix,arg0,arg1,...
+#@cli : Return arguments with prefix/postfix applied.
+rep_pf_args:
+skip ${1=},${2=}
+
+check $#>=3&&(narg($1)||narg($2))
+
+$=a
+p=3
+
+repeat $#-2 {
+	r.=${S}$1${a$p}$2
+	S=,
+	p+=1
+}
+
+u $r
+#@cli rep_sug_args: inp,_sep,_return_all_arg={ 0=false | 1=true},0.5>=_int_score_threshold<=3,arg0,arg1,...
+#@cli : Suggest arguments given input using Damerau-Levenshtein Distance algorithm.
+#@cli :
+#@cli : Returns '01e0' on exact match.
+#@cli : Returns '00e0' if no close match is found.
+#@cli :
+#@cli : Note: For '00e0' and '01e0'. They're intended to be that way to avoid conflict with 0 or 1. So, keep in mind these are meant to be treated as vector to be validated.
+#@cli :
+#@cli : Returns suggestion when close matches are found.
+#@cli :
+#@cli : Errors when no valid input for argN is found.
+#@cli : Default values: 'sep=','_return_all_arg=1','_int_score_threshold=2'
+rep_sug_args:
+# Set default values and validate threshold
+skip ${2=},${3=1},${4=2}
+check inrange($4,.5,3,1,1)
+
+# Store input index and first argument index
+$=vars
+input1,input2:=$!+[0,1]
+
+# Convert input argument to image
+('$vars1')
+p=5
+
+# Convert searchable arguments to images
+repeat $#-4 {
+	('${vars$p}')
+	if !w rm. fi
+	p+=1
+}
+
+# If only empty arguments are found
+if $!==$input2
+	error no_input
+fi
+
+# Remove duplicate searchable arguments
+remove_duplicates[$input2--1]
+
+# Check for exact match using image comparison
+words_to_search={$!-$input2}
+
+eval "
+	const p=$input1;
+	q=$input2;
+	base_stats=[w#p,h#p,d#p,s#p];
+	found=0;
+	repeat($words_to_search,
+		if(same(base_stats,[w#q,h#q,d#q,s#q]),
+			if(same(crop(#p),crop(#q,0,0,0,0,w#p,h#p,d#p,s#p)),
+				found=1;
+				break();
+			);
+		);
+		++q;
+	);
+	found;
+	"
+
+# If exact match found, clean up and return success
+if ${}
+	rm[$input1--1]
+	u 01e0 # Unique success marker
+	return
+fi
+
+# Compute Levenshtein score for each candidate
+repeat $!-$input2 {
+	score=${-_$0_score[$input1,$input2]}
+	name[$input2] $score
+	input2+=1
+}
+
+# Remove input image and discard weak matches
+rm[$input1]
+foreach[$input1--1] { if {0,n}>$4 rm fi }
+
+# If no matches remain, return failure
+if $!==$input1
+	u 00e0 # Unique failure marker
+	return
+fi
+
+# Sort results by score
+sort_list[$input1--1] +,n
+
+# Build output list (single or multiple based on return_all_arg)
+repeat $3?$!-$input1:1 {
+	r.=$S$2{$input1,t}$2
+	S=,
+	rm[$input1]
+}
+
+# Clean up remaining images
+if $input1<$! rm[$input1--1] fi
+
+# Return result
+u $r
+_rep_sug_args_score:
+# Ensure exactly two input images
+check $!==2
+
+# Initialize scoring matrix
+{[whd#0,whd#1]+1},1,1,!y?x:!x?y
+
+# Compute Damerau-Levenshtein distance
+{[w,h]-1},1,1,>"
+	X=x+1;
+	Y=y+1;
+
+	a=lowercase(i[#0,X-1]);
+	b=lowercase(i[#1,Y-1]);
+
+	cost=(a!=b);
+
+	# Standard Levenshtein
+	del = i(#2,X-1,Y) + 1;
+	ins = i(#2,X,Y-1) + 1.25;
+	sub = i(#2,X-1,Y-1) + cost;
+
+	d = min(del,ins,sub);
+
+	# Adjacent transposition
+	if(X>1 && Y>1,
+		if( a==lowercase(i[#1,Y-2]) && lowercase(i[#0,X-2])==b,
+			d=min(d,i(#2,X-2,Y-2)+0.5);
+		);
+	);
+
+	i(#2,X,Y)=d;
+	i;
+	"
+
+# Return final score
+u {i[#-2,whd#-2-1]}
+
+# Cleanup temporary images
+rm[-2,-1]
 #@cli rep_txt2uints: string
 #@cli : Return the numerical decoding representation of unicode from txt.
 #@cli : _CODEPAGE variable should define your encoding approach. Otherwise, fallback on auto-finding encoding method.
@@ -108,154 +264,186 @@ id-=2
 b64_codepage_map2unicode 1 crop. $id,$id
 u {map('$1',crop(#-1))} rm.
 #@cli rep_xp2b: base_pow2_a,base_pow2_b,str_a,str_b
-#@cli : Convert between bases of power of 2 bases. Only binary, quaternary, octal, hexadecimal, and triacontadecimal number is supported.
+#@cli : Convert between bases of power of 2 bases. Only binary, quaternary, octal, hexadecimal, and duotrigesimal number is supported.
 #@cli : base_pow2_? can be number representing the base, or string.
 #@cli : - Accepted arguments for base_pow2_? -
 #@cli : - base - small_id - big_id
-#@cli : - 2  - bin - binary
-#@cli : - 4  - qua - quaternary
-#@cli : - 8  - oct - octal
-#@cli : - 16 - hex - hexadecimal
-#@cli : - 32 - tca - triacontadecimal
+#@cli : - 2  - bin        - binary
+#@cli : - 4  - qua        - quaternary
+#@cli : - 8  - oct        - octal
+#@cli : - 16 - hex        - hexadecimal
+#@cli : - 32 - duo/duotri - duotrigesimal
 #@cli : str_? are the number represented by base_pow2_a
 rep_xp2b:
-a,b,I,T,n0:=isnum($1),isnum($2),$!,$#-2,'0' # I = Number of Images ; T = Number of input strings to convert
-check ($a?isin($1,2,4,8,16,32):1)&&($b?isin($2,2,4,8,16,32):1)&&isint($#,3)
+I,T,n0:=$!,$#-2,'0' # I = Number of Images ; T = Number of input strings to convert
+check $#>2
 
-base_bin,base_binary=2
-base_qua,base_quaternary=4
-base_oct,base_octal=8
-base_hex,base_hexadecimal=16
-base_tca,base_triacontadecimal=32
+$=a
+a1,a2,b0,b1,b2,b3,b4,Abin,Abinary,A2,Aqua,Aquaternary,A4,Aoct,Aoctal,A8,Ahex,Ahexadecimal,A16,Aduo,Aduotri,Aduotrigesimal,A32=${strlowercase\ $a1},${strlowercase\ $a2},"bin,binary,2","qua,quaternary,4","oct,octal,8","hex,hexadecimal,16","duo,duotri,duotrigesimal,32",1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,5
 
-if $a
-	base_a=$1
+__rep_xp2b_check_arg $a1,$1
+__rep_xp2b_check_arg $a2,$2
+
+B1,B2=${A$a1},${A$a2}
+
+if $B1>3
+	max_lower,max_higher={[_'a',_'A']+(1<<$B1)-11}
+	m __$0_validate_image_chars:"
+		+f. isint(i,_'0',_'9')||isint(i,_'a',$max_lower)||isint(i,_'A',$max_higher)
+		if !im error non_val_char\" \"@\" \"\\$$p fi
+		rm.
+	"
 else
-	base_a=${base_$1}
+	max_val={_'0'+(1<<$B1)-1}
+	m __$0_validate_image_chars:"
+		if isint([im,iM],_'0',$max_val)!=[1,1] error non_val_char\" \"@\" \"\\$$p fi
+	"
 fi
 
-if $b
-	base_b=$2
-else
-	base_b=${base_$2}
-fi
+if $B1==$B2
+	repeat $T {
+		p={3+$>}
 
-m "__$0_vars: $""=str"
-__$0_vars ${3--1}
-um __$0_vars
+		('${a$p}')
 
-b2,b4,b8,b16,b32=1,2,3,4,5
+		z. {repeat(w#-1,p,if(i[#-1,p]!=_'0',break();););p;},100%
 
-if $base_a==$base_b
-	if $base_a<$base_hex
-		max_val:=_'0'+$base_a-1
-		repeat $T {
-			('${str{$>+1}}')
-			if isint([im,iM],_'0',$max_val)!=[1,1] error non_val_char fi
+		if !im
+			t.=$S
+			t.=0
+			S=,
 			rm.
-		}
-	else
-		max_lower,max_higher={[_'a',_'A']-2+$base_a}
-		repeat $T {
-			('${str{$>+1}}')
-			f. isint(i,_'0',_'9')||isint(i,_'a',$max_lower)||isint(i,_'A',$max_higher)
-			if !im error non_val_char fi
-			rm.
-		}
-	fi
-	u ${3--1}
+			continue
+		fi
+
+		__$0_validate_image_chars
+
+		t.=$S{t}
+		S=,
+		rm.
+	}
+
+	u $t
 	return
 fi
 
-is_base_b_bin={$base_b==$base_bin}
-if $base_a>2
-	is_base_a_hex={$base_a==$base_hex}
+m __$0_var2img:"
+	if !narg(${a$p}) error noarg\" \"@\" \"\\$$p fi
+	('${a$p}')
+	z. {repeat(w#-1,p,if(i[#-1,p]!=_'0',break();););p;},100%
+	"
 
-	step=${b$base_a}
-	+rep_cartesian_product {vector(#$step,2)} => binaries
-	if $is_base_b_bin +. $n0 fi
+if $B1>1
+	+rep_cartesian_product {vector(#$B1,2)}
 
 	repeat $T {
-		('${str{$>+1}}')
-		z. {repeat(w#-1,p,if(i[#-1,p]!=_'0',break();););p;},100%
-		{w*$step}
-		eval[-2] "begin(
-				p=started=0;
-				const _shift_lower=_'a'-10;
-				const _shift_higher=_'A'-10;
+		p={3+$>}
+		__$0_var2img
+
+		if !im
+			rm..
+			({vector($B2,_'0')})
+			continue
+		fi
+
+		__$0_validate_image_chars
+
+		{w*$B1},1,1,1,{_'0'}
+
+		eval.. "begin(
+				const B1=$B1;
+				const B2=$B2;
+				const Q0=_'a'-10;
+				const Q1=_'A'-10;
+				const R=$I;
+				const _0=_'0';
+				started=p=0;
 			);
 			started?(
-				p+=$step;
+				p+=B1;
 			):(
-				p=x*$step;
-				started=1;
+				p=x*B1;
 			);
-			ind=isint(i,_'0',_'9')?(
-					i-_'0';
-				):
-				isint(i,_'A',_'V')?(
-					i-_shift_higher;
-				):
-				isint(i,_'a',_'v')?(
-					i-_shift_lower;
-				):(
-					-1;
-				);
-			if(!isint(ind,0,w#$binaries-1),
-				run('error inval_char');
+			isint(i,_'0',_'9')?(
+				copy(i[#-1,p],i[#R,i-_0],B1,1,w#R,-1);
+			):
+			isint(i,_'a',_'v')?(
+				copy(i[#-1,p],i[#R,i-Q0],B1,1,w#R,-1);
+			):(
+				copy(i[#-1,p],i[#R,i-Q1],B1,1,w#R,-1);
 			);
-			copy(i[#-1,p],I[#$binaries,ind]);
+			i;
 			"
-		if $is_base_b_bin
-			z. {repeat(w-1,p,if(i[#-1,p]!=_'0',break();););p;},100%
-			res.=$sep{t}
-			sep=,
-			rm[-2,-1]
-		else
-			rm[-2]
-		fi
+		rm..
+
+		r. {p=0;while(i[#-1,p]==_'0',++p;);W=w#-1-p;ceil(W/$B2)*$B2},1,1,1,0,0,1
+		eval p=0;while(!i[#-1,p],i[#-1,p++]=_'0';);
 	}
 
-	rm[binaries]
-
-	if $is_base_b_bin
-		u $res
-		return
-	fi
+	rm[$I]
 else
 	repeat $T {
-		('${str{$>+1}}')
-		check isint([im,iM],_'0',_'1')==[1,1]
-		z. {repeat(w#-1-1,p,if(i[#-1,p]!=_'0',break();););p;},100%
-		-. $n0
+		p={3+$>}
+
+		__$0_var2img
+
+		if !im
+			rm..
+			({vector($B2,_'0')})
+			continue
+		fi
+
+		__$0_validate_image_chars
+
+		r. {ceil(w/$B2)*$B2},1,1,1,0,0,1
+		eval p=0;while(!i[#-1,p],i[#-1,p++]=_'0';);
 	}
 fi
 
-chunks_size=${b$base_b}
-foreach[$I--1] {
-	{ceil(w/$chunks_size)},1,1,1,"begin(
-			const off=-(w#-1-w*$chunks_size);
-			const _0=_'0';
-			const _offset=(_'a')-10;
-			const _shift_lower=_'a'-10;
-			shift_factor=reverse(expr('x',$chunks_size));
-			p=started=0;
-		);
-		started?(
-			p+=$chunks_size;
-		):(
-			p=x*$chunks_size-off;
-		);
-		v=sum(crop(#-1,p,$chunks_size)<<shift_factor);
-		v<10?v+_0:v+_offset;
-		"
-	z. {repeat(w#-1-1,p,if(i[#-1,p]!=_'0',break();););p;},100%
-	res.=$sep{t}
-	sep=,
-	rm
-}
+um __$0_var2img,__$0_validate_image_chars
 
-u $res
+if $B2>1
+	foreach[$I--1] {
+		{w/$B2},1,1,1,"begin(
+				const B=$B2;
+				const _0=_'0';
+				const _m_a=_'a'-10;
+				started=p=0;
+			);
+			started?(
+				p+=B;
+			):(
+				p=x*B;
+				started=1;
+			);
+			v=s2v([['0b'],crop(#$I,p,B)]);
+			v<10?v+_0:v+_m_a;"
+		r.=$S{t}
+		S=,
+		rm
+	}
+else
+	foreach[$I--1] {
+		r.=$S{$I,t}
+		S=,
+		rm
+	}
+fi
+
+u $r
+__rep_xp2b_check_arg:
+l[] {
+	check narg(${A$1})
+	onfail
+		closest_arg=${rep_sug_args\ $1,,0,3,$b0,$b1,$b2,$b3,$b4}
+		repeat 5 {
+			L=${rep_pf_args\ ',',${b$>}}
+			if isin('$closest_arg',$L)
+				error "Invalid value '"$2"'. Expected one of (case-insensitive): "$L
+			fi
+		}
+		error no_closest_match_found
+}
 #@cli rep_pattern_str: 0<max_number_of_digits<=16,_use_padding={ 0=False | 1=True },_use_hex_ind={ 0=False | 1=True }
 #@cli : Creates a string utilized for pattern.
 #@cli : Default values: '_use_padding=0','_use_hex_ind=1'
@@ -629,42 +817,57 @@ fi
 
 if $red_cols_mode
 	m __$0_red_cols_mode:"
-		keep[0]
-		+_colormap_median_cut $1
-
 		if $2 # Add k-means step
-			max_diff={iM-im+1}/8192
+			keep[0,2]
+			+_rep_colormap_median_cut[0] $1
+			max_diff={(iM-im+1)/8192}
 
-			do
-				+index.. . # Find nearest cluster for each color
-				if $is_half
-					..,1,1,{1,s}
+			eval.. :\"
+				O=J(-1);                   # Negative Offset Vector
+				SP=(O[0]<<24|O[1])-1;      # Start Point
+				Q=i0<<24|i1;               # End Point - Semi Const
+				const S=s#0;               # Spectrum size;
+				base_new=vector(whds#-1);
+				current_palette=crop(#-1);
+				new_palette=incremental_palette=current_palette * 0;
+				temp_vector=count=vector(#whd#-1);
+				const C=size(count);
 
-					eval \"
-						csum = vector(#w*s#0);
-						cocc = vector(#w,0);
-						repeat (w#2,k,
-							ind = i[#2,k];
-							repeat (s#0,c,csum[ind + c*w]+=i(#0,k,0,0,c));
-							++cocc[ind];
+				do(
+					P=SP;
+					while(++P<Q,
+						current_color=I[#0,P];
+						selected_index=[index(current_color,current_palette,S,0,0)][0];
+						copy(incremental_palette[selected_index],current_color,S,C,1,-1);
+						++count[selected_index];
+					);
+					critical(
+						merge(incremental_palette,+);
+						merge(count,+);
+						count=1/vmax(count,1);
+						p=0;
+						repeat(S,
+							copy(temp_vector[0],incremental_palette[p],C,1,1);
+							temp_vector*=count;
+							copy(new_palette[p],temp_vector[0],C,1,1);
+							p+=C;
 						);
-						off = 0;
-						repeat (s#0,c,
-							repeat (w,k,occ = cocc[k]; occ?(csum[off++]/=occ));
-						);
-						draw(#3,csum)\"
-				else
-					..,1,1,{1,s+1}
-					f.. \">I[#3,i]+=[ I[#0,x],1 ]\" rm..
-					f. \"s = i(x,0,0,s-1); s?I/s:[ I[#1,x],0]\"
-				fi
-
-				+-.. . abs. diff:=iM/w rm. # Compute colormap difference
-				j.. . rm.
-			while $diff>$max_diff
+						diff=maxabs(new_palette-current_palette);
+						current_palette=new_palette;
+						copy(count[0],0,size(count),1,0);
+						copy(incremental_palette[0],0,size(incremental_palette),1,0);
+					);
+				,diff>$max_diff);
+				end(
+					copy(i[#2,0],current_palette);
+				);
+				\"
+				rm[0,1]
+		else
+			rm[^0]
+			_rep_colormap_median_cut $1
 		fi
-
-		rm.."
+		"
 fi
 
 foreach {
@@ -672,14 +875,14 @@ foreach {
 	if whd<=1 continue fi
 
 	# Set up important variables
-	cpus_to_use,mt_mode,pxs_to_process_per_threads,bitshift_factor,dictionary_buckets_per_threads,bit_mask:="
+	cpus_to_use,mt_mode,pxs_to_process_per_threads,bitshift_factor,dictionary_buckets_per_threads,bit_mask,t_red_cols_mode:="
 		cpus_to_use=cut(int(whd#0/0x8000),1,$_cpus);
 		mt_mode=cpus_to_use>1;
 		pxs_to_process_per_threads=ceil(whd/cpus_to_use);
 		bitshift_factor=cut(int(log2(sqrt(pxs_to_process_per_threads)))+1,8,16);
 		dictionary_buckets_per_threads=1<<bitshift_factor;
 		bit_mask=dictionary_buckets_per_threads-1;
-		cpus_to_use,mt_mode,pxs_to_process_per_threads,bitshift_factor,dictionary_buckets_per_threads,bit_mask;
+		cpus_to_use,mt_mode,pxs_to_process_per_threads,bitshift_factor,dictionary_buckets_per_threads,bit_mask,$red_cols_mode;
 	"
 
 	S={s}
@@ -691,8 +894,7 @@ foreach {
 		fi
 	fi
 
-	if $red_cols_mode
-		is_half=${-is_half}
+	if $t_red_cols_mode
 		r[0] {whd},1,1,100%,-1
 	fi
 
@@ -754,7 +956,7 @@ foreach {
 	0x$total_num_of_buckets_per_section
 	$dictionary_buckets_per_threads,$cpus_to_use
 
-	if $red_cols_mode
+	if $t_red_cols_mode
 		1,1,1,1,1 rv[-2,-1]
 	fi
 
@@ -764,7 +966,7 @@ foreach {
 		begin(
 			const S=s#0;
 			const mt_mode=$mt_mode;
-			const urcmt=$red_cols_mode;
+			const urcmt=$t_red_cols_mode;
 			const calc_max_freq_num_mode=!mt_mode&&$highest_color_frequency_mode;
 			const col_cnt_mode=$col_cnt_mode;
 			const vector_insertion_size=S+col_cnt_mode+mt_mode;
@@ -872,7 +1074,6 @@ foreach {
 				last_color=current_color;
 			);
 		);
-
 		I;
 		end(
 			if(calc_max_freq_num_mode,
@@ -883,33 +1084,36 @@ foreach {
 			);
 		);"
 
-	if $red_cols_mode
-		if i[#-2,0]?sum(expr('max(crop(#-1,x,0,0,0,h#-1,1,1,1))',w#-1))>$1:1
+	if $t_red_cols_mode
+		if i[#-2,0]?sum(expr('max(crop(#-1,x,0,0,0,1,h#-1,1,1))',w#-1))>$1:1
 			__$0_red_cols_mode
 			continue
+		elif is#-1<=$1
+			rm..
+			t_red_cols_mode=0
 		fi
 	fi
 
 	if $mt_mode
-		if $red_cols_mode
-			rm[1]
-		else
+		if !$t_red_cols_mode
 			rm[0,1]
 		fi
 
 		L={max(1,min(int(is#-1/0x8000),$_cpus,$dictionary_buckets_per_threads))}
 
-		r[$red_cols_mode] $L,100%,100%,{$highest_color_frequency_mode?$S+2:1},-1
+		r[$t_red_cols_mode] $L,1,1,{$highest_color_frequency_mode?$S+2:1},-1
 
-		T=$!
+		T,I:=$!,1+($t_red_cols_mode?2)
+
+		F={$I+$dictionary_buckets_per_threads-1}
+
 		0x{$L*$dictionary_buckets_per_threads}
 
-		$mt_cmd[$red_cols_mode] :"
+		$mt_cmd[$t_red_cols_mode] >"
 			begin(
 				const S=$S;
 				const d_S=S-1;
-				const cpus=$_cpus;
-				const urcmt=$red_cols_mode;
+				const urcmt=$t_red_cols_mode;
 				const calc_max_freq_num_mode=$highest_color_frequency_mode;
 				const col_cnt_mode=$col_cnt_mode;
 				const hash2_pos=S+col_cnt_mode;
@@ -919,14 +1123,14 @@ foreach {
 				const offset_bucket_size=w#img_ref;
 				const levels=h#img_ref;
 				const current_bucket_vector_size=hash2_pos+1;
-				const offset_2_bucket_start=k+1;
+				const offset_2_bucket_start=$I;
 
 				urcmt?(
-					urcmt_state=T-2;
-					cond()=current_bucket<=D&&i[#urcmt_state,0];
+					const urcmt_state=T-2;
+					color_collection_ok()=(current_bucket<=D)&&i[#urcmt_state,0];
 					count_of_color=0;
 				):(
-					cond()=current_bucket<=D;
+					color_collection_ok()=current_bucket<=D;
 				);
 
 				init_current_color=vector(#S);
@@ -944,8 +1148,8 @@ foreach {
 				);
 			);
 			img_ind_of_start_of_secondary_dictionary=D*x+T;
-			for(current_bucket=x+offset_2_bucket_start,current_bucket<=D,current_bucket+=w,
-				bucket_id=current_bucket-1;
+			for(current_bucket=x+offset_2_bucket_start,color_collection_ok(),current_bucket+=w,
+				bucket_id=current_bucket-offset_2_bucket_start;
 				current_bucket_ins_pos=current_level=0;
 
 				secondary_insert_positions_list=init_number_of_keys;
@@ -1075,7 +1279,7 @@ foreach {
 			);
 			"
 
-		if $red_cols_mode
+		if $t_red_cols_mode
 			if !i[#{$T-2},0]
 				__$0_red_cols_mode
 				continue
@@ -1083,7 +1287,7 @@ foreach {
 		fi
 
 		if $highest_color_frequency_mode
-			k[$red_cols_mode]
+			k[$t_red_cols_mode]
 			$od,$S,[{"const s=$S;
 				aM=argmax(crop(#0,0,0,0,s,w#0,1,1,1));
 				am=argmax(crop(#0,0,0,0,s+1,w#0,1,1,1));
@@ -1093,7 +1297,7 @@ foreach {
 			"}]
 			k[1]
 		else
-			k[1-$dictionary_buckets_per_threads] a y permute yzcx
+			k[$I-$F] a y permute yzcx
 		fi
 	else
 		if $highest_color_frequency_mode
@@ -1105,7 +1309,7 @@ foreach {
 				1,1,1,$S,[${}]
 			fi
 		else
-			if $red_cols_mode rm.. fi
+			if $t_red_cols_mode rm.. fi
 			k[3--1]
 			eval. if(i,resize(#x,{$S+$col_cnt_mode},i,1,1,-1));
 			rm.
@@ -1116,14 +1320,14 @@ foreach {
 }
 
 status $original_status
-_colormap_median_cut: # Implementation of the median-cut algorithm done by David Tschumperlé.
-  m _$0": repeat s { sh[$""1] $> =.. {iM-im},$""1,0,0,$> rm. }"
+_rep_colormap_median_cut: # Implementation of the median-cut algorithm done by David Tschumperlé.
+  m _$0": 1,1,1,100%,:C=crop(#$""1,0,0,0,c,w#$""1,h#$""1,d#$""1,1);max(C)-min(C) j.. .,$""1 rm."
   1,1,1,{s} _$0 0 # Initialize image of box ranges
   repeat $1-1 {
     b,a:=xM,cM # b = box with highest range, a = axis with highest range
     l[$b] { shift 0,0,0,-$a,2 sort +,x shift 0,0,0,$a,2 xm:=int(w/2) }
-    if {$b,w>1} +z[$b] $xm,100% z[$b] 0,{$xm-1} else 1,1,1,{$b,s} fi
-    rv[-2,-1] r. {w+1},1,1,100%,0
+    if {$b,w>1} +z[$b] $xm,100% z[$b] 0,{$xm-1} else 1,1,1,100% fi
+    rv[-2,-1] z. 0,{w}
     _$0 $b _$0 {$!-2} # Update box ranges
   }
   rm. r 1,1,1,100%,2 a x # Average value in each box and append as final colormap
@@ -4331,7 +4535,7 @@ if $use_shape
    if s<=4&&s>1
     if s==3 to_gray.
     else
-     s. c,{arg(int(s/2,-3,-1)}
+     s. c,{arg1(int(s/2,-3,-1)}
     fi
    elif s==5
     s. c,-4 cmyk2rgb.. to_gray.. *[-2,-1]
@@ -4492,14 +4696,14 @@ if $double_concatenation_mode
      find_pos()=1+sum((mx-x)%2,2*((my-y+startnum)%2));
 
      generate_tile_b()=(
-      shape_tile=arg(find_pos(),tile_v0,tile_v1,tile_v2,tile_v3);
+      shape_tile=arg1(find_pos(),tile_v0,tile_v1,tile_v2,tile_v3);
       color_tile=vc_0+vc_1*shape_tile;
       tile=[color_tile,filled_alpha];
       draw(#-1,tile,x*shape_size,y*shape_size,0,0,shape_size,shape_size,1,tchan);
      );
 
      generate_tile_a()=(
-      shape_alp=arg(find_pos(),shape_0,shape_1,shape_2,shape_3);
+      shape_alp=arg1(find_pos(),shape_0,shape_1,shape_2,shape_3);
       sv[0]>=0?(
        color=generate_color_a();
        color_tile=resize(color,tile_size,1,0);
@@ -4707,7 +4911,7 @@ else
       const startnum=$startnum_a;
       find_pos()=1+sum((mx-x)%2,2*((my-y+startnum)%2));
       generate_tile()=(
-       alpha=arg(find_pos(),alpha_0,alpha_1,alpha_2,alpha_3);
+       alpha=arg1(find_pos(),alpha_0,alpha_1,alpha_2,alpha_3);
        color=generate_color();
        color_tile=resize(color,tile_size,1);
        tile=[color_tile,alpha];
@@ -5753,7 +5957,7 @@ repeat $ncol {
 
 if $ncol>1 u_string.=] fi
 
-{arg($axis+1,[$1,1,1],[1,$1,1],[1,1,$1])},1
+{arg0($axis,[$1,1,1],[1,$1,1],[1,1,$1])},1
 
 s. $dir_axis,$2
 
@@ -6360,7 +6564,7 @@ e[^-1] "Convert color representation of image$? from HSL to RYB to RGB."
 
 f "H=(i0/60)%6;C=(1-abs(2*i2-1))*i1;X=C*(1-abs(H%2-1));
 	m=i2-C/2;
-	RYB=arg(1+int(H),[C,X,0],[X,C,0],[0,C,X],[0,X,C],[X,0,C],[C,0,X]);
+	RYB=arg0(int(H),[C,X,0],[X,C,0],[0,C,X],[0,X,C],[X,0,C],[C,0,X]);
 	RYB+=m*=255;
 	red=RYB[0];
 	yellow=RYB[1];
@@ -6403,7 +6607,7 @@ check "inrange($2,0,1,1,1)&&inrange($3,-1,1,1,1)&&isint($4,0,10)&&isint($5,0,3)"
 		const mode=$4;
 		ang=start_ang;
 		mode<4?(
-			const add_ang=arg(mode+1,8,15,30,180);
+			const add_ang=arg0(mode,8,15,30,180);
 			add2ang()=ang+=add_ang;
 		):
 		mode==4?(
@@ -6415,7 +6619,7 @@ check "inrange($2,0,1,1,1)&&inrange($3,-1,1,1,1)&&isint($4,0,10)&&isint($5,0,3)"
 		):(
 			const ind=mode-7;
 			add_ang_a=([90,60,120,30])[ind];
-			const add_ang_b=arg(ind+1,180,120,30,90);
+			const add_ang_b=arg0(ind,180,120,30,90);
 			add2ang()=(
 					if(x&1
 					,ang+=add_ang_b;
@@ -9532,7 +9736,7 @@ eval. :"begin_t(
 			_I[2]=cut(_I[2],0,1);
 			_c=_I[2]*_I[1];
 			_x=_c*(1-abs((_I[0]/60)%2-1));
-			(arg(1 + int(_I[0]/60),[_c,_x,0],[_x,_c,0],[0,_c,_x],[0,_x,_c],[_x,0,_c],[_c,0,_x])+=_I[2] - _c)*=255;
+			(arg0(int(_I[0]/60),[_c,_x,0],[_x,_c,0],[0,_c,_x],[0,_x,_c],[_x,0,_c],[_c,0,_x])+=_I[2] - _c)*=255;
 		);
 
 		$8&&!narg($10)?(
@@ -10448,7 +10652,7 @@ foreach {
 		hue2rgb(h)=(
 			H=(h/60)%6;
 			K=(1-abs(H%2-1))*255;
-			arg(1+int(H),[255,K,0],[K,255,0],[0,255,K],[0,K,255],[K,0,255],[255,0,K]);
+			arg0(int(H),[255,K,0],[K,255,0],[0,255,K],[0,K,255],[K,0,255],[255,0,K]);
 		);
 	);
 	px=(x-cx)/cxsx;
@@ -10928,7 +11132,7 @@ $nw,$nh,100%,1,":begin(
  limit=0;
  repeat(vsize,n,
   sp = n % seqsize;
-  rn=arg(v_sequence[sp]+1,ix,iy,iz);
+  rn=arg0(v_sequence[sp],ix,iy,iz);
   vn=rn*vn*(1-vn);
   limit+=log(abs(rn*(1-2*vn)));
  );
@@ -11340,7 +11544,7 @@ foreach {
  limit=0;
  repeat(vsize,n,
   sp = n % seqsize;
-  rn=arg(v_sequence[sp]+1,ix,iy,iz);
+  rn=arg0(v_sequence[sp],ix,iy,iz);
   vn=rn*vn*(1-vn);
   limit+=log(abs(rn*(1-2*vn)));
  );
@@ -13066,7 +13270,7 @@ if !$use_default
 
 		else
 
-			fp+={arg($mode_3+1,2,3,4)}
+			fp+={arg0($mode_3,2,3,4)}
 			fun_d=$fun_a
 
 		fi
@@ -13091,7 +13295,7 @@ if !$use_default
 
 		else
 
-			fp+={arg($mode_4+1,2,3,4)}
+			fp+={arg0($mode_4,2,3,4)}
 			fun_e=$fun_b
 
 		fi
@@ -13139,7 +13343,7 @@ if !$use_default
 
 		else
 
-			fp+={arg($mode_2+1,2,3,4)}
+			fp+={arg0($mode_2,2,3,4)}
 			fun_c=$fun_a
 
 		fi
@@ -13349,7 +13553,7 @@ if $15
 
 	else
 
-		fp+={arg($mode_3+1,2,3,4)}
+		fp+={arg0($mode_3,2,3,4)}
 		fun_d=$fun_a
 
 	fi
@@ -13374,7 +13578,7 @@ if $15
 
 	else
 
-		fp+={arg($mode_4+1,2,3,4)}
+		fp+={arg0($mode_4,2,3,4)}
 		fun_e=$fun_b
 
 	fi
@@ -13425,7 +13629,7 @@ else
 
 	else
 
-		fp+={arg($mode_2+1,2,3,4)}
+		fp+={arg0($mode_2,2,3,4)}
 		fun_c=$fun_a
 
 	fi
@@ -14202,7 +14406,7 @@ skip ${2=0},${3=0},${4=3},${5=.5},${6=.5},${7=0}
 
 if $2==0||$2==1
 	image_count={$!*3}
-	dimensions_info=[{expr('p=int(x/3);arg(x%3+1,w#p,h#p,d#p);',$image_count);}]
+	dimensions_info=[{expr('p=int(x/3);arg0(x%3,w#p,h#p,d#p);',$image_count);}]
 fi
 
 command "apply_filter:$1"
@@ -21692,7 +21896,7 @@ eval[$T] >"
 		const mode=$mode;
 		const convert_2_rad=mode<2;
 		const main_mod=convert_2_rad?360:tau;
-		const mod_factor=arg(mode+1,180,360,pi,tau);
+		const mod_factor=arg0(mode,180,360,pi,tau);
 		const offset=convert_2_rad?180:pi;
 		const insertion_point=k+1;
 		const start_of_hash=k+2;
@@ -21960,7 +22164,7 @@ else
 
 	if isnum($1)
 		if isint($1)
-		sid=${"-arg "1+$sid"","australia,barbedwire,circle,crosshair,cupid,diamond,dragon,dragonfly,fern,flip,gear,gumleaf,heart,information,kookaburra,mail,mapleleaf,paint_splat,paw,phone,polygon,rooster,shopping_cart,snowflake,star"}
+		sid=${"-arg1 "1+$sid"","australia,barbedwire,circle,crosshair,cupid,diamond,dragon,dragonfly,fern,flip,gear,gumleaf,heart,information,kookaburra,mail,mapleleaf,paint_splat,paw,phone,polygon,rooster,shopping_cart,snowflake,star"}
 		fi
 	fi
 
@@ -22066,7 +22270,7 @@ repeat $!-1 {
 					,sum(crop_area*ti_3)/w_avg;
 					);
 				);
-				generate_color()=arg(find_pos(),generate_color_a(),generate_color_b(),generate_color_c(),generate_color_d());
+				generate_color()=arg1(find_pos(),generate_color_a(),generate_color_b(),generate_color_c(),generate_color_d());
 			):
 			tile_boundary?(
 				ti_0=crop(#-1,0,0,0,0,tw,th,1,1);
@@ -22155,7 +22359,7 @@ repeat $!-1 {
 				tile_v2=resize(ti_2,length,0,2);
 				tile_v3=resize(ti_3,length,0,2);
 				generate_tile()=(
-					tile_v=arg(find_pos(),tile_v0,tile_v1,tile_v2,tile_v3);
+					tile_v=arg1(find_pos(),tile_v0,tile_v1,tile_v2,tile_v3);
 					nv=nv();
 					draw(#0,nv,x*tw,y*th,0,0,tw,th,1,ss);
 				);
@@ -22489,15 +22693,15 @@ foreach {
 		($1<-1||($1==-1&&overload))?(
 			overload?(
 				use_altlim?(
-					vxf(a,b)=arg(min(altern,overlim)+1,${14--4:2});
-					vyf(a,b)=arg(min(altern,overlim)+1,${15--4:2});
+					vxf(a,b)=arg0(min(altern,overlim),${14--4:2});
+					vyf(a,b)=arg0(min(altern,overlim),${15--4:2});
 				):(
-					vxf(a,b)=arg(min(altern,overlim)+1,${14--2:2});
-					vyf(a,b)=arg(min(altern,overlim)+1,${15--2:2});
+					vxf(a,b)=arg0(min(altern,overlim),${14--2:2});
+					vyf(a,b)=arg0(min(altern,overlim),${15--2:2});
 				);
 			):(
-				vxf(a,b)=arg(altern+1,${14--1:2});
-				vyf(a,b)=arg(altern+1,${15--1:2});
+				vxf(a,b)=arg0(altern,${14--1:2});
+				vyf(a,b)=arg0(altern,${15--1:2});
 			);
 		):
 		$1==-1?(
@@ -22693,8 +22897,8 @@ foreach {
 			vyf(a,b)=b/atan(a/sin(b/cos(b)));
 		):
 		$1>46?(
-			vxf(a,b)=altern>3?"$chaos_a":arg(altern+1,a/cos(b),a/sin(b),a/tan(b),a/atan(b));
-			vyf(a,b)=altern>3?"$chaos_b":arg(altern+1,b/sin(a),b/cos(a),b/tan(a),b/atan(a));
+			vxf(a,b)=altern>3?"$chaos_a":arg1(altern+1,a/cos(b),a/sin(b),a/tan(b),a/atan(b));
+			vyf(a,b)=altern>3?"$chaos_b":arg1(altern+1,b/sin(a),b/cos(a),b/tan(a),b/atan(a));
 		);
 	);
 	xx=(x-half_width)/sx;
@@ -31180,7 +31384,7 @@ hue,shade_tint={_"
  [round((old_hue+diff)%360,0.01),round(new_shade_tint,0.1)];
  "}
 __fx_rep_color_harmonies_tool_generate_points:
-number_of_points={arg(1+$palette_mode,6,6,6,2,3,3,4,3,4,5,6)}
+number_of_points={arg0($palette_mode,6,6,6,2,3,3,4,3,4,5,6)}
 list_of_points={_"
  const start_ang=deg2rad($hue-180);
  const area_width=$_preview_area_width;
@@ -31203,7 +31407,7 @@ list_of_points={_"
  all_points=vector(#12,nan);
  ang=start_ang;
  palette_mode<3?( # Neutral 8-15 and Analogous 30
-  const add_ang=deg2rad(arg(palette_mode+1,8,15,30));
+  const add_ang=deg2rad(arg0(palette_mode,8,15,30));
   repeat(number_of_points,p,
    calc_points(ang,p);
    ang+=add_ang;
@@ -31274,7 +31478,7 @@ $_preview_area_width,$_preview_area_height,2,3,"begin(
    C=(1-abs(2*lightness-1))*saturation;
    X=C*(1-abs(H%2-1));
    m=lightness-C/2;
-   RGB=arg(1 + int(H),[C,X,0],[X,C,0],[0,C,X],[0,X,C],[X,0,C],[C,0,X]);
+   RGB=arg0(int(H),[C,X,0],[X,C,0],[0,C,X],[0,X,C],[X,0,C],[C,0,X]);
    (RGB+=m)*=255;
   );
 
@@ -31283,7 +31487,7 @@ $_preview_area_width,$_preview_area_height,2,3,"begin(
    C=(1-abs(2*lightness-1))*saturation;
    X=C*(1-abs(H%2-1));
    m=lightness-C/2;
-   RYB=arg(1+int(H),[C,X,0],[X,C,0],[0,C,X],[0,X,C],[X,0,C],[C,0,X]);
+   RYB=arg0(int(H),[C,X,0],[X,C,0],[0,C,X],[0,X,C],[X,0,C],[C,0,X]);
    RYB+=m*=255;
    red=RYB[0];
    yellow=RYB[1];

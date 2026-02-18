@@ -339,7 +339,7 @@ gcd_hue_chroma : skip ${1=0},${2=1},${3=1}
   repeat $! l[$>]
     # get channels/ratio for hue
     h={($1%360)/60} x={1-abs($h%2-1)} y={if($x>0,1/$x,0)} h={int($h)+1}
-    p={arg($h,0,1,1,2,2,0)} s={arg($h,1,0,2,1,0,2)} z={arg($h,2,2,0,0,1,1)}
+    p={arg1($h,0,1,1,2,2,0)} s={arg1($h,1,0,2,1,0,2)} z={arg1($h,2,2,0,0,1,1)}
 
     # get current hue level [Ih]
     [0] sh. $p sh.. $s +*.. $x
@@ -379,7 +379,7 @@ fx_gcd_transfer_colors_patch : skip ${1=6},${2=3},${3=5},${4=5},${5=0},${6=0}
   +gcd_extract_clut[$ref] ${1-4}
   map_clut[^-1,$ref] .
   if $6>0" || "$n==1
-    r,s={arg(max($6,1),64,256)},{arg(max($6,1),512,4096)}
+    r,s={arg1(max($6,1),64,256)},{arg1(max($6,1),512,4096)}
     r. $r,$r,$r,3,3 r. $s,$s,1,3,-1
   else rm. fi
 
@@ -487,8 +487,8 @@ _gcd_tone_enhance :
 #@gui : note = note("<small>Interp is only used when setting aspect</small>")
 gcd_deinterlace2x : skip ${1=40},${2=0},${3=0},${4=2},${5=0},${6=1}
   if $3 # set aspect
-    ca={if($5,1,h/w)} na={arg($3,1,{4/3},{5/4},{16/9},{1.6},{2.35},{1.85})}
-    r {$ca*$na*w},100%,1,3,{arg($4+1,3,5,6)} c 0,255
+    ca={if($5,1,h/w)} na={arg1($3,1,{4/3},{5/4},{16/9},{1.6},{2.35},{1.85})}
+    r {$ca*$na*w},100%,1,3,{arg1($4+1,3,5,6)} c 0,255
   fi if $2==3 return fi
   repeat $! l[$>]
     w={w} h={h} d={d} hh={int($h/2)} rgb2yuv s c
@@ -571,7 +571,7 @@ gcd_stereo : skip ${1=0},${2=1},${3=1.2%},${4=1}
   l[-2,-1]
     if $1==2 k. return
     elif $1==3 k. negate return fi
-    wfac={if(${"is_percent $3"},$3*w,$3)} n. 0,$wfac
+    wfac={if(ispercentage($3),$3*w,$3)} n. 0,$wfac
     if $1<2" && "$2>0 gcd_balance_anaglyph[0] {2-$2} fi
     i[1] [0] warp[0] .,1 *. -1 warp[1] .,1 rm.
     if $1 rv[0,1] append[0,1] x else shift[0] {round(-$wfac*$4)} shift[1] {round($wfac*$4)}
@@ -630,8 +630,8 @@ gcd_unstereo_preview :
 #@gui : note = note("<small>Dimensions source assumes aspect is width:height</small>")
 #@gui : note = note("<small><b>Transparent regions</b> will be inpainted</small>")
 fx_gcd_adjust_aspect : skip ${1=6},${2=1},${3=0}
-  aspect:=arg($1,{2/3},{3/4},1,{4/3},{5/4},{16/9},{1.6},{2.35},{1.85})
-  source:=arg($2,0,{2/3},{3/4},1,{4/3},{5/4},{16/9},{1.6},{2.35},{1.85})
+  aspect:=arg1($1,{2/3},{3/4},1,{4/3},{5/4},{16/9},{1.6},{2.35},{1.85})
+  source:=arg1($2,0,{2/3},{3/4},1,{4/3},{5/4},{16/9},{1.6},{2.35},{1.85})
   if $3>0 to_rgba fi
   if $1>0
     if $2>0
@@ -641,7 +641,7 @@ fx_gcd_adjust_aspect : skip ${1=6},${2=1},${3=0}
     fi
   fi
   if $3>0
-    cmd=${arg\ $3,"gcd_inpaint_flat","gcd_blur_inpaint_auto","gcd_inpaint_pyramid"}
+    cmd=${arg1\ $3,"gcd_inpaint_flat","gcd_blur_inpaint_auto","gcd_inpaint_pyramid"}
     foreach { sh 100% +neq. 100% $cmd[0] . k[0] }
   fi
 
@@ -856,7 +856,7 @@ gcd_dilate_vw : skip ${1=3},${2=1e-6}
 fx_gcd_signum_color : skip ${1=0.1},${2=5},${3=2},${4=0}
   foreach {
     split_opacity l[0] {
-      m:=[im,iM] axesA=${arg\ 1+$3,xy,x,y} axesB=${arg\ 1+$4,xy,x,y}
+      m:=[im,iM] axesA=${arg0\ $3,xy,x,y} axesB=${arg0\ $4,xy,x,y}
       +sqr compose_channels. + /. {-1,s} sqrt. +eq. 0 +[-2,-1] /.. .
       b. $axesA,$1% +b. $axesB,$2% -[-2,-1] sign. +. 1 * n $m
     } a c
@@ -1018,12 +1018,14 @@ fx_gcd_upscale_patch2x_preview :
 #@cli : Double image size using self-similarity and anisotropic convolution.
 #@cli : $ image.jpg +gcd_upscale_tile2x
 gcd_upscale_tile2x :
+
   foreach {
     # [range] [up] [hi_orig] [losat] [upsat]
     ps,ol:=[32,8] pd:=[w,h,$ol]*2 sz={[w,h,0]*2+1}
 
     # up
     (0.25,1,0.25;1,4,1;0.25,1,0.25) /. 9
+
     +gcd_upscale_solver2x[0] 2 convolve. .. rm..
 
     # hi, lo
@@ -1151,6 +1153,7 @@ gcd_upscale_solver2x : skip ${1=4},${2=0}
     rm.. atan2.. . rm.
     /. {pi/2} round. 1 mod. 4 -. {im} D:=iM+1 => dirs
     +r[dirs] [crop],[crop],[crop],100%,0 => cdirs
+
     # get kernels per direction
     r[dnup,crop] 100%,100%,100%,1,2
     repeat $D {
@@ -1164,6 +1167,7 @@ gcd_upscale_solver2x : skip ${1=4},${2=0}
     i[1] [0] =>[1] small
     r[0,dirs] 200%,200%,100%,100%,1
     i[1] [0] =>[1] target
+
     # convolve and merge
     repeat $D {
       +convolve[0] [-{$<+1}]
@@ -1335,7 +1339,7 @@ gcd_fx_local_fmean : skip ${1=15},${2=0},${3=0},${4=5},${5=0}
 #@cli : $ image.jpg n 0,1 gcd_fmean_local 1%
 gcd_fmean_local : check "${1=1}>=0 && isint(${2=0}) && $2>=-1 && $2<=2 && ${3=0}>=0"
   e[^-1] "Map local f-mean of image$?."
-  func=${arg\ 2+$2,hmean,gmean,mean,qmean}
+  func=${arg0\ 1+$2,hmean,gmean,mean,qmean}
   _gcd_$func m _gcd_func:$_gcd_f m _gcd_finv:$_gcd_i
   repeat $! l[$>] # [1]=nz [2]=(1-G(iz))
     +neq. 0 +eq. 0 +[0] . zs={is} b. $1 *. .. *. -1 +. 1 ($3)
@@ -1411,7 +1415,7 @@ _crmt_tile_T : skip ${1=0},${2=0} # this command renders the tile
 #@gui : note = note("<small>Percentage sigma: make detail scale relative to image size.</small>")
 fx_gcd_blur_deblur_texture : skip ${1=4},${2=1},${3=0.5},${4=0},${5=2},${6=0}
   repeat $! l[$>]
-    mode=${arg\ 1+$5,rgb,lrgb,ycbcr_y,ycbcr_cbcr}
+    mode=${arg0\ $5,rgb,lrgb,ycbcr_y,ycbcr_cbcr}
     if $6 r=$2% else r=$2 fi
     if $4 ac "repeat $1 gcd_blur_texture "$r",$3 done",$mode,1
     else ac "repeat $1 +l +gcd_blur_texture "$r",$3 norm - done + done",$mode,1 fi
@@ -1509,7 +1513,7 @@ gcd_balance_lms : skip ${1=1},${2=1},${3=1},${4=0},${5=0},${6=0}
 #@gui : sep = separator(), Preview type = choice("Full","Forward Horizontal","Forward Vertical","Backward Horizontal","Backward Vertical","Duplicate Top","Duplicate Left","Duplicate Bottom","Duplicate Right","Duplicate Horizontal","Duplicate Vertical","Checkered","Checkered Inverse")
 #@gui : sep = separator(), note = note("<small>Author : <i>Garagecoder</i>.      Latest update : <i>2018/08/18</i>.</small>")
 fx_gcd_cumul_math : skip ${1=0},${2=1},${3=1},${4=0}
-  op=${arg\ 1+$1,"add","or","xor","and","mod"}
+  op=${arg0\ $1,"add","or","xor","and","mod"}
   ac "gcd_cumul_math $2,$3,"$op",$4",rgb replace_nan 255
 
 gcd_cumul_math : skip ${1=1},${2=1},${3="add"},${4=0}
@@ -1702,7 +1706,7 @@ gcd_normalize_brightness : skip ${1=0},${2=10},${3=0},${4=3},${5=0},${6=0}
   mode=${arg0\ $4,hsi8_i,hsv8_v,lab8_l,ycbcr_y,rgb}
   if $3>0 bilateral 1%,$3 c 0,255 fi
   if $5==0 ac "gcd_tonemap_area $2,$1,$6",$mode,2
-  else +ac "gcd_tonemap_area $2,$1,$6",$mode,2 blend ${arg\ $5,darken,lighten} fi
+  else +ac "gcd_tonemap_area $2,$1,$6",$mode,2 blend ${arg1\ $5,darken,lighten} fi
 
 gcd_tonemap_area : skip ${1=100},${2=0},${3=0}
   repeat $! l[$>]
@@ -1914,7 +1918,7 @@ gcd_fgmask : skip ${1=0}
 #@gui : note = note("<small>Blending occurs at the edges of an opaque region</small>")
 #@gui : note = note("<small>Higher scales increase blend distance and cpu cost</small>")
 fx_gcd_blend_multiscale : skip ${1=5}
-if 2!=$! error "This filter requires two input layers to function" fi
+if 2!=$! gui_error_preview "This filter requires two input layers to function" return fi
   l[-2,-1] { name={0,n}
     to_a[0] remove_opacity[1]
     split_opacity[0] n[1] 0,1 mv[1] 0
@@ -2037,11 +2041,11 @@ gcd_variance_patch : skip ${1=3}
 #@gui : note = note("\n<small><b>Note:</b> preview is low quality for speed</small>")
 gcd_layers : skip ${1=100},${2=0},${3=1},${4=50},${5=50},${6=0},${7=0},${8=0},${9=1},${10=1},${11=0},${12=0},${13=0}
   one={$!<2}
-  l[${arg\ 1+$one,0-1,0}]
+  l[${arg0\ $one,0-1,0}]
     if $3" && "!$one" && "$1>100 rs. {w/$1%},,{if($-1,2,6)} c. 0,255 fi # ** SCALE
     w={w} h={h} gcd_force_a[0]
     l[0]
-      if $11 mirror ${arg\ $11,x,y,xy} fi # FLIP
+      if $11 mirror ${arg1\ $11,x,y,xy} fi # FLIP
       if !$3" || "$one" || "$1<100 rs {w*$1%},,{if($-1,2,6)} c 0,255 fi # ** SCALE
       if $2 split_opacity rotate. $2,{2-($-1)} rotate.. $2,{2-($-1)},1 a c c 0,255 fi # ** ROTATE
       if $6" || "$7 # ** ERODE/SMOOTH
@@ -2053,7 +2057,7 @@ gcd_layers : skip ${1=100},${2=0},${3=1},${4=50},${5=50},${6=0},${7=0},${8=0},${
     pos={round(($w-w#0)/2+$w*$4%)},{round(($h-h#0)/2-$h*$5%)} # ** POSITION
     if $-1" || "$12 i[0] $w,$h,1,{0,s} j[0] [1],$pos rm[1] pos=,pos(0,0)
     else pos=,pos($pos) fi
-    mode=${arg\ 1+$10,alpha,add,burn,darken,difference,\
+    mode=${arg0\ $10,alpha,add,burn,darken,difference,\
     divide,dodge,grainextract,grainmerge,hardlight,hue,lighten,\
     multiply,overlay,saturation,softlight,screen,subtract,value}
     if $-1 if $!>1 rv blend $mode,$9 else sh 100% *. $9 rm. fi
@@ -2344,7 +2348,7 @@ gcd_srgb_curve_target : skip ${1=128},${2=128},${3=128},${4=128},${5=128},${6=12
 #@gui : note = note("<small>Reduce chromacity range to limit the affected regions.</small>")
 #@gui : note = note("<small>sRGB D65 input is assumed.</small>")
 fx_gcd_color_spot_matching : skip ${1=50},${2=50},${3=50},${4=60},${5=1},${6=0},${7=0}
-if 2!=$! error "This filter requires two input layers to function" fi
+if 2!=$! gui_error_preview "This filter requires two input layers to function" return fi
 if $7 rv fi
   l[0,1] {
     if $6>1
@@ -2407,7 +2411,7 @@ gcd_temp_balance : skip ${1=0},${2=0},${3=1},${4=0}
 gcd_hue_level : skip ${1=0}
   repeat $! l[$>]
     h={($1%360)/60} x={1-abs($h%2-1)} y={if($x>0,1/$x,0)} h={int($h)+1}
-    p={arg($h,0,1,1,2,2,0)} s={arg($h,1,0,2,1,0,2)} z={arg($h,2,2,0,0,1,1)}
+    p={arg1($h,0,1,1,2,2,0)} s={arg1($h,1,0,2,1,0,2)} z={arg1($h,2,2,0,0,1,1)}
     sh. $p sh.. $s +*.. $x
     +le. .. j... ..,0,0,0,0,1,. rm..
     eq. 0 +*.. $y j[-4] .,0,0,0,0,1,..
@@ -2496,7 +2500,7 @@ gcd_warp : skip ${1=5},${2=0},${3=0} # params: max_warp, smooth, blend_type (cur
 #@gui : note = note("<small>Lower layer will be used for color if available.</small>")
 gcd_wiremap : skip ${1=100},${2=100},${3=0.5},${4=0.5},${5=0}
   dm={$!>1" && "$5%2}
-  l[${arg\ 1+$dm,0,0-1}]
+  l[${arg0\ $dm,0,0-1}]
     if $dm op=0
       if s==2||s==4 split_opacity. rv[^0] op=1 remove_opacity[0]
       elif {0,s==2||s==4} split_opacity[0] op=1 fi
@@ -2768,7 +2772,7 @@ gcd_label : skip ${1=4},${2=0.067}
 gcd_shrink :
   #***** SHRINK AN IMAGE TO 700px FOR SPEED *****
   _gcd_w={0,w} _gcd_h={0,h}
-  repeat $! l[$>] if max(w,h)>700 rr2d. 700,700,0,1 fi done done
+  repeat $! l[$>] if max(w,h)>700 rs. 700,700,2 fi done done
 
 gcd_unshrink :
   repeat $! l[$>] r $_gcd_w,$_gcd_h done done
@@ -2908,7 +2912,7 @@ gcd_geometric_median : skip ${1=3},${2=12}
 gcd_poisson_disk : check "${1=8}>0 && ${3=30}>0" skip ${2=1}
   e[^-1] "Add noise points to image$?, with specified minimum distance."
   repeat $! l[$>]
-    R={${"is_percent $1"}?max(w,h,d)*$1:$1}
+    R={ispercentage($1)?max(w,h,d)*$1:$1}
     # [0] input image to draw samples on
     dim={d>1?3:h>1?2:1} cw={0.999*$R/sqrt($dim)} # dimensions, grid cell width
     ({[w,h,d,1]}) y. c  # [1] image dimensions vector
@@ -3236,21 +3240,32 @@ gcd_median_transfer_curve :
       eval. "begin(R=0;N=1);R=max(R,N);J[0]==J[1]?N++:N=1;end(set('R',R))"
       rm.
       eval "
-      median(X,L)=(M=(L-1)/2;X=sort(X,1,L);lerp(X[floor(M)],X[ceil(M)]));
-      col=I[#0,0]; V=col[0]; N=1;
-      S=vector$R(); S[0]=col[1];
-      i(#-2,col[2,3])=0;
-
-      for(P=1;Q=0,P<h#0,++P,
-        col=I[#0,P];
-        if(V==col[0],
-          S[N]=col[1]; N++,
-          da_push([V,median(S,N)]); V=col[0]; S[0]=col[1]; N=1; Q++;
+        median(X,L) = (
+          M = (L - 1)/2;
+          X = sort(X,1,L);
+          lerp(X[floor(M)],X[ceil(M)],0.5);
         );
-        i(#-2,col[2,3])=Q;
-      );
+        col = I[#0,0];
+        V = col[0];
+        N = 1;
+        S = vector$R();
+        S[0] = col[1];
+        i(#-2,col[2,3]) = 0;
 
-      da_push([V,median(S,N)])"
+        for(P = 1; Q = 0, P<h#0, ++P,
+          col = I[#0,P];
+          if (V==col[0],
+                S[N] = col[1];
+                N++,
+                da_push([V,median(S,N)]);
+                V = col[0];
+                S[0] = col[1];
+                N = 1;
+                Q++;
+           );
+           i(#-2,col[2,3]) = Q;
+        );
+        da_push([V,median(S,N)])"
       rm[0] z. 0,0,0,{i(0,h-1)-1}
     done done a[^50%-100%] c
   done
@@ -3262,7 +3277,7 @@ gcd_median_transfer_curve :
 #@cli : $ image.jpg +laplacian +gcd_solve_kernel.. .
 gcd_solve_kernel : skip ${3=1},${4=1} check ${"is_image_arg $1"}" && isint(${2=1})"
   e[^-1] "Solve kernel for image$? with convolution target $1
-          and "${"arg 1+$4,dirichlet,neumann,periodic,mirror"}" boundary conditions."
+          and "${"arg1 1+$4,dirichlet,neumann,periodic,mirror"}" boundary conditions."
   pass$1 K:=$2*2+1 => target
   if ${"is_image_arg $3"}
     pass$3 0 => mask
@@ -3278,7 +3293,8 @@ gcd_solve_kernel : skip ${3=1},${4=1} check ${"is_image_arg $1"}" && isint(${2=1
         if h==0 error[0] "Command 'gcd_solve_kernel': mask image is empty." fi
         permute[patches] cyxz
         z[patches,points] 0,0,100%,$H
-        invert[patches] 1,1e-6 =>[patches] inv mmul[inv,points]
+        invert[patches] =>[patches]
+        inv mmul[inv,points]
         mirror[inv] y r[inv] $K,$K,1,1,-1 rm[0] mv[inv] 0
         =>[inv] $nm
       }
@@ -3293,7 +3309,7 @@ gcd_solve_kernel : skip ${3=1},${4=1} check ${"is_image_arg $1"}" && isint(${2=1
             end(set('H',da_size()-1));"
         permute[patches] cyxz
         z[patches,points] 0,0,100%,$H
-        invert[patches] 1,1e-6 =>[patches] inv mmul[inv,points]
+        invert[patches] =>[patches] inv mmul[inv,points]
         mirror[inv] y r[inv] $K,$K,1,1,-1 rm[0] mv[inv] 0
         =>[inv] $nm
       }
