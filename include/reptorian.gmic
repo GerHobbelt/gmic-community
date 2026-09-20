@@ -680,12 +680,20 @@ eval "
 	"
 
 rm.
-#@cli rep_ls: start_num,end_num,size_of_array,repeat
+#@cli rep_ls: start_num,end_num,_size_of_array,_repeat
 #@cli : Return linear space sequence.
+#@cli : If '_size_of_array' <= 0, then it is automatically set to the distance between 'start_num' and 'end_num', plus 1.
+#@cli : Default values: '_size_of_array=0','_repeat=1'
+#@cli : $ e ${rep_ls\ 1,5}
+#@cli : $ e ${rep_ls\ 1,5,3}
+#@cli : $ e ${rep_ls\ 1,5,3,2}
+#@cli : $ e ${rep_ls\ -1,5}
 rep_ls:
-check isfinite($1)&&isfinite($2)&&isint($3,1)&&isint(${4=1},1)
-if $3==1 u $1 return fi
-u {expr('$1+y*{($2-$1)/($3-1)}',$4,$3)}
+skip ${3=0},${4=1}
+L,E={L=ceil($3>0?$3:abs($2-$1)+1);[L,($2-$1)/(L-1)]}
+check isfinite($L)&&isfinite($E)&&isint($4,1)&&isfinite($4)
+if $L==1 u $1 return fi
+u {expr('$1+y*$E',$4,$L)}
 #@cli rep_pf_args: str_(prefix/postfix),arg0,arg1,...
 #@cli : Return arguments with prefix/postfix applied.
 #@cli : First argument can contain 1 or 2 chars. For 2 chars, left char is prefix, right char is postfix.
@@ -1492,7 +1500,7 @@ I,T,n0:=$!,$#-2,'0' # I = Number of Images ; T = Number of input strings to conv
 check $#>2
 
 $=a
-a1,a2,b0,b1,b2,b3,b4,Abin,Abinary,A2,Aqua,Aquaternary,A4,Aoct,Aoctal,A8,Ahex,Ahexadecimal,A16,Aduo,Aduotri,Aduotrigesimal,A32=${strlowercase\ $a1},${strlowercase\ $a2},"bin,binary,2","qua,quaternary,4","oct,octal,8","hex,hexadecimal,16","duo,duotri,duotrigesimal,32",${rep_ls\ 1,5,5,3},5
+a1,a2,b0,b1,b2,b3,b4,Abin,Abinary,A2,Aqua,Aquaternary,A4,Aoct,Aoctal,A8,Ahex,Ahexadecimal,A16,Aduo,Aduotri,Aduotrigesimal,A32=${strlowercase\ $a1},${strlowercase\ $a2},"bin,binary,2","qua,quaternary,4","oct,octal,8","hex,hexadecimal,16","duo,duotri,duotrigesimal,32",${rep_ls\ 1,5,,3},5
 
 __rep_xp2b_check_arg $a1,$1
 __rep_xp2b_check_arg $a2,$2
@@ -1657,15 +1665,12 @@ l[] {
 	onfail
 		closest_arg=${rep_sug_args\ $1,,0,50%,50%,1,0,0%,100%,0,$b0,$b1,$b2,$b3,$b4}
 
-		repeat 5 {
-			L=${rep_pf_args\ ',${b$>}}
-
-			if isin('$closest_arg',$L)
-				error "Invalid value '"$2"'. Expected one of (case-insensitive): "$L
-			fi
-		}
-
-		error no_closest_match_found
+		if !same('$closest_arg','--0000e0')
+			group:=${A$closest_arg}-1
+			error "Invalid value '"$2"'. Expected one of (case-insensitive): "${b$group}
+		else
+			error no_closest_match_found
+		fi
 }
 #@cli rep_pattern_str: 0<max_number_of_digits<=16,_use_padding={ 0=False | 1=True },_use_hex_ind={ 0=False | 1=True }
 #@cli : Creates a string utilized for pattern.
@@ -1820,7 +1825,7 @@ eval.. :"
 	left=0;
 	right=start_right;
 	while(left<=right,
-		p_c_start=left+((right-left)>>1);
+		p_c_start=(left+right)>>1;
 
 		list_of_starts[p_c_start]<=P?(
 			left=p_c_start + 1;
@@ -2150,7 +2155,7 @@ foreach {
 			const M=(1<<16)-1;
 			const bf=$bitshift_factor;
 			const bit_mask=$bit_mask;
-			const seed="{v(0x1234,0xabcd)}";
+			const seed="{v(0x1234,0xabcd)}"*.56; # Multiplier to make sure collision doesn't happen as much
 			const S=s#0;
 
 			S==1?(
@@ -2844,31 +2849,27 @@ fi
 rep_mode_blend:
 
 is_dimensions_valid={"
-		v=[w#0,h#0,d#0,s#0];
-		dimension_valid=1;
-		!same(v[0,3],[0,0,0])?(
-			for(p=1,p<$!,++p,
-				nv=[w#p,h#p,d#p,s#p];
-				if(same(v[0,3],[0,0,0]),
-					dimension_valid=0;
-					break();
-				);
-				if(!same(nv,v),
-					dimension_valid=0;
-					break();
-				);
+	v=[w#0,h#0,d#0,s#0];
+	p=0;
+	dimension_valid=!same(v[0,3],[0,0,0]);
+
+	if(dimension_valid,
+		while(++p<l,
+			if(!same(v,[w#p,h#p,d#p,s#p]),
+				dimension_valid=0;
+				break();
 			);
-		):(
-			p=dimension_valid=0;
 		);
-		set('img_checked',p);
-		dimension_valid;
+	);
+
+	set('img_checked',p);
+	dimension_valid;
 	"}
 
 if !$is_dimensions_valid
 	error inv_dim_det@[$img_checked]
-elif $!<3
-	if $!==2
+elif l<3
+	if l==2
 		100%,100%,100%,100%,I#-2==I#-1?I#-1:vector(#s,nan)
 		rm[-3,-2]
 	fi
@@ -2876,7 +2877,7 @@ elif $!<3
 	return
 fi
 
-if $!>9 # Use Hashmap. 10 layers seems to be the threshold to switch from linear scan to hashmap processing
+if l>9 # Use Hashmap. 10 layers seems to be the threshold to switch from linear scan to hashmap processing
 	cpus_to_use,bitshift_factor,layers:=cut(($!*whd)>>12,1,$_cpus),cut(ceil(log2($!))+1,6,10),$!
 	dictionary_buckets_per_threads,dictionary_buckets:=[1,$_cpus]<<$bitshift_factor
 
@@ -2894,9 +2895,12 @@ if $!>9 # Use Hashmap. 10 layers seems to be the threshold to switch from linear
 			const bit_mask=D-1;
 			const WHD=whd#0;
 			const count_boundary=k>>1;
+
 			current_color=previous_color=v_NaN=maxima_color=vector(#S,nan);
+
 			hash(color)=(
 				current_hash=0;
+
 				repeat(S,p,
 					current_hash=xor(((current_hash<<1)-current_hash)*seed,C=color[p];isint(C)?C:C*M);
 					current_hash&=bit_mask;
@@ -2905,6 +2909,7 @@ if $!>9 # Use Hashmap. 10 layers seems to be the threshold to switch from linear
 
 			chval(count_value)=(
 				current_count=count_value;
+
 				if(current_count>=current_maxima,
 					maxima_color=current_color;
 					if(current_count>count_boundary,break(););
@@ -2914,6 +2919,7 @@ if $!>9 # Use Hashmap. 10 layers seems to be the threshold to switch from linear
 			);
 
 		);
+
 		O=J(-1);
 		P=O[0]<<24|O[1];
 		Q=i0<<24|i1;
@@ -4370,7 +4376,7 @@ eval "
 	right=size(ln)-1;
 
 	while(left<=right,
-		mid=left+((right-left)>>1);
+		mid=(left+right)>>1;
 
 		ln[mid]==n2f?(
 			right=mid;
@@ -5845,41 +5851,97 @@ if $alpha_mode==2&&!$contain_alpha
 else
 	crop[-1] 0,{$number_of_colors-1}
 fi
-#@cli rep_correct_exp_ne: string
+#@cli rep_correct_exp_nm: string
 #@cli : Return corrected file name for exporting files.
 #@cli : Note: Every single arguments applied to this command counts as a single string.
-rep_correct_exp_ne:
-('{``"$*"}':;) ({h}) a[-2,-1] y
+rep_correct_exp_nm:
+check $#
 
-eval "
-	if(da_size(#-1)>=0x100,run('error \"Length exceeds maximum allowed (256 characters)\"'););
+u {`"
+	export_name='"{:"$*"}"';
 
-	for(p=da_size(#-1)-1,p>=-1,--p,
-		char=i[#-1,p];
-		if(isin(i[#-1,p],"{'\"#<>:/?*"\\"'}"),da_remove(#-1,p););
-		if(same(char,_'~'),i[#-1,p]=_'-';);
-		if(same(char,_'.'),i[#-1,p]=_'_';);
+	const _dot=_'.';
+	const __=_' ';
+	const size_exp_nm=size(export_name);
+
+	pos_char=-1;
+	df=write=0;
+	dp=length_of_export_name=size_exp_nm;
+	sd=1;
+
+	while(++pos_char<size_exp_nm,
+		cur_char=export_name[pos_char];
+
+		if(!df&&cur_char==_dot,
+			df=1;
+			dp=write;
+		);
+
+		if(!(isint(cur_char,0x00,0x1f)||isin(cur_char,"{'\"#<>:/?*"\\"'}")||((df||sd)&&cur_char==__)),
+			if(write!=pos_char,
+				export_name[write]=export_name[pos_char];
+			);
+
+			++write;
+		,--length_of_export_name;);
+
+		sd=cur_char==__;
 	);
 
-	first_three_chars=uppercase(crop(#-1,0,0,0,0,1,3,1,1));
-	fs=da_size(#-1);
+	if(!df,dp=length_of_export_name;);
 
-	(
-	 fs==3?(isin(first_three_chars,'AUX','CON','NUL','PRN') ):
-     fs==4?(isin(first_three_chars,'COM','LPT') && inrange(i[#-1,3],_'0',_'9',1,1) );
-	) ? run('error \"Cannot use Windows reserved filename.\"');
+	if(!dp||dp==1&&export_name[0]==__,run('error null_name'););
 
-	da_freeze(#-1);"
+	if(export_name[dp-1]==__,
+		copy(export_name[dp-1],export_name[dp],length_of_export_name-dp+1,1,1);
+		--length_of_export_name;
+		--dp;
+	);
 
-u {t} rm.
+	i_dp=dp+1;
+	if(i_dp<length_of_export_name,
+		pos_char=write=i_dp;
+		ext_end=length_of_export_name;
+		sp=1;
 
-if '$_host'=='cli'
-	name_a:='"$*"'
-	name_b:='"{t}"'
-	if !same([$name_a],[$name_b])
-		v + e[2] "File Name Changed!" v -
-	fi
-fi
+		while(pos_char<ext_end,
+			cur_char=export_name[pos_char];
+
+			if(!(sp&&cur_char==_dot),
+				export_name[write]=lowercase(cur_char);
+				++write;
+			);
+
+			sp=cur_char==_dot;
+			++pos_char;
+		);
+
+		length_of_export_name=write;
+	);
+
+	dp==4?(
+		upper_export_name=uppercase(export_name[0,4]);
+		f3c=upper_export_name[0,3];
+		if(isin(f3c,'COM','LPT')&&isint(upper_export_name[3],_'0',_'9'),
+			run('error reserved_nm');
+		);
+	):
+	isint(dp,3,7)?(
+		upper_export_name=uppercase(export_name);
+		if(dp<size_exp_nm,if(upper_export_name[dp]==_dot,upper_export_name[dp]=0););
+		if(expr(string('isin(\'',upper_export_name,'\'',',\'CON\',\'PRN\',\'AUX\',\'NUL\',\'CLOCK\\\$\',\'CONIN\\\$\',\'CONOUT\\\$\')'),1)[0],
+			run('error reserved_nm');
+		);
+	);
+
+	if(export_name[length_of_export_name-1]==_dot,--length_of_export_name);
+
+	if(length_of_export_name<size_exp_nm,export_name[length_of_export_name]=0;);
+
+	if(length_of_export_name>0xff,run('error exc_out_len'));
+
+	export_name;
+"`}
 #@cli rep_find_factors_of: num_0...
 #@cli : Return the factors found in all numbers at once.
 #@cli :
@@ -7007,7 +7069,7 @@ else
 			const new_base=$new_base;
 			temp_process_area=expr('begin(
 					const step_size=8;
-					step=(init_step=whd#-1%step_size;init_step?-(step_size-init_step):0);
+					step=whd#-1%-step_size;
 				);
 				selected_indice=crop(#-1,step,0,0,0,step_size,1,1,1);
 				step+=step_size;
@@ -7025,7 +7087,8 @@ else
 			for(p=start_point,p<size(temp_process_area),++p,
 				current_value=carry_over*base_10M+temp_process_area[p];
 				carry_over=current_value%new_base;
-				remainder=temp_process_area[p]=int(current_value/new_base);
+				temp_process_area[p]=int(current_value/new_base);
+				remainder=temp_process_area[p];
 				if(find_start_point,
 					if(remainder,
 						start_point=p;
@@ -7124,7 +7187,7 @@ else
 				const old_base_N=$old_base_N;
 				const base_power_of_10=$base_power_of_10;
 				temp_process_area=expr('begin(
-						const offset=whd#-1%$digits_per_base_change;
+						const offset=-(whd#-1%-$digits_per_base_change);
 						M=expr(\'<begin(v=1;);tv=v;v*=$base;tv\',$digits_per_base_change);
 					);
 					dot(crop(#-1,x*$digits_per_base_change-offset,0,0,0,$digits_per_base_change,1,1,1),M);
@@ -7141,7 +7204,8 @@ else
 				for(p=start_point,p<size(temp_process_area),++p,
 					current_value=carry_over*old_base_N+temp_process_area[p];
 					carry_over=current_value%base_power_of_10;
-					remainder=temp_process_area[p]=int(current_value/base_power_of_10);
+					temp_process_area[p]=int(current_value/base_power_of_10);
+					remainder=temp_process_area[p];
 					if(find_start_point,
 						if(remainder,
 							start_point=p;
@@ -7278,8 +7342,8 @@ u {"
 	init_state()=(
 		older_char_rank=char_rank=old_char_rank=ans=num=0;
 		old_char=-1;
-		char_freq_list=vector(#chars_count,0);
-		char_limits=expr('!(x&1)?3:1',7);
+		char_freq_list=[0,0,0,0,0,0,0];
+		char_limits=[3,1,3,1,3,1,3];
 		thres_length=pos_in_roman_num_collection;
 		if(is_strict,subtractive_mode=0;);
 	);
@@ -7287,8 +7351,7 @@ u {"
 	roman_num_collection='"${}"';
 
 	roman_chars='IVXLCDM';
-	const chars_count=size(roman_chars);
-	symbol_vals=expr('(x&1?5:1)*10^(x>>1)',chars_count);
+	symbol_vals=[1,5,10,50,100,500,1000];
 	ref_symbols_order=[2,0,3,4,5,6,1];
 
 	pos_in_roman_num_collection=size(roman_num_collection);
@@ -7317,12 +7380,12 @@ u {"
 			char_rank=ref_symbols_order[sel];
 
 			if(char!=roman_chars[char_rank],
-				run('error inv_char_det');
+				run('error inv_char_det\\ @\\ $',r_pos);
 			);
 
 			if(is_strict,
 				if(char_rank-old_char_rank<-2,
-					run('error inv_char_gap');
+					run('error inv_char_gap\\ @\\ $',r_pos);
 				);
 			);
 
@@ -7330,13 +7393,13 @@ u {"
 		);
 
 		if(++char_freq_list[char_rank]>char_limits[char_rank],
-			run('error excess_char');
+			run('error excess_char\\ @\\ $',r_pos);
 		);
 
 		if(is_strict,
 			if(subtractive_mode,
 				if(char_rank==old_char_rank||char_rank==old_char_rank+1,
-					run('error inval_sect_adj_sub');
+					run('error inval_sect_adj_sub\\ @\\ $',r_pos);
 				);
 			);
 		);
@@ -7344,7 +7407,7 @@ u {"
 		(old_char_rank>char_rank)?(
 			if(is_strict,
 				subtractive_mode=1;
-				if(char_rank&1,run('error inval_char_sub'););
+				if(char_rank&1,run('error inval_char_sub\\ @\\ $',r_pos););
 			);
 
 			if(!(old_char_rank&1),char_limits[old_char_rank]=4;);
@@ -7352,7 +7415,7 @@ u {"
 			check_forward_pos_in_roman_str=pos_in_roman_num_collection+2;
 			if(check_forward_pos_in_roman_str<thres_length,
 				if(char_rank==old_char_rank||older_char_rank>=char_rank,
-					run('error inval_sect_sub');
+					run('error inval_sect_sub\\ @\\ $',r_pos);
 				);
 			);
 
@@ -7366,7 +7429,7 @@ u {"
 		old_char=char;
 		old_char_rank=char_rank;
 
-		if(!isint(ans,1,3999),run('error out_of_bound_val'););
+		if(!isint(ans,1,3999),run('error out_of_bound_val\\ @\\ $',r_pos););
 	);
 
 	result[--r_pos]=ans;
@@ -14328,7 +14391,7 @@ foreach {
 #@cli : Shear Image Based on angle.
 #@cli : Default values: '_boundary=2','_interpolation=2','_output_mode=0'
 rep_shear:
-skip ${4=2},${5=2},${6=0}
+skip ${3=0},${4=2},${5=2},${6=0}
 
 check inrange($2,-90,90,0,0)&&isfinite($3)&&isint($4,0,3)&&isint($5,0,2)&&isbool($6)
 if !$2 return fi
@@ -14376,9 +14439,9 @@ else
 fi
 
 if $contain_c
-	skew_expr=j($ins_l$c0,$c1,$c2,$c3,$5,$4)
+	shear_expr=j($ins_l$c0,$c1,$c2,$c3,$5,$4)
 else
-	skew_expr=J($ins_l$c0,$c1,$c2,$5,$4)
+	shear_expr=J($ins_l$c0,$c1,$c2,$5,$4)
 fi
 
 if $6
@@ -14395,7 +14458,7 @@ if $6
 				const offset=$offset;
 				const shift_scale="$shift_scale";
 			);
-			"$skew_expr";
+			"$shear_expr";
 			"
 
 		rm..
@@ -14407,7 +14470,7 @@ else
 			const centre=ref_length*$centre;
 			const shift_scale="$shift_scale";
 		);
-		"$skew_expr";"
+		"$shear_expr";"
 fi
 #@cli rep_hpd: eq. to 'rep_henon_phase_diagram'
 rep_hpd:rep_henon_phase_diagram $*
@@ -21869,10 +21932,10 @@ if !isdir('{/$path}')
 fi
 
 ###############################################
-# Please remove below code block by 8/31/2026 #
+# Please remove below code block by 12/31/2026 #
 ###############################################
 
-if isfile('{/$path}/.palmeta')?epoch(2026,4,10)>epoch(date([0,1,2],'{/$path}/.palmeta')):1
+if isfile('{/$path}/.palmeta')?epoch(2026,7,21)>epoch(date([0,1,2],'{/$path}/.palmeta')):1
 
 	if epoch(2026,3,9)>epoch(date([0,1,2],'{/$path}/fornax_void_1.gmz'))
 		# This code block is used to update 2 palettes
@@ -21900,7 +21963,7 @@ if isfile('{/$path}/.palmeta')?epoch(2026,4,10)>epoch(date([0,1,2],'{/$path}/.pa
 	__pal_rename_file nineties_nine,90s
 	__pal_rename_file anb16,anb
 	__pal_rename_file autum_15,autum
-	__pal_rename_file autum_15,autum_yellow
+	__pal_rename_file autum_15_yellow,autum_yellow
 	__pal_rename_file galaxy_flame,galaxy
 	__pal_rename_file tinyfolks,tiny
 	__pal_rename_file petite_8,petite
@@ -21919,12 +21982,12 @@ if isfile('{/$path}/.palmeta')?epoch(2026,4,10)>epoch(date([0,1,2],'{/$path}/.pa
 	__pal_rename_file sweetie16,sweetie
 
 	0 o. {/$path}/.palmeta rm.
-elif epoch()>epoch(2026,8,31)
-		echo "NOTE TO DEVELOPER: Please remove this code block by 8/31/2026. Users can ignore this message."
+elif epoch()>epoch(2026,12,31)
+		echo "NOTE TO DEVELOPER: Please remove this code block by 12/31/2026. Users can ignore this message."
 fi
 
 ###############################################
-# Please remove above code block by 8/31/2026 #
+# Please remove above code block by 12/31/2026 #
 ###############################################
 
 if ('$1')[0]==_'-'
@@ -21933,69 +21996,92 @@ else
 	rd=0
 fi
 
-repeat $# {
-	strlowercase ${var{$>+1}}
+if $#>1
 
-	if same(isint('${}',_'0',_'9'),1)
-			if !$vars_created
-				t=${} __pal_create_vars ${-_pal_ids} u $t
+	l[] {
+		repeat $# {
+			t=${var{$>+1}}
+			T=${strlowercase\ $t}
+
+			if same(isint('$T',_'0',_'9'),1)
+					if !$vars_created
+						__pal_create_vars ${-_pal_ids}
+					fi
+
+					T=${i_{($T%$n_ids)+1}}
 			fi
 
-			u ${i_{(${}%$n_ids)+1}}
-	fi
+			# Palette ID into variable-safe variable
+			# Note: Variable names cannot contain '-' or '|', so conversion is required.
+			ch=${__pal_id_2_int\ $T}
 
-	q$>=${}
-	p$>=${_pal_id_2_int\ ${}}
-	j_${p$>}={/$path}/${q$>}.gmz
-}
+			if $rd
+				if narg(${img$ch})
+					continue
+				fi
+			else
+				if narg(${img$ch})
+					out.=$s$T
+					${img$ch}
+					continue
+				fi
+			fi
 
-l[] {
-	repeat $# {
-		M,h,m=${var{$>+1}},${p$>},${q$>}
+			{/$path}/$T.gmz
+			img$ch=[{l-1}]
+			out.=$s$T
+			s=,
+		}
 
-		${j_$h}
-
-		out.=$s$m
-
-		if $rd
-			j_$h=continue
-		else
-			j_$h=__pal_load_previous_palette
-		fi
-
-		s=,
-		r_$h={$!-1}
+		onfail
+			__pal_error
 	}
+else
+	# Fast Path
+	l[] {
+		t=$var1
+		T=${strlowercase\ $t}
 
-	onfail
-		rm
-		m=${strlowercase\ $M}
-
-		closest_args=${rep_sug_args\ $m,,1,66%,-97.5%,.9,0,25%,100%,0,${-_pal_ids}}
-
-		if same('$closest_args','--0000e0')
-			e "ERROR: Invalid value '"$M"'. No close match found!"\n
-			h $0 q
+		if same(isint('$T',_'0',_'9'),1)
+				T=${arg0\ $T%385,${-_pal_ids}}
 		fi
 
-		error "Invalid value '"$M"'. Did you mean one of (case-insensitive): "$closest_args"?"
-}
+		{/$path}/$T.gmz
+		out=$T
+
+		onfail
+			__pal_error
+	}
+fi
 
 e[^-1] "Created palette(s) '"$out"'."
 u $out
-__pal_load_previous_palette:
-v=${r_$h} [$v] => {$v,n}
+__pal_error:
+rm
+
+closest_args=${rep_sug_args\ $T,,1,66%,-97.5%,.9,0,25%,100%,0,${-_pal_ids}}
+
+if same('$closest_args','--0000e0')
+	e "ERROR: Invalid value '"$t"'. No close match found!"\n
+	h $0 q
+fi
+
+error "Invalid value '"$t"'. Did you mean one of (case-insensitive): "$closest_args"?"
 __pal_create_vars:
 n_ids,vars_created=$#,1 $=i_
 _pal_ids:
 u bw,rgb,b_rgb,bw_rgb,cmy,cmyk,w_cmyk,rgbcmy,1bitrgb,aurora,zenit,gbg,duel,hocuspocus,playpal,srb2,uzebox,kens16,kens32,kens54,aap12,aap16,aap64,aap96,aap128,aap_dga16,cheerful,db8,db16,db32,db_iso22,dim17,dim23,edg4,edg8,edg16,edg32,edg36,edg64,famicube,juicy32,juicy56,xaiue,15pdx,20pdx,24pdx,cabana,fantasy16,fantasy24,tranquil_fantasy_23,tfp39,faraway,fleja,koni,linearbasic,legowiki,lego2021,vinelinear,arcade,arq,atom,blk36,blkneo,broken_facility,bubblegum,cpcboy,cade,calder,cdbac,cgarne,dinoknight,llll,fzt_ethereal,indecision,island,journey,shallowmarsh,lago_nenufar,juicy,chocolate,brightwinter1,brightwinter2,kawaii,0xdb,gzxp,chromatic,piet_code,matrix,material,rainbow-thehamster,rainbow-boltbait,scrj-xxxvi,pxls,lospec,moderna,oak,nature,rbypgo,new_worlds,nauris,dynamite,interstate,downgraded,pear36,pineapple,peachy,resurrect,rosy,slso,softy,spec12,the_roarin_80s,starmancer,superfuture,sunshine,sweetie,calm,optimism,taffy,todayland,trirampo,reddit_place_2022,tropical,vivid,shido,intacto,itatsi,enos,grixel,superb,undertones,tango,cheese,equpix15,zughy,voodo,franzston,night,star29,star34,still_life,jpc16,acid,battery,clumpy,cthul,crimso11,copper_tech,drz15a,eggy,europa,greyt_bit,jewel,polar,sheltzy,wyrm,yume_nikki,rube_goldberg,boomboom,generic-8,crayola,funky,golden_wall,matriax8c,nt1h,jerrypie,90s,on70,anb,retrocal,punolit,luap,autum_villan,autum,autum_yellow,galaxy,cretaceous,antiquity,mushroom,aerugo,hotel_paintings,nopal,brightness_gpy,blessing,fairy_dust,milkshake,fuzzy,fairy,naji16,easter,pastel_and_darks,pastel_irena,nostalgia,ocaso,pastel_starlitsunset,pollen,kule,hydrangea,fluffy,st8,neon,cyclope,sy17,syz15,tui15,cave,psygnosia,marshmellow,lost_century,finlal,industrial,murder_mystery,fate_and_destiny,vinik,ykb,halloween,graveyard,steamlords,frostical,deuterospill,cool_bone,muted_ally,ephemera,ink,violet_dreams,tiny,old_gold,rosemoss-8,aap_radiant_xv,aap_majesty_xvii,dead_weight,mojave,petite,petite_afterdark,xaiue_radiant,daruda,firestorm,borkfest,spicy,rust,apricot,supernova,pastry,sandy,illumination,nyx,dream_haze,oil,regal,soft_demon,sgm,midnight_ablaze,black_cherry,sunset_red,inkpink,brash_pink,pink_neon_sign,enchanted_purple,arch,spacey_easter,fornax_void_1,fornax_void_2,pixelwave,s1-6,berry_nebula,abyss,moonlight,moon,h2o,magic_waters,bluemold,moss,deep_maze,toxic_slime,lush_green,tsunami,cryptic_ocean,marsh_madness,oxyd,pink_green,woodwalk,paper,sahara,sunflower,arthoe,sky,ocean,royal,eulbink,winter_wonderland,moon_squid,stratus,arctic_dust,clouds_sunset,lilac_skies,sea_of_fire,autochrome3,autochrome5,gb_default_1,gb_default_2,gb_andrade,gb_blue,gb_blackzone,gb_suburb,gb_crimson,gb_didi,gb_dirty,gb_arne,gb_easy,gb_forest,gb_harsh_green,gb_light_green,gb_nostalgia,gb_platinum,gb_kirokaze,gb_cyber,gb_wish,gb_grapefruit,gb_ice_cream,gb_red_blue,gb_gold,gb_choco,gb_gray,gb_space,gb_purple_dawn,moon_crystal,arne,autumn_chill,cherrymelon,hal4,hollow,lavender,maw,voltage_warning,tritanopia,rabbit,amiga2600_ntsc,amiga2600_pal,amiga2600_secam,amiga7800_mess,amiga7800,amstrad_cpc,apple,atari,cga,cga00,cga01,cga10,cga11,cga20,cga21,c64_pepto,c64_colodore,com_vic_20,colecovision,jmp,mac2,mac_8-bit,msx,nes,pico,risc,sam_coupe,mo5,trs80,virtualboy,vga,win95,zx,gnome,electronic_crayon,chip,deluxe_paint,flat_ui,makecode_arcade,oekaki,ms_legacy_paint,ms_xp,vista,piet,japanese_woodblock,human_faces,hsv,christmas,ladybug_reds
-_pal_id_2_int:
-rep_altbase_num2posdec 65,{"
+__pal_id_2_int:
+if same('$1','$pT')
+	u $ch return
+fi
+
+pT=$1
+
+rep_altbase_num2posdec 39,{"
 	const _0=_'0';
 	const _a=_'a';
 	const _z=_'z';
-	const _A=_'A';
-	const _Z=_'Z';
 	v=('$1');
 	repeat(size(v),p,
 		char=v[p];
@@ -22013,9 +22099,6 @@ rep_altbase_num2posdec 65,{"
 		):
 		isint(char,_a,_z)?(
 			v[p]=char-_a+13;
-		):
-		isint(char,_A,_Z)?(
-			v[p]=char-_A+39;
 		):(
 			run('error inv_char_det');
 		);
@@ -27419,7 +27502,7 @@ else
 	output_name="$12"
 fi
 
-rep_correct_exp_ne {``$output_name}
+rep_correct_exp_nm {:$output_name}
 new_out=${}
 
 if $act_exp
