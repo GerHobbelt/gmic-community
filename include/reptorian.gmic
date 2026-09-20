@@ -48,23 +48,37 @@
 #
 #-------------------------------
 
-#@cli rep_pf_args: prefix,postfix,arg0,arg1,...
+#@cli rep_ls: start_num,end_num,size_of_array,repeat
+#@cli : Return linear space sequence.
+rep_ls:
+check isfinite($1)&&isfinite($2)&&isint($3,1)&&isint(${4=1},1)
+if $3==1 u $1 return fi
+u {expr('$1+y*{($2-$1)/($3-1)}',$4,$3)}
+#@cli rep_pf_args: str_(prefix/postfix),arg0,arg1,...
 #@cli : Return arguments with prefix/postfix applied.
+#@cli : First argument can contain 1 or 2 chars. For 2 chars, left char is prefix, right char is postfix.
 rep_pf_args:
 skip ${1=},${2=}
-
-check $#>=3&&(narg($1)||narg($2))
+size_str_arg1={size('\$1')}
+check $#>=2&&($size_str_arg1||narg($2))&&isint($size_str_arg1,0,2)
 
 $=a
-p=3
+p0,p1={'$1'}
 
-repeat $#-2 {
-	r.=${S}$1${a$p}$2
+if narg($p0)
+	p0={`$p0`}
+	p1={`$p1`}
+fi
+
+p=2
+
+repeat $#-1 {
+	o.=$S$p0${a$p}$p1
 	S=,
 	p+=1
 }
 
-u $r
+u $o
 #@cli rep_concat_imgs_vals_uniq
 #@cli : Deduplicate images based on their pixel values using a hash table, then output images describing the unique serialized values.
 #@cli :
@@ -72,20 +86,36 @@ u $r
 #@cli : with identical value sequences are considered duplicates.
 #@cli :
 #@cli : Outputs a string-table representation of the unique images:
-#@cli :   • image[0]: concatenation of serialized image value strings
-#@cli :   • image[1]: [offset,length] per entry (ch0=offset, ch1=length)
+#@cli :   - image[0]: concatenation of serialized image value strings
+#@cli :   - image[1]: [offset,length] per entry (ch0=offset, ch1=length)
 #@cli :
-#@cli : Also returns the length of the longest string.
+#@cli : Warning! This should only be used for small images with different dimensions.
+#@cli :
+#@cli : Also returns the length of the longest image.
 rep_concat_imgs_vals_uniq:
-_rep_dedup_dict 1,1
-#@cli rep_uniq_args: output_mode= 0=status | 1=string_table_images | ~0=randomized_status | ~1=randomized_string_table_images },[arg0,arg1,...]
+remove_duplicates I=$!
+{sum(expr('whds#x',$I))} $I,1,1,2
+eval "
+	p=M=0;
+	repeat($I,q,
+		copy(i[#-2,p],i[#q,0],whds#q);
+		if(whds#q>M,M=whds#q);
+		I[#-1,q]=[p,whds#q];
+		p+=whds#q;
+	);
+	M;
+	"
+k[-2,-1]
+#@cli rep_uniq_args: output_mode={ 0=status | 1=string_table_images | 2=str2imgs },randomize_str_pos={ 0=False | 1=True },[arg0,arg1,...]
 #@cli : Deduplicate input strings.
 #@cli :
-#@cli : output_mode=0 → returns the unique strings as a comma-separated list in
+#@cli : output_mode=0 returns the unique strings as a comma-separated list in
 #@cli : the `status` variable.
 #@cli :
-#@cli : output_mode=1 → outputs a string-table representation and returns the
+#@cli : output_mode=1 outputs a string-table representation and returns the
 #@cli : length of the longest string in `status` variable.
+#@cli :
+#@cli : output_mode=2 output image representation per strings
 #@cli :
 #@cli : -- Details for output_mode=1 --
 #@cli : 1) First image: concatenation of all unique strings.
@@ -94,36 +124,51 @@ _rep_dedup_dict 1,1
 #@cli :    - channel 1: length of the string.
 #@cli : 3) Status is set to the length of the longest string.
 +rep_uniq_args:
-_rep_dedup_dict $1,0,${2--1}
-_rep_dedup_dict:
-check S='$1';(size(S)==1?isint($1))||size(S)==2
-start_point=$!
-$=arg
+skip $*
+_rep_dedup_strval_dict $1,0,$2,${3--1}
+_rep_dedup_strval_dict:
+skip $*
+check isint(${1=0},0,2)&&isint(${2=0},0)&&isbool(${3=1})
+output,limit,randomize_str_pos,use_images:=${1-3},$#<4
 
-size_of_dict_table,bit_mask:=(1<<cut(ceil(log2($#))+1,4,10))-[0,1]
-randomized,output_images:=S='$1';size(S)==2?[S[0]==_'~',S[1]-_'0']:[0,S[0]-_'0'];
+# Output Mode
+# 0 : Status
+# 1 : Concatenated string + off/length image
+# 2 : Remove duplicate image values
 
-if $2
-	if $randomized
-		repeat $! { rv[$<,{v($<)}] }
-	fi
-	output_images=1
+if $use_images
+	start_point,size_of_dict_table,bit_mask:=0,(1<<cut(ceil(log2($!))+1,2,10))-[0,1]
+	if $2 foreach { if whds>$2 rm fi } fi
+	if $!&&$randomize_str_pos repeat $! { rv[$<,{v($<)}] } fi
 else
-	if $randomized
-		Z={$#-2}
-		$Z,1,1,1,x+3 shuffle.
-		repeat $Z {
-			('${arg{i[#$start_point,$>]}}':^)
-		}
+	start_point,size_of_dict_table,bit_mask:=$!,(1<<cut(ceil(log2($#-3))+1,2,10))-[0,1]
+	$=arg
+
+	if $randomize_str_pos
+		{$#-3},1,1,1,x+4
+
+		shuffle.
+
+		if $limit repeat w { ('${arg{i[#$start_point,$>]}}':^) if s<$limit rm. fi }
+		else      repeat w { ('${arg{i[#$start_point,$>]}}':^) }
+		fi
+
 		rm[$start_point]
 	else
-		repeat $#-2 {
-			('${arg{$>+3}}':^)
-		}
+		if $limit repeat $#-3 { ('${arg{$>+4}}':^) if s<$limit rm. fi }
+		else      repeat $#-3 { ('${arg{$>+4}}':^) }
+		fi
 	fi
 fi
 
-max_s=${-max_s[$start_point--1]}
+if $!==$start_point
+	if !$output u "" fi
+	return
+fi
+
+{$!-$start_point},1,1,1,whds#($start_point+x)
+total_chars,max_whds,add_commas:=is#-1,iM#-1,w#-1-1
+rm.
 
 # Below code use modified DBJ2 algorithm
 start_of_hash_indice=$!
@@ -140,24 +185,27 @@ start_of_hash_indice=$!
 	hash_value&=bit_mask;
 	"
 # Above code use modified DBJ2 algorithm
-
 0x$size_of_dict_table
 
-N={$start_of_hash_indice-$start_point}
-{$max_s*$N+(!$output_images?$N-1)}
-if $output_images
-	$N,1,1,2
+diff={$start_of_hash_indice-$start_point}
+
+{$output==2?$diff:($total_chars+(!$output?$add_commas))}
+if $output==1
+	$diff,1,1,2
 fi
 
 eval[$start_of_hash_indice] >"begin(
-		const output_images=$output_images;
-		const info_start=$max_s;
+		const output=$output;
+		const info_start=$max_whds;
 		const vector_size=info_start;
 		const Is=$start_point;
 		const start_of_dict_table=k+1;
 		insertion_pos_list=vector(#$size_of_dict_table);
 		count_of_unique_strings=str_ins=0;
-		output_images?(
+		output==2?(
+			insert_info()=i[#-1,count_of_unique_strings]=p-Is;
+		):
+		output==1?(
 			insert_info()=(
 				copy(i[#-2,str_ins],i[#p,0],s#p);
 				I[#-1,count_of_unique_strings]=[str_ins,s#p];
@@ -173,33 +221,43 @@ eval[$start_of_hash_indice] >"begin(
 				str_ins+=s#p;
 			);
 		);
-
 	);
 	p=x+Is;
 	insertion_pos=insertion_pos_list[i];
 	door_pos=i+start_of_dict_table;
 	str_v=crop(#p,0,0,0,0,1,1,1,info_start);
+
 	s#p&&(insertion_pos?find(#door_pos,str_v,insertion_pos,-vector_size)==-1:1)?(
 		if(wh#door_pos==insertion_pos,
 			new_size=max(8,h(#door_pos)<<1);
 			resize(#door_pos,vector_size,new_size,1,1,-1);
 		);
+
 		copy(i[#door_pos,insertion_pos],str_v);
 		insertion_pos_list[i]+=vector_size;
 		insert_info();
 		++count_of_unique_strings;
 	);
-	end(
-		output_images?(
 
+	end(
+		output==2?(
+			resize(#-1,count_of_unique_strings,1,1,1,-1);
+		):
+		output==1?(
 			set('crop_point_str_col_info',str_ins-1);
 			set('crop_point_pos_info',count_of_unique_strings-1);
 		);
 	);
 	"
 
-if $output_images
-	if $2
+if $output==2
+	l[$start_point-{$start_of_hash_indice-1},-1] {
+		k[{crop(#-1)}]
+		E={$start_point+$!}
+	}
+	rm[$E--1]
+elif $output==1
+	if $use_images
 		rm[0--3]
 	else
 		rm[$start_point--3]
@@ -213,13 +271,14 @@ if $output_images
 		0
 	fi
 
-	u $max_s
+	u $max_whds
 else
 	u {t}
 	rm[$start_point--1]
 fi
-#@cli rep_sug_args: inp,_sep,_sug_mul_args={ 0=false | 1=true},0<_sim_res[%]<=100,-100<=_leven_jaro_blend[%]<=100,_exp,0<=_prefix_boost_factor[%]<=100,_case_insensitive={ 0=False | 1=True },arg0,arg1,...
-#@cli : Suggest arguments given input using Damerau-Levenshtein Distance algorithm.
+#@cli rep_sug_args: inp,_sep,_sug_mul_args={ 0=false | 1=true},0<_sim_res[%]<=100,-100<=_leven_jaro_blend[%]<=100,_exp,0<=_prefix_sw_blend[%]<=100,0<=_prefix_sw_factor[%]<=100,_case_insensitive={ 0=False | 1=True },arg0,arg1,...
+#@cli : Suggest arguments given input using modified Winklestein algorithm, with prefix to smith-waterman boost factor.
+#@cli : Source of Winklestein algorithm: https://github.com/xreeple/winklestein
 #@cli :
 #@cli : Returns '--0001e0' on exact match.
 #@cli : Returns '--0000e0' if no close match is found.
@@ -238,9 +297,10 @@ fi
 #@cli : '_sep' is the separator between words (defaults to an empty string '').
 #@cli : '_sug_mul_args' : 1 = Multiple suggestions, 0 = Only the closest match.
 #@cli : '_sim_res' defines the minimum similarity score for a match to be accepted.
-#@cli : '_leven_jaro_blend' : Sets mix of two fuzzy-match options. [1][2][3][4][5]*
+#@cli : '_leven_jaro_blend' sets mix of two fuzzy-match options. [1][2][3][4][5]*
 #@cli : '_exp' scales the similarity score (default: 1).
-#@cli : '_prefix_boost_factor' defines how much to boost the prefix.
+#@cli : '_prefix_sw_blend' set mix of prefix and smith-waterman algorithm.
+#@cli : '_prefix_sw_factor' defines how much to boost the prefix/smith-waterman scoring.
 #@cli : '_case_insensitive' defines whether the algorithm is case-insensitive.
 #@cli : 'argN' is a list of words to compare the input against.
 #@cli : #--------------------------------------------------#
@@ -253,7 +313,7 @@ fi
 #@cli :
 #@cli : * Closer to -1 or 1 favors selected Jaro-Winkler variant. Positive value favors more forgiving Jaro-Winkler variant.
 #@cli :
-#@cli : Default values: 'sep=','_sug_mul_args=1','_sim_res=70%','_leven_jaro_blend=50%','_exp=1','_prefix_boost_factor=5%','_case_insensitive=1'
+#@cli : Default values: 'sep=','_sug_mul_args=1','_sim_res=70%','_leven_jaro_blend=50%','_exp=1','_prefix_lcs_factor=5%','_case_insensitive=1'
 rep_sug_args:
 skip "${1=}"
 check "isint('${2=}',0,2)&&
@@ -261,12 +321,13 @@ check "isint('${2=}',0,2)&&
        inrange(${4=70%},10%,100%,0,1)&&
        inrange(abs(${5=50%}),0%,100%,1,1)&&
        ${6=1}>0&&
-       inrange(${7=5%},0%,100%,1,1)&&
-       isbool(${8=1})"
+       inrange(${7=0%},0%,100%,1,1)&&
+       inrange(${8=5%},0%,100%,1,1)&&
+       isbool(${9=1})"
 
-sep,mul_args,sim_res,blend_between_levenshtein_and_jaro_winkler_algorithm,exp,prefix_boost_factor,case_insensitive,I=${2=},{[${3-8}]},$!
-abs_blend_between_levenshtein_and_jaro_winkler_algorithm,size_of_sep_chars,use_EXAM_SIM:=abs($blend_between_levenshtein_and_jaro_winkler_algorithm),size('$sep'),narg($_EXAM_SIM)?1;$_EXAM_SIM
-use_levenstein_dp_table={$prefix_boost_factor<1&&$abs_blend_between_levenshtein_and_jaro_winkler_algorithm<1}
+sep,mul_args,sim_res,blend_between_levenshtein_and_jaro_winkler_algorithm,exp,prefix_smith_waterman_blend,prefix_smith_waterman_factor,case_insensitive,I=${2=},{[${3-9}]},$!
+abs_blend_between_levenshtein_and_jaro_winkler_algorithm,size_of_sep_chars,use_EXAM_SIM:=abs($blend_between_levenshtein_and_jaro_winkler_algorithm),size('$sep'),bool(narg($_EXAM_SIM)?1;$_EXAM_SIM)
+use_levenstein_dp_table={$prefix_smith_waterman_factor<1&&$abs_blend_between_levenshtein_and_jaro_winkler_algorithm<1}
 
 if !narg($1)
 	u --0000e0
@@ -279,8 +340,8 @@ if $case_insensitive
 	f. lowercase(i)
 fi
 
-+rep_uniq_args ~1,${9--1}                   # ~ is used to denote that arguments to be checked against are in random positions. Used to avoid bias.
-concat_str,max_string_length={$!-2},${}     # Status variable returned from rep_uniq_args gives highest string length
++rep_uniq_args 1,1,${10--1}
+max_string_length=${}
 
 if !$max_string_length
 	rm.
@@ -313,13 +374,12 @@ if !$use_EXAM_SIM
 fi
 
 eval "
-	const prefix_boost_factor=$prefix_boost_factor;
-	const prefix_only=prefix_boost_factor==1;
-	const prefix_blend=!prefix_only&&prefix_boost_factor;
+	const prefix_smith_waterman_factor=$prefix_smith_waterman_factor;
+	const prefix_smith_waterman_only=prefix_smith_waterman_factor==1;
 	const leven_jaro_blend=$abs_blend_between_levenshtein_and_jaro_winkler_algorithm;
-	const blend_both=!prefix_only?leven_jaro_blend>0&&leven_jaro_blend<1;
-	const use_levensthein=!prefix_only?leven_jaro_blend<1;
-	const use_jaro_winkler=!prefix_only?leven_jaro_blend;
+	const blend_both=!prefix_smith_waterman_only?leven_jaro_blend>0&&leven_jaro_blend<1;
+	const use_levensthein=!prefix_smith_waterman_only?leven_jaro_blend<1;
+	const use_jaro_winkler=!prefix_smith_waterman_only?leven_jaro_blend;
 	const input_word_ind=$I;
 	const score_img_ind=$score_img_ind;
 	const num_of_words=w#$score_img_ind;
@@ -327,11 +387,24 @@ eval "
 	const pos_channel=0;
 	const count_channel=1;
 	const str_col_ind=score_img_ind-1;
+	const power=$exp;
 	const L0=$L0;
 	const L1=$L1;
 	const max_possible_score=(L0*(L0+1))>>1;
 	const find_more_same=$mul_args&&$case_insensitive;
 	const use_EXAM_SIM=$use_EXAM_SIM;
+
+	if(prefix_smith_waterman_factor,
+		const prefix_smith_waterman_blend=$prefix_smith_waterman_blend;
+		const use_prefix_smith_waterman_blend=!isint(prefix_smith_waterman_blend);
+		const use_prefix=prefix_smith_waterman_blend<1;
+		if(prefix_smith_waterman_blend,
+			const IL1=L1+1;
+			const match=2;
+			const mismatch=-1;
+			const gap=-1;
+		);
+	);
 
 	if(use_jaro_winkler,
 		const jaro_version=$blend_between_levenshtein_and_jaro_winkler_algorithm<0;
@@ -377,14 +450,47 @@ eval "
 			);
 		);
 
-		if(prefix_boost_factor,
-			prefix_score=0;
-			repeat(min(L0,TL1),p,
-				if(i[#input_word_ind,p]==i[#str_col_ind,L1_pos+p],
-					prefix_score+=p+1;
+		if(prefix_smith_waterman_factor,
+			if(use_prefix,
+				prefix_score=0;
+				repeat(min(L0,TL1),p,
+					if(i[#input_word_ind,p]==i[#str_col_ind,L1_pos+p],
+						prefix_score+=p+1;
+					);
+				);
+				prefix_score/=max_possible_score;
+			);
+
+			if(prefix_smith_waterman_blend,
+				smith_waterman_score=0;
+				if(TL1>=L0,
+					dp=vector(#IL1);
+					p=q=0;
+					while(++p<=L0,
+						prev=dp[0];q=0;
+						while(++q<=TL1,
+							temp=dp[q];
+							i[#input_word_ind,p-1]==i[#str_col_ind,L1_pos+q-1]?(
+								dp[q]=max(0,prev+match);
+							):(
+								dp[q]=max(0,prev+mismatch,dp[q-1]+gap,dp[q]+gap);
+							);
+							smith_waterman_score=max(smith_waterman_score,dp[q]);
+							prev=temp;
+						);
+					);
+					smith_waterman_score/=L0*match;
 				);
 			);
-			prefix_score=prefix_score/max_possible_score;
+
+			use_prefix_smith_waterman_blend?(
+				prefix_smith_waterman_score=lerp(prefix_score,smith_waterman_score,prefix_smith_waterman_blend);
+			):
+			use_prefix?(
+				prefix_smith_waterman_score=prefix_score;
+			):(
+				prefix_smith_waterman_score=smith_waterman_score;
+			);
 		);
 
 		if(use_levensthein,
@@ -456,11 +562,13 @@ eval "
 		use_levensthein?(
 			score=levenshtein_score;
 		):(
-			score=prefix_score;
+			score=prefix_smith_waterman_score;
 		);
 
-		if(prefix_blend,
-			score=lerp(score,prefix_score,prefix_boost_factor);
+		score^=power;
+
+		if(prefix_smith_waterman_factor,
+			score=lerp(score,prefix_smith_waterman_score,prefix_smith_waterman_factor);
 		);
 
 		use_EXAM_SIM?(
@@ -691,7 +799,7 @@ I,T,n0:=$!,$#-2,'0' # I = Number of Images ; T = Number of input strings to conv
 check $#>2
 
 $=a
-a1,a2,b0,b1,b2,b3,b4,Abin,Abinary,A2,Aqua,Aquaternary,A4,Aoct,Aoctal,A8,Ahex,Ahexadecimal,A16,Aduo,Aduotri,Aduotrigesimal,A32=${strlowercase\ $a1},${strlowercase\ $a2},"bin,binary,2","qua,quaternary,4","oct,octal,8","hex,hexadecimal,16","duo,duotri,duotrigesimal,32",1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,5
+a1,a2,b0,b1,b2,b3,b4,Abin,Abinary,A2,Aqua,Aquaternary,A4,Aoct,Aoctal,A8,Ahex,Ahexadecimal,A16,Aduo,Aduotri,Aduotrigesimal,A32=${strlowercase\ $a1},${strlowercase\ $a2},"bin,binary,2","qua,quaternary,4","oct,octal,8","hex,hexadecimal,16","duo,duotri,duotrigesimal,32",${rep_ls\ 1,5,5,3},5
 
 __rep_xp2b_check_arg $a1,$1
 __rep_xp2b_check_arg $a2,$2
@@ -847,9 +955,9 @@ __rep_xp2b_check_arg:
 l[] {
 	check narg(${A$1})
 	onfail
-		closest_arg=${rep_sug_args\ $1,,0,50%,50%,1,0%,0,$b0,$b1,$b2,$b3,$b4}
+		closest_arg=${rep_sug_args\ $1,,0,50%,50%,1,0,0%,0,$b0,$b1,$b2,$b3,$b4}
 		repeat 5 {
-			L=${rep_pf_args\ ',',${b$>}}
+			L=${rep_pf_args\ ',${b$>}}
 			if isin('$closest_arg',$L)
 				error "Invalid value '"$2"'. Expected one of (case-insensitive): "$L
 			fi
@@ -7554,25 +7662,35 @@ check "$8!=0"
 			yp=oscil_b(yp,txp);
 		);
 		norm(xp,yp);"
-#@cli rep_permutations: init_num,_axis={x,y,z}
+#@cli rep_permutations: init_num,(_axis={x,y,z})
 #@cli : Return all the permutations of set of numbers as a image.
 #@cli :
 #@cli : Finding the next permutation has been adapted from this link -> https://www.techiedelight.com/find-permutations-string-cpp-java-iterative/
 #@cli : Finding the permutation at point index within this code is of the author.
+#@cli : Note : If '_axis' is not x,y,or z, then returns quantity only.
 #@cli : Author : Reptorian.
 #@cli : Default values: '_axis=x'
 +rep_permutations:
 skip ${2=x}
 
-check "inrange($1,0,10,1,1)&&$1==int($1)&&inrange(('$2')[0],_'x',_'z',1,1)"
+fact={fact($1)}
+
+check isint($1,1)&&$#==2
+
+if !isint(_'$2',_'x',_'z')
+	u $fact
+	return
+fi
+
+check $1<10
 
 if $1==1 1 return fi
 
 old_status=${}
 
-axis,fact_size={_'$2'-_'x'},{fact($1)}
+axis={_'$2'-_'x'}
 
-{v=vector(#3,1);v[$axis]=$fact_size;v},$1
+{v=vector(#3,1);v[$axis]=$fact;v},$1
 
 if $1>7 mode=: else mode=> fi
 
@@ -7695,34 +7813,39 @@ if $#>1
 else
 	u 0
 fi
-#@cli rep_npr_permutations: number_of_items,selected_items_count,_axis={x|y|z}
+#@cli rep_npr_permutations: number_of_items,selected_items_count,(_axis={x|y|z}) :  selected_items_count,number_of_items,(_axis={x|y|z})
 #@cli : Generates partial combination. P(n,k)
 #@cli : Note - Code is taken from Alistairisrael pseudo-code - https://alistairisrael.wordpress.com/2009/09/22/simple-efficient-pnk-algorithm/
+#@cli : Note #2 - If '_axis' is not x,y,or z, then returns quantity only.
 #@cli : Default values: '_axis=x'
 +rep_npr_permutations:
 skip ${3=x}
 
-check "($1>=$2&&$1>0&&isint($1))&&($2>0&&isint($2))&&inrange(_'$3',_'x',_'z',1,1)"
+check isint($1,1)&&isint($2,1)&&$#==3
+
+k,n:=sort([${1-2}])
+
+N={perm($k,$n,1)}
+
+if !isint(_'$3',_'x',_'z')
+	u $N
+	return
+fi
 
 if [${1-2}]==[1,1] 1 return fi
 
-num_of_permutations,axis={perm($2,$1,1)},{_'$3'-_'x'}
-
-if $axis==2   out_dim=1,1,$num_of_permutations
-elif $axis==1 out_dim=1,$num_of_permutations,1
-else          out_dim=$num_of_permutations,1,1
-fi
-
-if $2==1 $out_dim,1,${arg0\ $axis,x,y,z} return fi
+axis={_'$3'-_'x'}
+out_dim={d=[1,1,1];d[$axis]=$N;d;}
+if $k==1 $out_dim,1,${arg0\ $axis,x,y,z} return fi
 
 old_status=${}
 
-$out_dim,$2
+$out_dim,$k
 +rep_mt_f32v_map {[whd#-1,whd#-1>>12]},0
 eval. :"
 	const s=s#-2;
 	const edge=s-1;
-	const n=$1;
+	const n=$n;
 	const dec_n=n-1;
 
 	output=expr('x',n);
@@ -7742,11 +7865,11 @@ eval. :"
 	);
 
 	division_numbers_arr=expr('begin(
-			const m=($1==$2?1:$1-$2)+1;
+			const m=($n==$k?1:$n-$k)+1;
 			v=m;
 		);
 		x>1?v=v*(m+x-1):(x?v:1);'
-	,1+($1==$2?$1-2:min($1-1,$2-1)));
+	,1+($n==$k?$n-2:min($n-1,$k-1)));
 
 	const size_dna=size(division_numbers_arr);
 
@@ -7886,7 +8009,7 @@ elif $#>2&&$n_items
 else
 	status 0
 fi
-#@cli rep_r_permutations: number_of_items, repetition,_axis={ x|y|z} : -number_of_items>0, occurance_per_items,_axis={ x|y|z}
+#@cli rep_r_permutations: number_of_items, repetition,(_axis={ x|y|z}) : -number_of_items>0, occurance_per_items,(_axis={ x|y|z})
 #@cli : Create image representing permutations with repeating numbers.
 +rep_r_permutations:
 skip ${3=x}
@@ -7905,21 +8028,28 @@ rep_cartesian_product_list2index {vector(#$#-1,$1)},${2--1}
 #@cli : Code has been adapted from sleeepjack's Python 2 code executing Algorithm 515 only in case when non-zero index is used to find combination at a point - https://github.com/sleeepyjack/alg515/blob/master/python/alg515.py
 #@cli :
 #@cli : Note: If $2 is greater than $1, then $2 is number of items and $1 is choices. Only positive integer numbers are accepted!
+#@cli : Note #2: If '_axis' is not x,y,or z, then returns quantity only.
 #@cli : Default values: '_axis=x'
 +rep_ncr_combinations:
 skip ${3=x}
 
-check "($1>0&&$2>0)&&(isint($1)&&isint($2))&&inrange(_'$3',_'x',_'z',1,1)"
-
-if $1==$2 1,1,1,$1,c return fi
+check isint($1,1)&&isint($2,1)&&$#==3
 
 choices,n_items:=sort([$1,$2])
+num_combs={perm($choices,$n_items,0)}
+
+if !isint(_'$3',_'x',_'z')
+	u $num_combs
+	return
+fi
+
+if $1==$2 1,1,1,$1,c return fi
 
 if $choices==1 $n_items,1,1,1,x return fi
 
 old_status=${}
 
-num_combs,axis:=perm($choices,$n_items,0),_'$3'-_'x'
+axis={_'$3'-_'x'}
 
 if $num_combs>33554432 error excess_combs fi
 
@@ -8071,23 +8201,28 @@ eval "
 	);
 
 	idx;"
-#@cli rep_r_combinations: number_of_items>0,choices>0,_axis={x,y,z}
+#@cli rep_r_combinations: number_of_items>0,choices>0,(_axis={x,y,z})
 #@cli : Create image representing combinations given number of items and choices with repeating numbers. Empty item is a item by itself.
 #@cli : Code to find combinations given index is taken from Joseph Wood at codereview.stackexchange - https://codereview.stackexchange.com/questions/285415/find-the-list-of-combination-with-repetition-given-rank-and-number-of-items/287944#287944
+#@cli : Note #2: If '_axis' is not x,y,or z, then returns quantity only.
 #@cli : Author : Reptorian.
 +rep_r_combinations:
 skip ${3=x}
 
-check "($1>0&&$2>0)&&(isint($1)&&isint($2))&&inrange(_'$3',_'x',_'z',1,1)"
+check isint($1,1)&&isint($2,1)&&$#==3
 
 old_status=${}
 
 n_items,choices=$1,$2
-num_combs,axis:=perm($choices,$n_items+$choices-1,0),_'$3'-_'x'
+num_combs={perm($choices,$n_items+$choices-1,0)}
 
-out_dim={D=[1,1,1];D[$axis]=$num_combs;D;}
+if !isint(_'$3',_'x',_'z')
+	u $num_combs
+	return
+fi
 
-$out_dim,$choices
+axis={_'$3'-_'x'}
+{D=[1,1,1];D[$axis]=$num_combs;D;},$choices
 +rep_mt_f32v_map {[whd#-1,whd#-1>>13]},0
 eval. :"
 	const S=s#-2;
@@ -8199,30 +8334,41 @@ eval "
 	);
 	index+=series_of_indexes[kv-1]-series_of_indexes[kv-2];
 	index;"
-#@cli rep_cartesian_product: number_of_items_a,number_of_items_b,...,_axis
+#@cli rep_cartesian_product: number_of_items_a,number_of_items_b,...,(_axis={x|y|z})
 #@cli : Output image representing cartesian product based on input.
+#@cli : If _axis is not a number of one of the following chars (x,y,z), then it returns product of items_counts.
 #@cli : Default values: '_axis=x'
 +rep_cartesian_product:
 if isnum($-1)&&isint($-1)
-	axis,user_xyz=0
-elif inrange(_'$-1',_'x',_'z',1,1)
-	axis,user_xyz={_'$-1'-_'x'},1
+	axis,use_char_at_end,return_quantity=0
+elif isint($-1,_'x',_'z')
+	axis,use_char_at_end,return_quantity={_'$-1'-_'x'},1,0
+elif !isnum($-1)
+	use_char_at_end,return_quantity=1,1
 else
-	error invalid_char
+	error fin_inp
 fi
 
-vars2chk={$#-$user_xyz}
-v_list={abs(([$*])[0,$vars2chk])}
-n_vars_isint,all_valid={v=[$v_list];[sum(isint(v)),min(v)]}
+if $use_char_at_end
+	v_list:=abs([${1--2}])
+else
+	v_list:=abs([$*])
+fi
 
-if !$all_valid error var_0_error fi
-if $n_vars_isint!=$vars2chk invalid_var_inp fi
+check same(isint([$v_list],1),1)
 
-dims,s_size={v=[$v_list];[prod(v),size(v)];}
+prod_v:=prod($v_list)
 
-if $dims>33554432 error dims_lim_exc fi
+if $return_quantity
+	u $prod_v
+	return
+fi
 
-dims={v=vector(#3,1);v[$axis]=$dims;v;}
+s_size={narg($v_list)}
+
+if $prod_v>33554432 error dims_lim_exc fi
+
+dims={v=vector(#3,1);v[$axis]=$prod_v;v;}
 
 if max($v_list)==1 1,1,1,$s_size return
 elif $s_size==1 $dims,1,${arg0\ $axis,x,y,z} return
@@ -8307,12 +8453,14 @@ eval "
 	++items_count[m];
 	while(m--,items_count[m]*=items_count[m+1];);
 	dot(positions,items_count);"
-#@cli rep_rde_permutations: item_0_count,item_1_count,...,_axis={x,y,z}
+#@cli rep_rde_permutations: item_0_count,item_1_count,...,(_axis={x,y,z})
 #@cli : Generate all of the unique permutations of repeated distinct elements of different count as a image.
 #@cli :
 #@cli : Algorithm is based on the implementation of Narayana Pandita's algorithm by PM 2Ring at stackoverflow.
 #@cli : Implementation of Narayana Pandita's algorithm -  https://stackoverflow.com/questions/8306654/finding-all-possible-permutations-of-a-given-string-in-python
 #@cli : Description of Narayana Pandita's algorithm - https://en.wikipedia.org/wiki/Permutation#Generation_in_lexicographic_order
+#@cli :
+#@cli : Note: If _axis is not a number of one of the following chars (x,y,z), then it returns product of items_counts.
 #@cli : Author : Reptorian.
 #@cli : Default values: '_axis=x'
 +rep_rde_permutations:
@@ -8322,20 +8470,23 @@ old_status=${}
 
 if isnum($-1)
 	items_count=${1--1}
-	axis=0
+	return_quantity,axis=0
 else
-	check "inrange(_'$-1',_'x',_'z',1,1)"
+	return_quantity,axis:=!isint(_'$-1',_'x',_'z'),_'$-1'-_'x'
 	items_count=${1--2}
-	axis={_'$-1'-_'x'}
 fi
 
-check "items_counts=["$items_counts"];
-       ( sum( isint(items_counts,1) ) == size(items_counts) );"
+check same(isint([$items_count],1),1)
 
 total_items_count,number_of_possible_permutations={"
 		groups_of_items_counts=["$items_count"];
 		total_items_count=sum(groups_of_items_counts);
 		[total_items_count,fact(total_items_count)/prod(fact(groups_of_items_counts))]"}
+
+if $return_quantity
+	u $number_of_possible_permutations
+	return
+fi
 
 if $number_of_possible_permutations>(1<<24)
 	error exc_permut_val:$number_of_string_permutations
@@ -8431,7 +8582,7 @@ rm. u $old_status
 #@cli :
 #@cli : Author: Reptorian.
 rep_rde_permutation_index2list:
-check "($#>1) && (sum([${1--2}]>1)==($#-1))"
+check "($#>1) && (sum([${1--2}]>=1)==($#-1))"
 
 total_items_count={sum(${1--2})}
 if $total_items_count>18 error exec_items_count fi
@@ -8524,26 +8675,31 @@ eval "
 	);
 	index;
 	"
-#@cli rep_rde_combinations: selected_count,item_0_count>=1,item_1_count>=1,...,_axis={x,y,z}
+#@cli rep_rde_combinations: selected_count,item_0_count>=1,item_1_count>=1,...,(_axis={x|y|z})
 #@cli : Generates all possible combinations of repeated distinct elements of different counts, and the total number of elements is equal to the selected_count.
 #@cli :
+#@cli : Note: If _axis is not a number of one of the following chars (x,y,z), then it returns product of items_counts.
 #@cli : Default values: '_axis=x'
 +rep_rde_combinations:
 check "isint($1,1)&&$#>1"
 
 if isnum($-1)
 	items_counts=${2--1}
-	axis=0
+	return_quantity,axis=0
 else
-	check "inrange(_'$-1',_'x',_'z',1,1)"
+	return_quantity,axis:=!isint(_'$-1',_'x',_'z'),_'$-1'-_'x'
 	items_counts=${2--2}
-	axis={_'$-1'-_'x'}
 fi
 
-check "items_counts=["$items_counts"];
-       ( sum( isint(items_counts,1) ) == size(items_counts) ) && ($1 <= sum(items_counts) );"
+check same(isint([$items_counts],1),1)&&$1<=sum($items_counts)
 
 number_of_possible_combinations={([${_rep_rde_combination_sizes_from_right\ $1,$items_counts}])[0]}
+
+if $return_quantity
+	u $number_of_possible_combinations
+	return
+fi
+
 if $number_of_possible_combinations>(1<<24) error exc_combin_size:$number_of_possible_combinations fi
 
 out_dim={v=vector(#3,1);v[$axis]=$number_of_possible_combinations;v}
@@ -8757,9 +8913,10 @@ eval. >"
 rm[-2,-1]
 
 u {[$distance_from_right][$insert_distance_pos,$#-2-$insert_distance_pos]}{`$post_insert_zero?',1'`}
-#@cli rep_rde_npr_permutations: selected_count,item_0_count>=1,item_1_count,...,_axis={x,y,z}
+#@cli rep_rde_npr_permutations: selected_count,item_0_count>=1,item_1_count,...,(_axis={x|y|z})
 #@cli : Generates all possible permutations of repeated distinct elements of different counts, and the total number of elements is equal to the selected_count.
 #@cli :
+#@cli : Note: If '_axis' is not x,y,or z, then returns quantity only.
 #@cli : Default values: '_axis=x'
 +rep_rde_npr_permutations:
 check "isint($1,1)&&$#>1"
@@ -8768,15 +8925,19 @@ if isnum($-1)
 	items_counts=${2--1}
 	axis=0
 else
-	check "inrange(_'$-1',_'x',_'z',1,1)"
+	return_quantity,axis:=!isint(_'$-1',_'x',_'z'),_'$-1'-_'x'
 	items_counts=${2--2}
-	axis={_'$-1'-_'x'}
 fi
 
-check "items_counts=["$items_counts"];
-       ( sum( isint(items_counts,1) ) == size(items_counts) ) && ($1 <= sum(items_counts) );"
+check same(isint([$items_counts],1),1)&&$1<=sum($items_counts)
 
 number_of_possible_permutations=${_rep_rde_npr_permutations_length\ $1,$items_counts}
+
+if $return_quantity
+	u $number_of_possible_permutations
+	return
+fi
+
 if $number_of_possible_permutations>(1<<24) error exc_combin_size:$number_of_possible_permutations fi
 
 out_dim={v=vector(#3,1);v[$axis]=$number_of_possible_permutations;v}
@@ -9003,20 +9164,399 @@ check "
 			);
 		);
 	);"
+#@cli rep_rde_compsel_perm: total_selection,number_of_item,(_axis={x|y|z}) : number_of_item,total_selection,(_axis={x|y|z})
+#@cli : Return all arrangements of `total_selection` items over `number_of_item` types
+#@cli : where each type appears at least once. By default, outputs an image.
+#@cli : Note: If '_axis' is not x,y,or z, then returns quantity only.
+#@cli : Code generated by ChatGPT and Claude, guided by Reptorian. Rigorously tested and works.
++rep_rde_compsel_perm:
+skip ${3=x}
 
-u item_count_groups,item_selection=\"$A\",\"$B\"
-#@cli rep_inc_combinations: size,_axis={x,y,z}
+check isint($1,1)&&isint($2,1)&&$#==3
+t,k:=$1>$2?[$1,$2]:[$2,$1]
+if $t==$k +rep_permutations $t,$3 return fi
+
+total_possibilities={${-_rep_rde_lib_sterling_number_of_second_kind};fact($k)*sterling_number_of_second_kind($t,$k)}
+
+if !isint(_'$3',_'x',_'z')
+	u $total_possibilities
+	return
+fi
+
+axis={_'$3'-_'x'}
+{d=[1,1,1];d[$axis]=$total_possibilities;d;},$t
+
++rep_mt_f32v_map {$total_possibilities>>[0,8]}
+
+eval. :"begin(
+		const t=$t;
+		const k=$k;
+		const dec_k=k-1;
+		const use_dp=w>1;
+		if(use_dp,
+			const inc_t=t+1;
+			const inc_k=k+1;
+			const dp_size=inc_t*inc_k;
+			dp=vector(#dp_size);
+			dp[0]=1;
+			idx(a,b)=a+b*inc_k;
+			l=0;
+			while(++l<=t,
+				repeat(l+1,m,
+					used=k-m;
+					val=used*dp[idx(m,l-1)];
+					if(m,
+						val+=m*dp[idx(m-1,l-1)];
+					);
+					dp[idx(m,l)]=val;
+				);
+			);
+		);
+		dec(v)=(
+			--counts[v];
+			if(!counts[v],++missing;);
+		);
+		inc(v)=(
+			if(!counts[v],--missing;);
+			++counts[v];
+		);
+	);
+	T=J(-1);
+	p=T[0]<<24|T[1];
+	use_dp&&p?(
+		seen=vector(#k);
+		used=0;
+		index=p;
+		r=vector(#t);
+		rp=0;
+		repeat(t,tp,
+			remain=t-tp-1;
+			ku=(k-used)-[1,0];
+			repeat(inc_k,q,
+				new_missing=ku[seen[q]];
+				count=dp[idx(new_missing,remain)];
+				if(index<count,
+					r[rp++]=q;
+					if(!seen[q],
+						seen[q]=1;
+						++used;
+					);
+					break();
+				);
+				index-=count;
+			);
+			if(index<0,break(););
+		);
+		r;
+	):(
+		r=expr('<begin(k=$k-1;);max(0,k--)',t);
+	);
+	I[#-2,p]=r;
+	counts=histogram(r,k);
+	missing=0;
+	s=i0<<24|i1;
+	while(++p<s,
+		it=t;break_all=0;
+		while(it--,
+			r_it=r[it];
+			dec(r_it);
+			for(rp=r_it+1,rp<k,++rp,
+				inc(rp);
+				remain=t-(it+1);
+				if(remain>=missing,
+					r[it]=rp;
+					pos=it+1;
+					while(pos<t,
+						missing==t-pos?(
+							repeat(k,q,
+								if(!counts[q],
+									r[pos]=q;
+									inc(q);
+									break();
+								);
+							);
+						):(
+							r[pos]=0;
+							inc(0);
+						);
+						++pos;
+					);
+					break_all=1;
+					break();
+				);
+				dec(rp);
+			);
+			if(break_all,break();)
+		);
+		I[#-2,p]=r;
+	);
+	_0;
+	"
+rm.
+#@cli rep_rde_compsel_perm_index2list: total_selection,number_of_item,index : number_of_item_group,total_selection,index
+#@cli : Return the possibility corresponding to the given index, where at least one item is selected from each item group.
+#@cli : Code generated by ChatGPT and Claude, guided by Reptorian. Rigorously tested and works.
+#@cli : Author: Reptorian.
+rep_rde_compsel_perm_index2list:
+check isint($1,1)&&isint($2,1)&&isfinite($3)
+t,k:=$1>$2?[$1,$2]:[$2,$1]
+
+eval "
+	const H=$t;
+	const W=$k;
+	const iW=W+1;
+	const iH=H+1;
+	const dp_size=iW*iH;
+
+	dp=vector(#dp_size);
+	dp[0]=1;
+
+	idx(a,b)=a+b*iW;
+
+	iy=0;
+	while(++iy<=H,
+		repeat(iy+1,ix,
+			used=W-ix;
+			val=used*dp[idx(ix,iy-1)];
+			if(ix,
+				val+=ix*dp[idx(ix-1,iy-1)];
+			);
+			dp[idx(ix,iy)]=val;
+		);
+	);
+
+	seen=vector(#W);
+	used=0;
+	index=$3%dp[dp_size-1];
+	result=vector(#H);
+	rp=0;
+
+	repeat(H,p,
+		remaining=H-p-1;
+		Wu=(W-used)-[1,0];
+		repeat(iW,q,
+			new_missing=Wu[seen[q]];
+			count=dp[idx(new_missing,remaining)];
+			if(index<count,
+				result[rp++]=q;
+				if(!seen[q],
+					seen[q]=1;
+					++used;
+				);
+				break();
+			);
+			index-=count;
+		);
+		if(index<0,break(););
+	);
+
+	result;"
+#@cli rep_rde_compsel_perm_list2index: number_list
+#@cli : Return the rank of the possibility in which at least 1 item from each item group is selected given N size.
+#@cli : Code generated by ChatGPT and Claude, guided by Reptorian. Rigorously tested and works.
+rep_rde_compsel_perm_list2index:
+max_val={max($*)}
+
+check "nl=[$*];
+       const n_items=$max_val+1;
+       if(isfinite(n_items)&&n_items<=size(nl),
+           set_item=vector(#n_items);
+           group_checked=0;
+           repeat(size(nl),p,
+              v=nl[p];
+              if(isint(nl[p])&&isfinite(v),
+                  if(!set_item[v],
+                      set_item[v]=1;
+                      ++group_checked;
+                  );
+              );
+           );
+           group_checked==n_items;
+       );"
+
+if $max_val+1==$#
+	rep_permutation_list2index $*
+	return
+fi
+
+eval "
+	const H=$#;
+	const W=$max_val+1;
+	const iW=W+1;
+	const iH=H+1;
+	const dp_size=iW*iH;
+
+	dp=vector(#dp_size);
+	dp[0]=1;
+
+	idx(a,b)=a+b*iW;
+
+	iy=0;
+	while(++iy<=H,
+		repeat(iy+1,ix,
+			used=W-ix;
+			val=used*dp[idx(ix,iy-1)];
+			if(ix,
+				val+=ix*dp[idx(ix-1,iy-1)];
+			);
+			dp[idx(ix,iy)]=val;
+		);
+	);
+
+	seen=vector(#W);
+	used=index=0;
+	nl=[$*];
+
+	repeat(H,p,
+		remaining=H-p-1;
+		pv=nl[p];
+		Wu=(W-used)-[1,0];
+
+		repeat(pv,v,
+			new_missing=Wu[seen[v]];
+			index+=dp[idx(new_missing,remaining)];
+		);
+
+		if(!seen[pv],
+			seen[pv]=1;
+			++used;
+		);
+	);
+
+	index;"
+_rep_rde_lib_sterling_number_of_second_kind:
+u "sterling_number_of_second_kind(_a,_b)=(
+        ref(vector(##_a-_b+1,1),_arr);
+        _max_q=_a-_b;
+        _i_max_q=_max_q+1;
+        for(_p=2,_p<=_b,++_p,
+            for(_q=1,_q<_i_max_q,++_q,
+                _arr[_q]+=_p*_arr[_q-1];
+            );
+        );
+        _res=_arr[_max_q];
+        unref(_arr);
+        _res;
+    );"
+#@cli rep_rde_compsel_comb: total_selection>=1, group_items>=1,(_axis={x|y|z}) : group_items>=1,total_selection>=1,(_axis={x|y|z})
+#@cli : Creates a image containing all combinations in which at least 1 item from all group items has been selected.
+#@cli : Note: If _axis is not x,y,z, then returns the length.
+rep_rde_compsel_comb:
+skip ${3=x}
+
+k,t:=sort([${1-2}])
+
+check isint($k,2)
+
+N={perm($k-1,$t-1,0)}
+
+if !isint(_'$3',_'x',_'y')
+	u $N
+	return
+fi
+
+axis={_'$3'-_'x'}
+
+{d=[1,1,1];d[$axis]=$N;d;},$t,>"begin(
+		const k=$k;
+		const dk=k-1;
+		const P=s;
+		cn=(1<<dk)-1;
+	);
+
+	ik=dk;n=cn;
+
+	r=vector(#s);
+
+	p=P;
+
+	while(n,
+		r[--p]=n&1?(ik--):ik;
+		n>>=1;
+	);
+
+	# Gosper's Hack to change cn
+	g0=cn&-cn;
+	g1=cn+g0;
+
+	cn=int((xor(cn,g1)>>2)/g0)|g1;
+	# End of Hack
+
+	r;"
+#@cli rep_rde_compsel_comb_index2list: total_selection>=1, group_items>=1,index : group_items>=1,total_selection>=1,index
+#@cli : Returns the combination that contains at least 1 items that corresponds to the index.
+rep_rde_compsel_comb_index2list:
+k,t:=sort([${1-2}])
+
+check isint($k,2)
+
+eval "
+    const T=$t;
+    const K=$k-1;
+    const N=perm(K-1,T-1,0);
+    index=$3%N;
+    index=N-1-index;
+    r=vector(#T);
+    p=ix=0;
+    dk=K;
+    while(++p<T,
+		if(dk,
+            block=perm(dk-1,T-1-p,0);
+            index<block?(
+				++ix;
+				--dk;
+            ):(
+				index-=block;
+            );
+		);
+        r[p]=ix;
+    );
+    r;
+"
+#@cli rep_rde_compsel_comb_list2index: item_0,item_1,item_2,...
+#@cli : Return the index that corresponds to the following combination of items.
+rep_rde_compsel_comb_list2index:
+M={max($*)}
+
+check same(bool(histogram([$*],$M+1,0,$M)),1)&&$M>0&&same(isint([$*],0),1)
+
+eval "
+    r=sort([$*]);
+    T=$#;
+    K=r[T-1]+1;
+    dk=K-1;
+    N=perm(dk,T-1,0);
+    p=index=0;
+    while(++p<T&&dk,
+        r[p]>r[p-1]?(
+            --dk;
+        ):(
+            index+=perm(dk-1,T-1-p,0);
+        );
+    );
+    N-1-index;
+"
+#@cli rep_inc_combinations: size,(_axis={x|y|z})
 #@cli : Generate all of the possible incremental combination.
+#@cli :
+#@cli : Note: If '_axis' is not x,y,or z, then returns quantity only.
 #@cli :
 #@cli : Author: Reptorian.
 #@cli : Default values: '_axis=x'
 +rep_inc_combinations:
 skip ${2=x}
-check "isint($1,1,24)&&inrange(_'$2',_'x',_'z',1,1)"
-
+check isint($1,1)
 old_status=${}
 
 size,axis={[1<<($1-1),_'$2'-_'x']}
+
+if !isint(_'$2',_'x',_'z')
+	u $size
+	return
+fi
+
+check $1<=24
+
 out_dim={v=vector(#3,1);v[$axis]=$size;v}
 
 $out_dim,$1
@@ -9120,12 +9660,19 @@ check "
 		);
 	);
 	"
-#@cli rep_sum_permutations: limit>=0,size>0,_axis={x,y,z}
+#@cli rep_sum_permutations: limit>=0,size>0,(_axis={x|y|z})
 #@cli : Create a image representing every possible fixed-size vector which sum of non-negative integers is up to integer limit.
+#@cli : Note: If '_axis' is not x,y,or z, then returns quantity only.
+#@cli : Author: Reptorian.
 +rep_sum_permutations:
 skip ${3=x}
-check "isint($1,0)&&isint($2,1)&&$#>3?inrange(_'$-1',_'x',_'z',1,1):1"
+check isint($1,0)&&isint($2,1)&&$#==3
 sum_permutations_size:=$1?perm($2,$1+$2,0):$2
+
+if !isint(_'$3',_'x',_'z')
+	u $sum_permutations_size
+	return
+fi
 
 if $sum_permutations_size>(1<<24) error exc_size fi
 
@@ -9328,12 +9875,19 @@ eval "
 
 	total;
 	"
-#@cli rep_total_sum_permutations: sum_total>=0,size>0,_axis={x,y,z}
+#@cli rep_total_sum_permutations: sum_total>=0,size>0,(_axis={x|y|z})
 #@cli : Create a image representing every possible fixed-size vector which sum of non-negative integers is equal to the total of sum.
+#@cli : Note: If '_axis' is not x,y,or z, then returns quantity only.
+#@cli : Author: Reptorian.
 +rep_total_sum_permutations:
 skip ${3=x}
-check "isint($1,0)&&isint($2,1)&&$#>3?inrange(_'$-1',_'x',_'z',1,1):1"
+check isint($1,0)&&isint($2,1)&&$#==3
 total_sum_permutations_size={d_s=$2-1;perm(d_s,d_s+$1,0)}
+
+if !isint(_'$3',_'x',_'z')
+	u $total_sum_permutations_size
+	return
+fi
 
 if $#>2
 	axis={_'$-1'-_'x'}
@@ -20019,7 +20573,7 @@ l[] {
 	}
 
 	onfail
-		closest_args=${rep_sug_args\ $m,,1,66.66%,-97.5%,1,10%,0,${-_pal_ids}}
+		closest_args=${rep_sug_args\ $m,,1,66%,-97.5%,.9,0,25%,0,${-_pal_ids}}
 
 		if same('$closest_args','--0000e0')
 			e "ERROR: Invalid value '"$M"'. No close match found!"\n
@@ -29522,7 +30076,7 @@ if $mode_16
 	fi
 
 	if $persistent_change||$depth_changed||!$visited_16
-		65536,1,1,2,sum((x>>[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]&1)<<(c?[$inverse_order]:[$order]))
+		65536,1,1,2,sum((x>>[{expr('x',16)}]&1)<<(c?[$inverse_order]:[$order]))
 		store. _persistent
 		cli_base=$order
 	fi
@@ -29580,7 +30134,7 @@ else
 	fi
 
 	if $persistent_change||$depth_changed||!$visited_8
-		256,1,1,2,sum((x>>[0,1,2,3,4,5,6,7]&1)<<(c?[$inverse_order]:[$order]))
+		256,1,1,2,sum((x>>[{expr('x',8)}]&1)<<(c?[$inverse_order]:[$order]))
 		store. _persistent
 		cli_base=$order
 	fi
