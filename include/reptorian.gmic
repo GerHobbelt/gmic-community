@@ -316,6 +316,7 @@ fi
 #@cli : Default values: 'sep=','_sug_mul_args=1','_sim_res=70%','_leven_jaro_blend=50%','_exp=1','_prefix_lcs_factor=5%','_case_insensitive=1'
 rep_sug_args:
 skip "${1=}"
+
 check "isint('${2=}',0,2)&&
        isbool(${3=1})&&
        inrange(${4=70%},10%,100%,0,1)&&
@@ -879,11 +880,13 @@ if $B1>1
 				const _0=_'0';
 				started=p=0;
 			);
+
 			started?(
 				p+=B1;
 			):(
 				p=x*B1;
 			);
+
 			isint(i,_'0',_'9')?(
 				copy(i[#-1,p],i[#R,i-_0],B1,1,w#R,-1);
 			):
@@ -892,7 +895,8 @@ if $B1>1
 			):(
 				copy(i[#-1,p],i[#R,i-Q1],B1,1,w#R,-1);
 			);
-			i;
+
+			_0;
 			"
 		rm..
 
@@ -930,14 +934,17 @@ if $B2>1
 				const _m_a=_'a'-10;
 				started=p=0;
 			);
+
 			started?(
 				p+=B;
 			):(
 				p=x*B;
 				started=1;
 			);
+
 			v=s2v([['0b'],crop(#$I,p,B)]);
 			v<10?v+_0:v+_m_a;"
+
 		r.=$S{t}
 		S=,
 		rm
@@ -954,14 +961,18 @@ u $r
 __rep_xp2b_check_arg:
 l[] {
 	check narg(${A$1})
+
 	onfail
 		closest_arg=${rep_sug_args\ $1,,0,50%,50%,1,0,0%,0,$b0,$b1,$b2,$b3,$b4}
+
 		repeat 5 {
 			L=${rep_pf_args\ ',${b$>}}
+
 			if isin('$closest_arg',$L)
 				error "Invalid value '"$2"'. Expected one of (case-insensitive): "$L
 			fi
 		}
+
 		error no_closest_match_found
 }
 #@cli rep_pattern_str: 0<max_number_of_digits<=16,_use_padding={ 0=False | 1=True },_use_hex_ind={ 0=False | 1=True }
@@ -975,16 +986,20 @@ u {`$3?'0x'`}{`$2&&$1<16?vector(#$P,_'0')`}{`"
 	chars='0123456789ABCDEF';
 	str=vector(#$1);
 	fill(str,(chars)[v(0,15)];);
+
 	is_zero=1;
+
 	repeat(size(str),p,
 		if(str[p]!=_'0',
 			is_zero=0;
 			break();
 		);
 	);
+
 	if(is_zero,
 		str[size(str)-1]=(chars)[v(1,15)]
 	);
+
 	str;
 "`}
 #@cli rep_cs_arg: direction={ 0=backward | 1=forward | 2=bidirectional},cs_arg_num,cs_arg_0,cs_arg_1
@@ -1058,7 +1073,9 @@ sortset_volumes:=[$sortset_volumes][0,$num_of_unique_volumes]
 eval "
 	sorted_list_of_volumes=["$sortset_volumes"];
 	list_of_starts=vector(#size(sorted_list_of_volumes)+1);
+
 	const size_l=size(sorted_list_of_volumes);
+
 	if($2,subsplit_size=vector(#size_l););
 
 	repeat($vol_of_images,p,
@@ -1218,11 +1235,13 @@ else
 		args=[${2--1}];
 		args=sort(args);
 		q=1;
+
 		for(p=1,p<size(args),++p,
 			if(args[p]!=args[p-1],
 				args[q++]=args[p];
 			);
 		);
+
 		set('count_of_uniques',q);
 		args;"
 
@@ -1234,6 +1253,7 @@ else
 	foreach {
 		repeat $nargs {
 			cut_point=${vars{$<+1}}
+
 			l[0] {
 				check isint($cut_point,0,$dim#0-1)
 				+$mode $cut_point,100%
@@ -1258,17 +1278,21 @@ _rep_freq_sortvals:
 if whd==1 1 rm.. return fi
 sort.
 0
+
 eval.. >"begin(
 		compare_num=i[#-2,0];
 		da_push(#-1,0);
 		pos=0;
 	);
 
-	if(i==compare_num
-	,++i[#-1,pos];
-	,da_push(#-1,1);++pos;compare_num=i;
+	compare_num?(
+		++i[#-1,pos];
+	):(
+		da_push(#-1,1);
+		compare_num=i;
 	);
-	i;
+
+	_0;
 
 	end(da_freeze(#-1););
 	"
@@ -1281,6 +1305,7 @@ rm..
 #@cli : Default values: '_count_until=0'
 rep_count_colors :
 check isint(${1=0},0)
+
 if $1 e[0--3] "Count number of distinct colors in image$?, until it reaches $1."
 else e[0--3] "Count number of distinct colors in image$?."
 fi
@@ -1321,8 +1346,10 @@ else
 	add_mode={$1>0&&$use_count_occurance}
 
 	if $add_mode p=+ fi
+
 	foreach {
 		${p}_rep_colors_freqstat $1,$2
+
 		if $use_count_occurance
 			index.. .,0,0 histogram.. {[w,0,w-1]} a y sort -,x rows 1 # Sort by decreasing occurrence
 		elif $3
@@ -2008,6 +2035,7 @@ elif $!<3
 		100%,100%,100%,100%,I#-2==I#-1?I#-1:vector(#s,nan)
 		rm[-3,-2]
 	fi
+
 	return
 fi
 
@@ -3717,6 +3745,132 @@ repeat $num_of_imgs {
 }
 
 foreach[$num_of_imgs--1] { eval da_freeze(#-1) }
+#@cli rep_sort_colors: _channel_a,_channel_b,_order={ 0=decreasing | 1=increasing },_copy_back={ -1=skip_unique_and_false | 0=false | true }
+#@cli : Sort pixels by their color throughout all channels.
+#@cli : Default values: '_channel_a=0','_channel_b=100%','_order=1','_copy_back=1'
+#@cli : $ sp , rep_sort_colors 0,100%,1
+rep_sort_colors:
+check isfinite(${1=0})&&isfinite(${2=100%})&&isbool(${3=1})&&isint(${4=1},-1,1)
+
+c0,c1,is_increasing,copy_back=${1-4}
+use_reduced,copy_back_2_img:=$copy_back>[-1,0]
+
+old_status=${}
+
+foreach {
+	if whd<=1 continue fi
+
+	C0,C1,size_elt:=ds=s-1;sort(int([ispercentage($c0)?$c0*ds:$c0,ispercentage($c1)?$c1*ds:$c1])%s),s+$copy_back
+
+	if $use_reduced
+		+rep_uniq_cols $copy_back # Reduce the number of colors to sort, and preserve counts of colors
+	fi
+
+	permute. cyzx
+
+	1,{s#-1<<1},1,4 # Contains sections
+
+	eval "
+		const size_elt=$size_elt;
+		const BM=(1<<24)-1;
+		const is_increasing=$is_increasing;
+		data=crop(#-2);
+		I[#-1,0]=[0,0,((s#-2-1)>>[24,0])&BM];
+		num_of_splits=1;
+		split_pos=0;
+
+		for(p=$C0,p<=$C1,++p, # Sort throughout all the channels.
+			if(!num_of_splits,break(););
+
+			end_point=split_pos+num_of_splits;
+			for(q=split_pos,q<end_point,++q,
+				s=I[#-1,q];
+				s0=s[0]<<24|s[1];
+				s1=s[2]<<24|s[3];
+
+				elt_pos=s0*size_elt;
+				nb_elts=s1-s0+1;
+
+				_sort(data,is_increasing,elt_pos,nb_elts,size_elt,p); # This works
+			);
+
+			if(p==$C1,break());
+			t=end_point;
+			num_of_splits=0;
+			for(q=split_pos,q<end_point,++q,
+				s=I[#-1,q];
+				n_s0=s0=s[0]<<24|s[1];
+				s1=s[2]<<24|s[3];
+
+				pt_c=s0*size_elt+p;
+
+				last_value=data[pt_c];
+
+				elt_count=1;
+
+				while(++s0<=s1,
+					pt_c+=size_elt;
+					current_value=data[pt_c];
+
+					current_value==last_value?(
+						++elt_count;
+					):(
+						if(elt_count>1,
+							++num_of_splits;
+							v_n_s0=(n_s0>>[24,0])&BM;
+							v_n_s1=((s0-1)>>[24,0])&BM;
+							I[#-1,t++]=[v_n_s0,v_n_s1];
+						);
+
+						n_s0=s0;
+						last_value=current_value;
+						elt_count=1;
+					);
+				);
+
+				if(elt_count>1,
+						++num_of_splits;
+						v_n_s0=(n_s0>>[24,0])&BM;
+						v_n_s1=((s0-1)>>[24,0])&BM;
+						I[#-1,t++]=[v_n_s0,v_n_s1];
+				);
+			);
+
+			split_pos=end_point;
+		);
+
+		copy(i[#-2,0],data);
+	"
+
+	if $copy_back_2_img
+		rm.
+
+		permute. cyzx
+
+		s. c,-{s-1}
+		100%,1,1,2,>begin(pv=0;);cv=pv;nv=cv>>[24,0]&0xffffff;pv=cv+i#-1;nv;
+
+		eval[-3] >"
+			current_color=I;
+			count=i#-2;
+			position_vector=I#-1;
+			position=position_vector[0]<<24|position_vector[1];
+			whd=whd#-4;
+			repeat(s,p,
+				copy(i[#0,position],current_color[p],count,1,0);
+				position+=whd;
+			);
+			_0;
+			"
+
+		k[0]
+	else
+		k..
+		permute cyzx
+	fi
+}
+
+u $old_status
 #@cli rep_sort_images_by_images_name_order: name_a,name_b
 #@cli Sort images accordingly to images name. Duplicates images name are not accepted!
 #@cli : $ sample portrait2,duck,fruits,portrait1,portrait2,duck,duck,fruits rep_sort_images_by_images_name_order duck,portrait2,fruits,portrait1
@@ -3866,7 +4020,7 @@ if $1>=h
 			i(#-1,point++)=digit&1;
 			digit>>=1;
 		);
-		i;
+		_0;
 		"
 
 	map[-3] [-1] rm[-2,-1]
@@ -4199,47 +4353,32 @@ repeat $# {
 #@cli : Return nearest ratio from 2 different values. Proposition number is only used when force_fit_proposition_number is true.
 #@cli : Note: The minimum number of arguments is 2. Maximum number of argument is 5. Defaults may change depending on the number of arguments.
 rep_nearest_ratio:
-size_of_vector:=max($#,3)
-proposition_number:=vector(#$size_of_vector,${1--1})[2]
+proposition_number:=vector(#max($#,3),${1--1})[2]
 
-check "isint($1,1) &&
-       isint($2,1) &&
-       isint($proposition_number,0) &&
-       ($#==5?isbool($-2)&&isbool($-1):
-        $#==4?isbool($-1):
-            1) &&
-       isint($#,2,5)"
+check "isint($1,1) && isint($2,1) && isint($proposition_number,0) &&
+       ($#<4||isbool($-1)) && ($#<5||isbool($-2)) && isint($#,2,5)"
 
 eval "
-	ratio=[${1-2}];
-	const proposition_number=$proposition_number;
-	const force_fit_proposition_number=($1!=$2)&&($#==5?$-2:$#>2)&&(proposition_number>1);
-	const final_vector_size=2+($#>3?bool($-1));
+    ratio=[${1-2}];
+    const proposition_number=$proposition_number;
+    const force_fit=($1!=$2)&&($#==5?$-2:$#>2)&&(proposition_number>1);
 
-	minval=min(ratio);
-	maxval=max(ratio);
-	ratio_divisor=gcd(ratio);
-	is_mode_force_fit=0;
-	is_true_ratio=1;
+    minval=min(ratio);
+    maxval=max(ratio);
+    ratio_divisor=gcd(ratio);
 
-	if(force_fit_proposition_number,
-		if(proposition_number!=(maxval/ratio_divisor),
-			is_mode_force_fit=1;
-			is_true_ratio=0;
-		);
-	);
+    force_fit&&(proposition_number!=(maxval/ratio_divisor))?(
+        a=max(round(minval/maxval*proposition_number),1);
+        ratio=ratio[0]<ratio[1]?[a,proposition_number]:[proposition_number,a];
+        ratio/=gcd(ratio);
+    ):(
+        ratio/=ratio_divisor;
+    );
 
-	is_mode_force_fit?(
-		a=round(minval/maxval*proposition_number);
-		ratio=ratio[0]<ratio[1]?[a,proposition_number]:[proposition_number,a];
-		ratio/=gcd(ratio);
-		if(!a,ratio=map(ratio,[1,proposition_number]));
-	):(
-		ratio/=ratio_divisor;
-	);
+    is_true_ratio=max(ratio)==maxval/ratio_divisor;
 
-	vector(#final_vector_size,ratio,is_true_ratio);
-	"
+    [ratio,is_true_ratio][0,(2+($#>3?bool($-1)))];
+    "
 #@cli rep_red_acrylic_filter: [source_image],_luminosity_blend_factor>=0%,_green_cut>=0%,_green_visibility>=0%
 #@cli : Alter a image so that target image would be visible using a red acrylic plastic sheet as cover.
 rep_red_acrylic_filter:
@@ -6021,6 +6160,7 @@ else
 
 	digits_per_base_change:=int(log($bfm)/log($base))
 	new_base:=$base^$digits_per_base_change
+
 	{ceil((w*log(10))/log($new_base))+1},1,1,1,<"begin(
 			const base_10M=10e7;
 			const new_base=$new_base;
@@ -6109,7 +6249,7 @@ if $crop_point
 fi
 +>>[-1] 0 !=[-1] [-2] if iM error non_int_det else rm. fi
 
-if whd<=int(log((1<<53)-1)/log($base))+1
+if whd<int(log((1<<53)-1)/log($base))+1
 	eval. <"begin(
 			M=1;
 			total=0;
@@ -6134,66 +6274,33 @@ else
 		num_of_digits-=1
 	else
 		digits_per_base_change={int(log($bfm)/log($base))}
-		new_base={$base^$digits_per_base_change}
-		num_of_digits={size('$new_base')-1}
+		old_base_N={$base^$digits_per_base_change}
+		num_of_digits={size('$old_base_N')-1}
 		base_power_of_10={10^$num_of_digits}
+		D={ceil(whd#-1/$digits_per_base_change)}
 
-		# Convert into larger base
-		if $new_base>$base
-			{ceil(whd/$digits_per_base_change)},1,1,1,"begin(
-					const dpbc=$digits_per_base_change;
-					const scp=whd#-1%dpbc;   # Shift crop point;
-					const fcs=dpbc-scp;      # First crop_point
-					multipliers=expr('<begin(v=0;);v?(v*=$base):(v=1);',dpbc);
-					started=crop_point=0;
-					current_area=vector(#dpbc);
-					scp?(
-						first_multiplier=multipliers[fcs,scp];
-						temp_small=vector(#scp);
+		{ceil(($D*log($old_base_N))/log($base_power_of_10))+1},1,1,1,<"begin(
+				const old_base_N=$old_base_N;
+				const base_power_of_10=$base_power_of_10;
+				temp_process_area=expr('begin(
+						const offset=whd#-1%$digits_per_base_change;
+						M=expr(\'<begin(v=1;);tv=v;v*=$base;tv\',$digits_per_base_change);
 					);
-				);
-				started?(
-					crop_point+=dpbc;
-					copy(current_area,i[#0,crop_point],dpbc,1,1);
-					dot(multipliers,current_area);
-				):(
-					started=1;
-					x?(
-						crop_point=x*dpbc-fcs;
-						copy(current_area,i[#0,crop_point],dpbc,1,1);
-						dot(multipliers,current_area);
-					):(
-						crop_point=-fcs;
-						scp?(
-							copy(temp_small,i[#0,0],scp,1,1);
-							dot(first_multiplier,temp_small);
-						):(
-							copy(current_area,i[#0,0],dpbc,1,1);
-							dot(multipliers,current_area);
-						);
-					);
-				);"
-
-			rm..
-		fi
-
-		# Convert into base of power of 10
-		{ceil(log($new_base)/log($base_power_of_10)*w)}
-		eval "
-			start_point=insertion_point=0;
-			const divisor=$base_power_of_10;
-			const end_point=w#-2-1;
-			const operating_base=$new_base;
-			insertion_pos=w#-1;
-			temp_process_area=crop(#-2);
-			insert_valid=0;
-			while(start_point<end_point||temp_process_area[end_point],
-				remainder=carry_over=0;
+					dot(crop(#-1,x*$digits_per_base_change-offset,0,0,0,$digits_per_base_change,1,1,1),M);
+					',$D);
+				valid_digit_end=0;
+				start_of_res_digit=w;
+				start_point=0;
+				const end_point=size(temp_process_area)-1;
+			);
+			carry_over=0;
+			if(start_point<end_point||temp_process_area[end_point],
+				remainder=0;
 				find_start_point=1;
-				for(p=start_point,p<w#-2,++p,
-					current_value=carry_over*operating_base+temp_process_area[p];
-					carry_over=current_value%divisor;
-					remainder=temp_process_area[p]=int(current_value/divisor);
+				for(p=start_point,p<size(temp_process_area),++p,
+					current_value=carry_over*old_base_N+temp_process_area[p];
+					carry_over=current_value%base_power_of_10;
+					remainder=temp_process_area[p]=int(current_value/base_power_of_10);
 					if(find_start_point,
 						if(remainder,
 							start_point=p;
@@ -6201,25 +6308,18 @@ else
 						);
 					);
 				);
-				if(carry_over,
-					insert_valid=1;
-				);
-				if(insert_valid,
-					i[#-1,--insertion_pos]=carry_over;
-				);
+				--start_of_res_digit;
 			);
-			if(carry_over,i[#-1,--insertion_pos]=carry_over);
-			insertion_pos+1;
+			carry_over;
+			end(
+				set('start',start_of_res_digit);
+			);
 			"
+		rm..
 
-		rm.. crop. ${},100%
-
-		# End of base conversion
-
+		crop. $start,100%
 		FDC={int(log10(i[#-1,0]))+1} # First Digits Count
-
 	fi
-
 fi
 
 # Print out result!
@@ -6335,8 +6435,8 @@ u {"
 	const reset_init_state_mode=roman_num_args_count>1;
 
 	init_state()=(
-		older_char_rank=char_rank=old_char_rank=is_odd_char_rank=ans=num=0;
-		old_character_idx=-1;
+		older_char_rank=char_rank=old_char_rank=ans=num=0;
+		old_char=-1;
 		char_freq_list=vector(#chars_count,0);
 		char_limits=expr('!(x&1)?3:1',7);
 		thres_length=pos_in_roman_num_collection;
@@ -6360,7 +6460,7 @@ u {"
 
 	init_state();
 	while(pos_in_roman_num_collection--,
-		character_idx=roman_num_collection[pos_in_roman_num_collection];
+		char=roman_num_collection[pos_in_roman_num_collection];
 
 		if(reset_init_state_mode,
 			if(roman_num_collection[pos_in_roman_num_collection]==_',',
@@ -6370,12 +6470,12 @@ u {"
 			);
 		);
 
-		if(character_idx!=old_character_idx,
-			sel=character_idx&0b111;
-			if(sel==4,sel>>=character_idx>_H;);
+		if(char!=old_char,
+			sel=char&0b111;
+			if(sel==4,sel>>=char>_H;);
 			char_rank=ref_symbols_order[sel];
 
-			if(character_idx!=roman_chars[char_rank],
+			if(char!=roman_chars[char_rank],
 				run('error inv_char_det');
 			);
 
@@ -6415,7 +6515,6 @@ u {"
 				);
 			);
 
-			older_char_rank=old_char_rank;
 			ans-=num;
 		):(
 			if(is_strict,subtractive_mode=0;);
@@ -6423,7 +6522,7 @@ u {"
 		);
 
 		older_char_rank=old_char_rank;
-		old_character_idx=character_idx;
+		old_char=char;
 		old_char_rank=char_rank;
 
 		if(!isint(ans,1,3999),run('error out_of_bound_val'););
@@ -8489,7 +8588,7 @@ if $return_quantity
 fi
 
 if $number_of_possible_permutations>(1<<24)
-	error exc_permut_val:$number_of_string_permutations
+	error exc_permut_val:$number_of_possible_permutations
 fi
 
 if ($number_of_possible_permutations*$total_items_count)>0x20000
@@ -9298,8 +9397,16 @@ rm.
 #@cli : Code generated by ChatGPT and Claude, guided by Reptorian. Rigorously tested and works.
 #@cli : Author: Reptorian.
 rep_rde_compsel_perm_index2list:
-check isint($1,1)&&isint($2,1)&&isfinite($3)
+check isint($1,1)&&isint($2,1)&&isfinite($3)&&isint($3)
 t,k:=$1>$2?[$1,$2]:[$2,$1]
+
+if $k==$t
+	rep_permutation_index2list $k,$3
+	return
+elif $k==1
+	u {vector(#t)}
+	return
+fi
 
 eval "
 	const H=$t;
@@ -9347,7 +9454,6 @@ eval "
 			);
 			index-=count;
 		);
-		if(index<0,break(););
 	);
 
 	result;"
@@ -9355,33 +9461,17 @@ eval "
 #@cli : Return the rank of the possibility in which at least 1 item from each item group is selected given N size.
 #@cli : Code generated by ChatGPT and Claude, guided by Reptorian. Rigorously tested and works.
 rep_rde_compsel_perm_list2index:
-max_val={max($*)}
+M={max($*)}
+check same(bool(histogram([$*],$M+1,0,$M)),1)&&$M>0&&same(isint([$*],0),1)
 
-check "nl=[$*];
-       const n_items=$max_val+1;
-       if(isfinite(n_items)&&n_items<=size(nl),
-           set_item=vector(#n_items);
-           group_checked=0;
-           repeat(size(nl),p,
-              v=nl[p];
-              if(isint(nl[p])&&isfinite(v),
-                  if(!set_item[v],
-                      set_item[v]=1;
-                      ++group_checked;
-                  );
-              );
-           );
-           group_checked==n_items;
-       );"
-
-if $max_val+1==$#
+if $M+1==$#
 	rep_permutation_list2index $*
 	return
 fi
 
 eval "
 	const H=$#;
-	const W=$max_val+1;
+	const W=$M+1;
 	const iW=W+1;
 	const iH=H+1;
 	const dp_size=iW*iH;
@@ -9455,53 +9545,104 @@ if !isint(_'$3',_'x',_'y')
 	return
 fi
 
+if $k==$t
+	1,1,1,$k,c
+	return
+fi
+
 axis={_'$3'-_'x'}
 
-{d=[1,1,1];d[$axis]=$N;d;},$t,>"begin(
+{v=vector(#3,1);v[$axis]=$N;v},$1
+
++rep_mt_f32v_map {$N>>[0,12]},0
+
+eval. :"begin(
+		const t=$t;
 		const k=$k;
 		const dk=k-1;
-		const P=s;
+		const dt=t-1;
+		const N=whd#-2;
+		gosper_hack()=(
+			g0=cn&-cn;
+			g1=cn+g0;
+			cn=int((xor(cn,g1)>>2)/g0)|g1;
+		);
+		step()=(
+			ik=dk;n=cn;
+
+			p=t;
+
+			while(n,
+				r[--p]=n&1?(ik--):ik;
+				n>>=1;
+			);
+
+			gosper_hack();
+			I[#-2,x]=r;
+		);
+	);
+
+	j=J(-1);
+	x=j[0]<<24|j[1];
+	i=i0<<24|i1;
+
+	r=vector(#t);
+
+	x?(
+		index=N-1-x;
+		p=ix=0;
+		ik=dk;
+		while(++p<t,
+			if(ik,
+				block=perm(ik-1,dt-p,0);
+				index<block?(
+					++ix;
+					--ik;
+				):(
+					index-=block;
+				);
+			);
+			r[p]=ix;
+		);
+		p=cn=0;
+		while(++p<t,if(r[p]>r[p-1],cn|=1<<(dt-p);););
+		gosper_hack();
+		I[#-2,x]=r;
+	):(
 		cn=(1<<dk)-1;
+		step();
 	);
 
-	ik=dk;n=cn;
+	while(++x<i,step(););
 
-	r=vector(#s);
-
-	p=P;
-
-	while(n,
-		r[--p]=n&1?(ik--):ik;
-		n>>=1;
-	);
-
-	# Gosper's Hack to change cn
-	g0=cn&-cn;
-	g1=cn+g0;
-
-	cn=int((xor(cn,g1)>>2)/g0)|g1;
-	# End of Hack
-
-	r;"
+	_0;
+	"
+rm.
 #@cli rep_rde_compsel_comb_index2list: total_selection>=1, group_items>=1,index : group_items>=1,total_selection>=1,index
 #@cli : Returns the combination that contains at least 1 items that corresponds to the index.
 rep_rde_compsel_comb_index2list:
 k,t:=sort([${1-2}])
 
-check isint($k,2)
+check isint($k,2)&&isfinite($3)&&isint($3)
+
+if $k==$t
+	u {expr('x',$t)}
+	return
+fi
 
 eval "
     const T=$t;
-    const K=$k-1;
-    const N=perm(K-1,T-1,0);
+    const dT=T-1;
+    const dK=$k-1;
+    const N=perm(dK,dT,0);
     index=$3%N;
     index=N-1-index;
     r=vector(#T);
     p=ix=0;
-    dk=K;
+    dk=dK;
     while(++p<T,
 		if(dk,
-            block=perm(dk-1,T-1-p,0);
+            block=perm(dk-1,dT-p,0);
             index<block?(
 				++ix;
 				--dk;
@@ -9521,17 +9662,17 @@ M={max($*)}
 check same(bool(histogram([$*],$M+1,0,$M)),1)&&$M>0&&same(isint([$*],0),1)
 
 eval "
+	const T=$#;
+	const dT=T-1;
     r=sort([$*]);
-    T=$#;
-    K=r[T-1]+1;
-    dk=K-1;
-    N=perm(dk,T-1,0);
+    dk=r[dT];
+    N=perm(dk,dT,0);
     p=index=0;
     while(++p<T&&dk,
         r[p]>r[p-1]?(
             --dk;
         ):(
-            index+=perm(dk-1,T-1-p,0);
+            index+=perm(dk-1,dT-p,0);
         );
     );
     N-1-index;
@@ -10042,6 +10183,400 @@ eval "
 		if(!S,break(););
 	);
 	index;
+	"
+#@cli rep_sum_combinations: limit>=0,size>0,(_axis={x|y|z})
+#@cli : Create a image representing every possible combinations of numbers of fixed size which sum of non-negative integers is up to integer limit.
+#@cli : Note: If '_axis' is not x,y,or z, then returns quantity only.
+#@cli : Author: Reptorian.
++rep_sum_combinations:
+skip ${3=x}
+check isint($1,0)&&isint($2,1)&&$2<=$1&&$#==3
+
++_rep_sum_combinations_create_dp_table ${1-2}
+I,q:=$!-1,i(#-1,$1,$2,0,0)<<24|i(#-1,$1,$2,0,1)
+
+if !isint(_'$3',_'x',_'z')
+	rm.
+	u $q
+	return
+fi
+
+axis={_'$3'-_'x'}
+
++rep_mt_f32v_map {$q>>[0,16]}
+
+if w==1 rm.. fi
+
+{d=[1,1,1];d[$axis]=$q;d;},$2
+
+eval.. :"
+	const use_dp_img=w>1;
+
+	const n=$1;
+	const k=$2;
+	const dk=k-1;
+	const d_dk=dk-1;
+	r=prefix=vector(#k);
+
+	if(use_dp_img,
+		const in=n+1;
+		f2i(V)=V[0]<<24|V[1];
+	);
+
+	t=J(-1);
+	P=t[0]<<24|t[1];
+	Q=i0<<24|i1;
+
+	if(use_dp_img&&P,
+		idx=P;
+		prefix_sum=min_val=0;
+		repeat(dk,p,
+			ck=k-p;
+
+			for(q=min_val,q<in,++q,
+				shifted = n - prefix_sum - q * ck;
+
+				if(shifted<0,break(););
+
+				count=f2i(I(#-3,shifted,ck-1));
+
+				if(idx<count,
+					r[p]=q;
+					prefix_sum+=q;
+					min_val=q;
+					break();
+				);
+
+				idx-=count;
+			);
+		);
+
+		r[dk]=min_val+idx;
+
+		repeat(dk,p,
+			prefix[p+1]=prefix[p]+r[p];
+		);
+	);
+
+	lim=n-prefix[dk];
+	I[#-1,P]=r;
+
+	while(++P<Q,
+		if(++r[dk]>lim,
+			kp=[d_dk,2];
+
+			while(kp[0]>=0,
+				if((++r[kp[0]])*kp[1]+prefix[kp[0]]<=n,
+					break();
+				);
+
+				kp+=[-1,1];
+			);
+
+			copy(r[kp[0]+1],r[kp[0]],dk-kp[0],1,0);
+
+			for(p=kp[0],p<dk,++p,
+				prefix[p+1]=prefix[p]+r[p];
+			);
+
+			lim=n-prefix[dk];
+		);
+
+		I[#-1,P]=r;
+	);
+
+	_0;
+	"
+
+rm[$I--2]
+#@cli rep_sum_combination_index2list: limit>=0,size>0,index
+#@cli : Return the list that corresponds to input.
+#@cli : Author: Reptorian.
+rep_sum_combination_index2list:
+check isint($1,0)&&isint($2,1)&&$2<=$1&&isfinite($3)&&isint($3)
+
++_rep_sum_combinations_create_dp_table ${1-2}
+
+eval "
+	f2i(V)=V[0]<<24|V[1];
+
+	const n=$1;
+	const k=$2;
+	const in=n+1;
+	const dk=k-1;
+
+	r=vector(#k);
+
+	idx=$3%f2i(I(#-1,n,k));
+	prefix_sum=min_val=0;
+
+	repeat(dk,p,
+		ck=k-p;
+
+		for(q=min_val,q<in,++q,
+			shifted = n - prefix_sum - q*ck;
+
+			if(shifted<0,break(););
+
+			count=f2i(I(#-1,shifted,ck-1));
+
+			if(idx<count,
+				r[p]=q;
+				prefix_sum+=q;
+				min_val=q;
+				break();
+			);
+
+			idx-=count;
+		);
+	);
+
+	r[dk]=min_val+idx;
+
+	r;"
+
+rm.
+#@cli rep_sum_combination_list2index: limit>=0,list_arg_1,list_arg_2,...
+#@cli : Return the index of combination that is less than or equal to limit.
+#@cli : Author: Reptorian.
+rep_sum_combination_list2index:
+list_size={$#-1}
+check isint($1,0)&&sum(${2--1})<=$1&&same(isint([${2--1}],0),1)&&$list_size<=$1&&$#>=2
++_rep_sum_combinations_create_dp_table $1,$list_size
+
+eval "
+	f2i(V)=V[0]<<24|V[1];
+	r=sort([${2--1}]);
+
+	const n=$1;
+	const k=$list_size;
+	const dk=k-1;
+
+	idx=0;
+	prefix_sum=min_val=0;
+
+	repeat(dk,p,
+		ck=k-p;
+		for(q=min_val,q<r[p],++q,
+			shifted=n-prefix_sum-q*ck;
+			if(shifted>=0,
+				idx+=f2i(I(#-1,shifted,ck-1));
+			);
+		);
+		prefix_sum+=r[p];
+		min_val=r[p];
+	);
+
+	idx+=r[dk]-min_val;
+
+	idx;
+	"
+
+rm.
++_rep_sum_combinations_create_dp_table:
+{[$1,$2]+1},1,2
+
+eval "
+	copy(i(#-1,0,0,0,1),1,w#-1,1,0);
+	expr('>begin(
+			const m=(1<<24)-1;
+			f2i(V)=V[0]<<24|V[1];
+			i2f(I)=[I>>24,I&m];
+		);
+		k=y+1;
+		a=f2i(I(#-1,x,k-1));
+		b=f2i(x>=k?I(#-1,x-k,k));
+		sum_ab=a+b;
+		I(#-1,x,k)=i2f(sum_ab);
+		_0;
+		',w+1,h,1,1);
+	0;
+	"
+#@cli rep_total_sum_combinations: limit>=0,size>0,(_axis={x|y|z})
+#@cli : Create a image representing every possible combinations of numbers of fixed size which sum of non-negative integers is up to integer limit.
+#@cli : Note: If '_axis' is not x,y,or z, then returns quantity only.
+#@cli : Author: Reptorian.
++rep_total_sum_combinations:
+skip ${3=x}
+
+check isint($1,0)&&isint($2,1)&&$2<=$1&&$#==3
+
++_rep_total_sum_combinations_create_dp_table ${1-2}
+I,q:=$!-1,i(#-1,$1,$2,0,0)<<24|i(#-1,$1,$2,0,1)
+
+if !isint(_'$3',_'x',_'z')
+	rm.
+	u $q
+	return
+fi
+
+axis={_'$3'-_'x'}
+
++rep_mt_f32v_map {$q>>[0,16]}
+
+if w==1 rm.. fi
+
+{d=[1,1,1];d[$axis]=$q;d;},$2
+
+eval.. :"
+	const use_dp_img=w>1;
+
+	const n=$1;
+	const k=$2;
+	const dk=k-1;
+	const d_dk=dk-1;
+	r=prefix=vector(#k);
+
+	if(use_dp_img,
+		f2i(V)=V[0]<<24|V[1];
+	);
+
+	t=J(-1);
+	P=t[0]<<24|t[1];
+	Q=i0<<24|i1;
+
+	use_dp_img&&P?(
+		idx=P;
+		rem=n;
+		min_val=0;
+
+		repeat(dk,p,
+			ck=k-p;
+
+			for(q=min_val,q<rem+1,++q,
+				shifted=rem-q*ck;
+				count=shifted>=0?f2i(I(#-3,shifted,ck-1));
+
+				if(idx<count,
+					r[p]=q;
+					rem-=q;
+					min_val=q;
+					break();
+				);
+
+				idx-=count;
+			);
+		);
+
+		r[dk]=rem;
+
+		repeat(dk,p,
+			prefix[p+1]=prefix[p]+r[p];
+		);
+	):(
+		r[dk]=n;
+	);
+
+	I[#-1,P]=r;
+
+	while(++P<Q,
+		++r[d_dk];
+		r[dk]=n-(prefix[d_dk]+r[d_dk]);
+		if(r[d_dk]>r[dk],
+			kp=[d_dk,2];
+
+			while(kp[0]>=0,
+				if((++r[kp[0]])*kp[1]+prefix[kp[0]]<=n,
+					break();
+				);
+
+				kp+=[-1,1];
+			);
+
+			copy(r[kp[0]+1],r[kp[0]],dk-kp[0],1,0);
+
+			for(p=kp[0],p<dk,++p,
+				prefix[p+1]=prefix[p]+r[p];
+			);
+
+			r[dk]=n-prefix[dk];
+		);
+
+		I[#-1,P]=r;
+	);
+
+	_0;
+	"
+
+rm[$I--2]
+#@cli rep_total_sum_combination_index2list: limit>=0,size>0,(_axis={x|y|z})
+#@cli : Return the list of combination that matchs up exactly to limit corresponding to index.
+#@cli : Author: Reptorian.
+rep_total_sum_combination_index2list:
+check isint($1,0)&&isint($2,1)&&$2<=$1&&isfinite($3)&&isint($3)
++_rep_total_sum_combinations_create_dp_table ${1-2}
+
+eval "
+	f2i(V)=V[0]<<24|V[1];
+	const target_sum=$1;
+	const size=$2;
+	idx=$3%f2i(I(#-1,${1-2}));
+	r=vector(#size);
+	rem=target_sum;
+	min_val=0;
+	repeat(size-1,p,
+		ck=size-p;
+		for(q=min_val,q<rem+1,++q,
+			shifted=rem-q*ck;
+			count=shifted>=0?f2i(I(#-1,shifted,ck-1));
+			if(idx<count,
+				r[p]=q;
+				rem-=q;
+				min_val=q;
+				break();
+			);
+			idx-=count;
+		);
+	);
+	r[size-1]=rem;
+	r;
+	"
+rm.
+#@cli rep_total_sum_combination_list2index: list_arg_1,list_arg_2...
+#@cli : Return the index of list of combination of number that adds up exactly to the sum of list of numbers.
+#@cli : Author: Reptorian.
+rep_total_sum_combination_list2index:
+check same(isint([$*],0),1)
+t,k:=sum($*),$#
++_rep_total_sum_combinations_create_dp_table $t,$k
+
+eval "
+	f2i(V)=V[0]<<24|V[1];
+	const k=$#;
+	list=sort([$*]);
+	r=0;
+	rem=$t;
+	repeat(k-1,p,
+		min_val=p?list[p-1];
+		ck=k-p;
+		for(q=min_val,q<list[p],++q,
+			shifted=rem-q*ck;
+			if(shifted>=0,
+				r+=f2i(I(#-1,shifted,ck-1));
+			);
+		);
+		rem-=list[p];
+	);
+	r;
+	"
+rm.
++_rep_total_sum_combinations_create_dp_table:
+{[$1,$2]+1},1,2 =. 1,0,0,0,1
+
+eval "
+	expr('>begin(
+			const m=(1<<24)-1;
+			f2i(V)=V[0]<<24|V[1];
+			i2f(I)=[I>>24,I&m];
+		);
+		k=y+1;
+		a=f2i(I(#-1,x,k-1));
+		b=f2i(x>=k?I(#-1,x-k,k));
+		sum_ab=a+b;
+		I(#-1,x,k)=i2f(sum_ab);
+		_0;
+		',w+1,h,1,1);
+	0;
 	"
 #@cli rep_string_permutations: string,_axis,_sort_string={ 0=do_not_sort_string | 1=sort_string | 2=logical_sort_string }
 #@cli : Return all the unique permutations of characters of string as a image with values representing the unicode representation of characters in input string. Permutations is dependent on character appearance order.
@@ -20105,8 +20640,8 @@ a c
 #@cli : +pal 28 = +pal db16 -- DB16 by DawnBringer
 #@cli : +pal 29 = +pal db32 -- DB32 by DawnBringer
 #@cli : +pal 30 = +pal db_iso22 -- DB-ISO22 by DawnBringer
-#@cli : +pal 31 = +pal dimwid17 -- DimWiddy 17 by DimWiddy
-#@cli : +pal 32 = +pal dimwid23 -- DimWiddy 23 by DimWiddy
+#@cli : +pal 31 = +pal dim17 -- DimWiddy 17 by DimWiddy
+#@cli : +pal 32 = +pal dim23 -- DimWiddy 23 by DimWiddy
 #@cli : +pal 33 = +pal edg4 -- Endesga-4 by Endesga
 #@cli : +pal 34 = +pal edg8 -- Endesga-8 by Endesga
 #@cli : +pal 35 = +pal edg16 -- Endesga-16 by Endesga
@@ -20161,12 +20696,12 @@ a c
 #@cli : +pal 84 = +pal gzxp -- GZXP by GrafxKid
 #@cli : +pal 85 = +pal chromatic -- Chromatic16 by DragonDePlatino
 #@cli : +pal 86 = +pal piet_code -- Piet Coding Language
-#@cli : +pal 87 = +pal boltbait_matrix -- Matrix by BoltBait
-#@cli : +pal 88 = +pal material_design -- Material Design by Ruchir L. Sharma
-#@cli : +pal 89 = +pal thehamster_rainbow -- Rainbow by thehamster
-#@cli : +pal 90 = +pal boltbait_rainbow -- Rainbow by BoltBait
-#@cli : +pal 91 = +pal scrj_xxxvi -- SCRJ-XXXVI by StudioCRJ
-#@cli : +pal 92 = +pal pxls_space -- Pxls Default from pxls.space
+#@cli : +pal 87 = +pal matrix -- Matrix by BoltBait
+#@cli : +pal 88 = +pal material -- Material Design by Ruchir L. Sharma
+#@cli : +pal 89 = +pal rainbow-thehamster -- Rainbow by thehamster
+#@cli : +pal 90 = +pal rainbow-boltbait -- Rainbow by BoltBait
+#@cli : +pal 91 = +pal scrj-xxxvi -- SCRJ-XXXVI by StudioCRJ
+#@cli : +pal 92 = +pal pxls -- Pxls Default from pxls.space
 #@cli : +pal 93 = +pal lospec -- Lospec500 by the Lospec community
 #@cli : +pal 94 = +pal moderna -- Moderna by yedamameday
 #@cli : +pal 95 = +pal oak -- Oak21 by Dan Oak
@@ -20181,15 +20716,15 @@ a c
 #@cli : +pal 104 = +pal pineapple -- Pineapple 32 by PineTreePizza
 #@cli : +pal 105 = +pal peachy -- Peachy Pop 16 by Kerrie Lake
 #@cli : +pal 106 = +pal resurrect -- Resurrect 32 by Kerrie Lake
-#@cli : +pal 107 = +pal rosy42 -- Rosy 42 by PineTreePizza
-#@cli : +pal 108 = +pal slso_clr17 -- SLSO-CLR17 by Luis Miguel Maldonado
+#@cli : +pal 107 = +pal rosy -- Rosy 42 by PineTreePizza
+#@cli : +pal 108 = +pal slso -- SLSO-CLR17 by Luis Miguel Maldonado
 #@cli : +pal 109 = +pal softy -- Softy 15 by Eggy
 #@cli : +pal 110 = +pal spec12 -- SPEC12 by Smalls
 #@cli : +pal 111 = +pal the_roarin_80s -- The Roarin 80's by Malo
 #@cli : +pal 112 = +pal starmancer -- Starmancer by Ominux Games
 #@cli : +pal 113 = +pal superfuture -- SuperFuture25 by Endesga
 #@cli : +pal 114 = +pal sunshine -- SUNSHINE 35 by mysunnyrose
-#@cli : +pal 115 = +pal sweetie16 -- Sweetie 16 by GrafxKid
+#@cli : +pal 115 = +pal sweetie -- Sweetie 16 by GrafxKid
 #@cli : +pal 116 = +pal calm -- Calm 48 by Xina
 #@cli : +pal 117 = +pal optimism -- Optimism by mingapur
 #@cli : +pal 118 = +pal taffy -- Taffy 16 by PineTreePizza
@@ -20215,7 +20750,7 @@ a c
 #@cli : +pal 138 = +pal star29 -- Star 29 by Starlane
 #@cli : +pal 139 = +pal star34 -- Star 34 by Starlane
 #@cli : +pal 140 = +pal still_life -- Still-Life by cure
-#@cli : +pal 141 = +pal simple_jpc_16 -- SimpleJPC-16 by Adigun A. Polack
+#@cli : +pal 141 = +pal jpc16 -- SimpleJPC-16 by Adigun A. Polack
 #@cli : +pal 142 = +pal acid -- Acid 15 by pyrometal
 #@cli : +pal 143 = +pal battery -- Battery 24 by Battery Jellyfish
 #@cli : +pal 144 = +pal clumpy -- Clumpy 18 by windfall.apples
@@ -20233,23 +20768,23 @@ a c
 #@cli : +pal 156 = +pal yume_nikki -- Yume Nikki by Space Sandwich
 #@cli : +pal 157 = +pal rube_goldberg -- Rube-Goldberg
 #@cli : +pal 158 = +pal boomboom -- BoomBoom by Salman_Shh
-#@cli : +pal 159 = +pal generic_8 -- Generic-8 by GrafxKid
+#@cli : +pal 159 = +pal generic-8 -- Generic-8 by GrafxKid
 #@cli : +pal 160 = +pal crayola -- Crayola Blind
 #@cli : +pal 161 = +pal funky -- FunkyFuture8 by ShamaBoy
 #@cli : +pal 162 = +pal golden_wall -- The Golden Wall Palette by Hans Hofmann
 #@cli : +pal 163 = +pal matriax8c -- Matriax8c by Davit Masia
 #@cli : +pal 164 = +pal nt1h -- NT1H by NatTorpedia
 #@cli : +pal 165 = +pal jerrypie -- JerryPie 22 by JerryPie
-#@cli : +pal 166 = +pal nineties_nine -- Nineties Nine by Cubby Crazes
+#@cli : +pal 166 = +pal 90s -- Nineties Nine by Cubby Crazes
 #@cli : +pal 167 = +pal on70 -- On70 by By8Bits
-#@cli : +pal 168 = +pal anb16 -- ANB16 by Anoob
+#@cli : +pal 168 = +pal anb -- ANB16 by Anoob
 #@cli : +pal 169 = +pal retrocal -- Retrocal-8 by polyphrog
 #@cli : +pal 170 = +pal punolit -- Punolit by Punoli
 #@cli : +pal 171 = +pal luap -- Luap 40 by Luap
 #@cli : +pal 172 = +pal autum_villan -- Autum Villan 6 by Chase Stemel
-#@cli : +pal 173 = +pal autum_15 -- Autum 15 by jok
-#@cli : +pal 174 = +pal autum_15_yellow -- Autum 15 [Yellow] by jok
-#@cli : +pal 175 = +pal galaxy_flame -- Galaxy Flame by Rhoq
+#@cli : +pal 173 = +pal autum -- Autum 15 by jok
+#@cli : +pal 174 = +pal autum_yellow -- Autum 15 [Yellow] by jok
+#@cli : +pal 175 = +pal galaxy -- Galaxy Flame by Rhoq
 #@cli : +pal 176 = +pal cretaceous -- Cretaceous-16 by Joao Vasconcelos
 #@cli : +pal 177 = +pal antiquity -- Antiquity16 by ILTA
 #@cli : +pal 178 = +pal mushroom -- Mushroom by Jimison3
@@ -20273,7 +20808,7 @@ a c
 #@cli : +pal 196 = +pal kule -- KULE-16 by Cuymacu
 #@cli : +pal 197 = +pal hydrangea -- Hydrangea 11 by Dinchen's Art
 #@cli : +pal 198 = +pal fluffy -- Fluffy8 by vee
-#@cli : +pal 199 = +pal st_8_red_and_blue -- ST 8 R&B Remake by Skiller Thomson
+#@cli : +pal 199 = +pal st8 -- ST 8 R&B Remake by Skiller Thomson
 #@cli : +pal 200 = +pal neon -- Neon Space by Jimison3
 #@cli : +pal 201 = +pal cyclope -- Cyclope6 by Royal_Naym
 #@cli : +pal 202 = +pal sy17 -- Sy17 by xaiue
@@ -20299,15 +20834,15 @@ a c
 #@cli : +pal 222 = +pal ephemera -- EPHEMERA by K C
 #@cli : +pal 223 = +pal ink -- Ink by AprilSundae
 #@cli : +pal 224 = +pal violet_dreams -- Violet Dreams by Solitaire
-#@cli : +pal 225 = +pal tinyfolks -- Tinyfolks by Pierr Vandermaesan
+#@cli : +pal 225 = +pal tiny -- Tinyfolks by Pierr Vandermaesan
 #@cli : +pal 226 = +pal old_gold -- Old Gold 7 by Chase Stemel
-#@cli : +pal 227 = +pal rose_moss_8 -- Rosemoss-8 by polyphrog
+#@cli : +pal 227 = +pal rosemoss-8 -- Rosemoss-8 by polyphrog
 #@cli : +pal 228 = +pal aap_radiant_xv -- AAP-RadiantXV by Adigun A. Polack
 #@cli : +pal 229 = +pal aap_majesty_xvii -- AAP-Majesty XVII by Adigun A. Polack
 #@cli : +pal 230 = +pal dead_weight -- Dead Weight-8 by polyphrog
 #@cli : +pal 231 = +pal mojave -- Mojave20 by magodellepercussioni
-#@cli : +pal 232 = +pal petite_8 -- Petite-8 by Adigun A. Polack
-#@cli : +pal 233 = +pal petite_8_afterdark -- Petite-8 Afterdark by Adigun A. Polack
+#@cli : +pal 232 = +pal petite -- Petite-8 by Adigun A. Polack
+#@cli : +pal 233 = +pal petite_afterdark -- Petite-8 Afterdark by Adigun A. Polack
 #@cli : +pal 234 = +pal xaiue_radiant -- XAIUE-Radiant by xaiue
 #@cli : +pal 235 = +pal daruda -- Daruda 22 by daruda
 #@cli : +pal 236 = +pal firestorm -- Firestorm by theartistjulian
@@ -20337,11 +20872,11 @@ a c
 #@cli : +pal 260 = +pal fornax_void_1 -- Fornax Void I by Fornax Void
 #@cli : +pal 261 = +pal fornax_void_2 -- Fornax Void II by Fornax Void
 #@cli : +pal 262 = +pal pixelwave -- Pixelwave by Reptorian
-#@cli : +pal 263 = +pal s1_6 -- S1-6 by Blyzz
+#@cli : +pal 263 = +pal s1-6 -- S1-6 by Blyzz
 #@cli : +pal 264 = +pal berry_nebula -- Berry Nebula by LostInIndigo
 #@cli : +pal 265 = +pal abyss -- ABYSS-9 by Jusiv
 #@cli : +pal 266 = +pal moonlight -- Moonlight 15 by Tofu
-#@cli : +pal 267 = +pal moon39 -- Moonlit-39 by theartistjulian
+#@cli : +pal 267 = +pal moon -- Moonlit-39 by theartistjulian
 #@cli : +pal 268 = +pal h2o -- H2O by maine
 #@cli : +pal 269 = +pal magic_waters -- Magic Waters 9 by Chase Stemel
 #@cli : +pal 270 = +pal bluemold -- Bluem0ld by warpixel
@@ -20355,12 +20890,12 @@ a c
 #@cli : +pal 278 = +pal oxyd -- OXYD by ItzFred
 #@cli : +pal 279 = +pal pink_green -- Pink&Green by q1
 #@cli : +pal 280 = +pal woodwalk -- Walking in the Woods 8 by Chase Stemel
-#@cli : +pal 281 = +pal paper8 -- Paper 8 by Frosty Rabbid
-#@cli : +pal 282 = +pal sahara_pastell -- Sahara Pastell by wermz
+#@cli : +pal 281 = +pal paper -- Paper 8 by Frosty Rabbid
+#@cli : +pal 282 = +pal sahara -- Sahara Pastell by wermz
 #@cli : +pal 283 = +pal sunflower -- Sunflower Painting 7 by Chase Stemel
 #@cli : +pal 284 = +pal arthoe -- Art Hoe Aesthetic 7 by Chase Stemel
 #@cli : +pal 285 = +pal sky -- Sky5 by MiniTe
-#@cli : +pal 286 = +pal ocean_glass -- Ocean Glass by Solitaire
+#@cli : +pal 286 = +pal ocean -- Ocean Glass by Solitaire
 #@cli : +pal 287 = +pal royal -- RoyalGuard by Royal_Naym
 #@cli : +pal 288 = +pal eulbink -- Eulbink by Inkpendude
 #@cli : +pal 289 = +pal winter_wonderland -- Winter Wonderland by Jimison3
@@ -20431,7 +20966,7 @@ a c
 #@cli : +pal 354 = +pal colecovision -- Colecovision
 #@cli : +pal 355 = +pal jmp -- Japanese Machine Palette by Arne Niklas Jansson
 #@cli : +pal 356 = +pal mac2 -- Macintosh II
-#@cli : +pal 357 = +pal mac_8_bit -- Macintosh 8-Bit System Palette
+#@cli : +pal 357 = +pal mac_8-bit -- Macintosh 8-Bit System Palette
 #@cli : +pal 358 = +pal msx -- MSX
 #@cli : +pal 359 = +pal nes -- NES
 #@cli : +pal 360 = +pal pico -- PICO-8 by Lexaloffle Games
@@ -20445,7 +20980,7 @@ a c
 #@cli : +pal 368 = +pal zx -- ZX Spectrum
 #@cli : +pal 369 = +pal gnome -- GNOME 32
 #@cli : +pal 370 = +pal electronic_crayon -- Electronic Crayon 22
-#@cli : +pal 371 = +pal chip16 -- Chip16
+#@cli : +pal 371 = +pal chip -- Chip16
 #@cli : +pal 372 = +pal deluxe_paint -- Deluxe Paint
 #@cli : +pal 373 = +pal flat_ui -- FlatUI from flat ui colors website
 #@cli : +pal 374 = +pal makecode_arcade -- MakeCode Arcade Palette
@@ -20483,49 +21018,72 @@ if !isdir('{/$path}')
 	l[] {
 		createdir 1,$path
 		_pal_385_pals
-		__pal_create_vars
+		__pal_create_vars ${-_pal_ids}
 		foreach {
 			o {/$path}/${i_{$>+1}}.gmz
 		}
+		0 o. {/$path}/.palmeta
 		rm
 	}
 fi
 
 ###############################################
-# Please remove below code block by 5/31/2026 #
+# Please remove below code block by 8/31/2026 #
 ###############################################
 
-if "last_update=date([0,1,2],'"{/$path}/fornax_void_1.gmz"');
-    must_be_updated_date=[2026,3,9];
-    (must_be_updated_date[0]*10000+must_be_updated_date[1]*100+must_be_updated_date[2]) > (last_update[0]*10000 + last_update[1]*100 + last_update[2]);"
+if isfile('{/$path}/.palmeta')?epoch(2026,4,10)>epoch(date([0,1,2],'{/$path}/.palmeta')):1
 
-	# This code block is used to update 2 palettes
+	if epoch(2026,3,9)>epoch(date([0,1,2],'{/$path}/fornax_void_1.gmz'))
+		# This code block is used to update 2 palettes
 
-	l[] {
-		_pal_385_pals
-		k[260,336]
-		o[-2] {/$path}/fornax_void_1.gmz
-		o[-1] {/$path}/amiga2600_ntsc.gmz
-		rm
-	}
-fi
+		l[] {
+			_pal_385_pals
+			k[260,336]
+			o[-2] {/$path}/fornax_void_1.gmz
+			o[-1] {/$path}/amiga2600_ntsc.gmz
+			rm
+		}
+	fi
 
-if !isfile('{/$path}/0xdb.gmz') # No way to simply rename?
-	{/$path}/xdb.gmz
-	o. {/$path}/0xdb.gmz
-	delete {/$path}/xdb.gmz
-	rm.
-fi
+	__pal_rename_file xdb,0xdb
+	__pal_rename_file scrj_xxxvi,scrj-xxxvi
+	__pal_rename_file generic_8,generic-8
+	__pal_rename_file st_8_red_and_blue,st8
+	__pal_rename_file rose_moss_8,rosemoss-8
+	__pal_rename_file s1_6,s1-6
+	__pal_rename_file dimwid17,dim17
+	__pal_rename_file dimwid23,dim23
+	__pal_rename_file thehamster_rainbow,rainbow-thehamster
+	__pal_rename_file boltbait_rainbow,rainbow-boltbait
+	__pal_rename_file rosy42,rosy
+	__pal_rename_file nineties_nine,90s
+	__pal_rename_file anb16,anb
+	__pal_rename_file autum_15,autum
+	__pal_rename_file autum_15,autum_yellow
+	__pal_rename_file galaxy_flame,galaxy
+	__pal_rename_file tinyfolks,tiny
+	__pal_rename_file petite_8,petite
+	__pal_rename_file petite_8_afterdark,petite_afterdark
+	__pal_rename_file moon39,moon
+	__pal_rename_file paper8,paper
+	__pal_rename_file sahara_pastell,sahara
+	__pal_rename_file mac_8_bit,mac_8-bit
+	__pal_rename_file pxls_space,pxls
+	__pal_rename_file slso_clr17,slso
+	__pal_rename_file chip16,chip
+	__pal_rename_file ocean_glass,ocean
+	__pal_rename_file simple_jpc_16,jpc16
+	__pal_rename_file boltbait_matrix,matrix
+	__pal_rename_file material_design,material
+	__pal_rename_file sweetie16,sweetie
 
-if "deadline=[2026,5,31];
-    current_date=date([0,1,2]);
-    (current_date[0]*10000+current_date[1]*100+current_date[2]) > (deadline[0]*10000+deadline[1]*100+deadline[2]);"
-
-    echo "NOTE TO DEVELOPER: Please remove this code block by 4/15/2026. Users can ignore this message."
+	0 o. {/$path}/.palmeta rm.
+elif epoch()>epoch(2026,8,31)
+		echo "NOTE TO DEVELOPER: Please remove this code block by 8/31/2026. Users can ignore this message."
 fi
 
 ###############################################
-# Please remove above code block by 5/31/2026 #
+# Please remove above code block by 8/31/2026 #
 ###############################################
 
 if ('$1')[0]==_'-'
@@ -20536,43 +21094,42 @@ fi
 
 repeat $# {
 	strlowercase ${var{$>+1}}
-	lvar$>=${}
-	j_${}={/$path}/${}.gmz
+
+	if same(isint('${}',_'0',_'9'),1)
+			if !$vars_created
+				t=${} __pal_create_vars ${-_pal_ids} u $t
+			fi
+
+			u ${i_{(${}%$n_ids)+1}}
+	fi
+
+	q$>=${}
+	p$>=${_pal_id_2_int\ ${}}
+	j_${p$>}={/$path}/${q$>}.gmz
 }
 
 l[] {
 	repeat $# {
-		M,m=${var{$>+1}},${lvar$>}
+		M,h,m=${var{$>+1}},${p$>},${q$>}
 
-		if same(isint('$m',_'0',_'9'),1)
-			if !$vars_created
-				__pal_create_vars
-			fi
-
-			m=${i_{($m%$n_ids)+1}}
-
-			if narg(${r_$m})
-				if $rd continue fi
-			else
-				j_$m={/$path}/$m.gmz
-			fi
-		fi
-
-		${j_$m}
+		${j_$h}
 
 		out.=$s$m
-		s=,
 
 		if $rd
-			j_$m=continue
+			j_$h=continue
 		else
-			j_$m=__pal_load_previous_palette
+			j_$h=__pal_load_previous_palette
 		fi
 
-		r_$m={$!-1}
+		s=,
+		r_$h={$!-1}
 	}
 
 	onfail
+		rm
+		m=${strlowercase\ $M}
+
 		closest_args=${rep_sug_args\ $m,,1,66%,-97.5%,.9,0,25%,0,${-_pal_ids}}
 
 		if same('$closest_args','--0000e0')
@@ -20586,16 +21143,50 @@ l[] {
 e[^-1] "Created palette(s) '"$out"'."
 u $out
 __pal_load_previous_palette:
-v=${r_$m} [$v] => {$v,n}
+v=${r_$h} [$v] => {$v,n}
 __pal_create_vars:
-m __$0_dict:"
-	n_ids=$""#
-	$""=i_"
-__$0_dict ${-_pal_ids}
-um __$0_dict
-vars_created=1
+n_ids,vars_created=$#,1 $=i_
 _pal_ids:
-u bw,rgb,b_rgb,bw_rgb,cmy,cmyk,w_cmyk,rgbcmy,1bitrgb,aurora,zenit,gbg,duel,hocuspocus,playpal,srb2,uzebox,kens16,kens32,kens54,aap12,aap16,aap64,aap96,aap128,aap_dga16,cheerful,db8,db16,db32,db_iso22,dimwid17,dimwid23,edg4,edg8,edg16,edg32,edg36,edg64,famicube,juicy32,juicy56,xaiue,15pdx,20pdx,24pdx,cabana,fantasy16,fantasy24,tranquil_fantasy_23,tfp39,faraway,fleja,koni,linearbasic,legowiki,lego2021,vinelinear,arcade,arq,atom,blk36,blkneo,broken_facility,bubblegum,cpcboy,cade,calder,cdbac,cgarne,dinoknight,llll,fzt_ethereal,indecision,island,journey,shallowmarsh,lago_nenufar,juicy,chocolate,brightwinter1,brightwinter2,kawaii,0xdb,gzxp,chromatic,piet_code,boltbait_matrix,material_design,thehamster_rainbow,boltbait_rainbow,scrj_xxxvi,pxls_space,lospec,moderna,oak,nature,rbypgo,new_worlds,nauris,dynamite,interstate,downgraded,pear36,pineapple,peachy,resurrect,rosy42,slso_clr17,softy,spec12,the_roarin_80s,starmancer,superfuture,sunshine,sweetie16,calm,optimism,taffy,todayland,trirampo,reddit_place_2022,tropical,vivid,shido,intacto,itatsi,enos,grixel,superb,undertones,tango,cheese,equpix15,zughy,voodo,franzston,night,star29,star34,still_life,simple_jpc_16,acid,battery,clumpy,cthul,crimso11,copper_tech,drz15a,eggy,europa,greyt_bit,jewel,polar,sheltzy,wyrm,yume_nikki,rube_goldberg,boomboom,generic_8,crayola,funky,golden_wall,matriax8c,nt1h,jerrypie,nineties_nine,on70,anb16,retrocal,punolit,luap,autum_villan,autum_15,autum_15_yellow,galaxy_flame,cretaceous,antiquity,mushroom,aerugo,hotel_paintings,nopal,brightness_gpy,blessing,fairy_dust,milkshake,fuzzy,fairy,naji16,easter,pastel_and_darks,pastel_irena,nostalgia,ocaso,pastel_starlitsunset,pollen,kule,hydrangea,fluffy,st_8_red_and_blue,neon,cyclope,sy17,syz15,tui15,cave,psygnosia,marshmellow,lost_century,finlal,industrial,murder_mystery,fate_and_destiny,vinik,ykb,halloween,graveyard,steamlords,frostical,deuterospill,cool_bone,muted_ally,ephemera,ink,violet_dreams,tinyfolks,old_gold,rose_moss_8,aap_radiant_xv,aap_majesty_xvii,dead_weight,mojave,petite_8,petite_8_afterdark,xaiue_radiant,daruda,firestorm,borkfest,spicy,rust,apricot,supernova,pastry,sandy,illumination,nyx,dream_haze,oil,regal,soft_demon,sgm,midnight_ablaze,black_cherry,sunset_red,inkpink,brash_pink,pink_neon_sign,enchanted_purple,arch,spacey_easter,fornax_void_1,fornax_void_2,pixelwave,s1_6,berry_nebula,abyss,moonlight,moon39,h2o,magic_waters,bluemold,moss,deep_maze,toxic_slime,lush_green,tsunami,cryptic_ocean,marsh_madness,oxyd,pink_green,woodwalk,paper8,sahara_pastell,sunflower,arthoe,sky,ocean_glass,royal,eulbink,winter_wonderland,moon_squid,stratus,arctic_dust,clouds_sunset,lilac_skies,sea_of_fire,autochrome3,autochrome5,gb_default_1,gb_default_2,gb_andrade,gb_blue,gb_blackzone,gb_suburb,gb_crimson,gb_didi,gb_dirty,gb_arne,gb_easy,gb_forest,gb_harsh_green,gb_light_green,gb_nostalgia,gb_platinum,gb_kirokaze,gb_cyber,gb_wish,gb_grapefruit,gb_ice_cream,gb_red_blue,gb_gold,gb_choco,gb_gray,gb_space,gb_purple_dawn,moon_crystal,arne,autumn_chill,cherrymelon,hal4,hollow,lavender,maw,voltage_warning,tritanopia,rabbit,amiga2600_ntsc,amiga2600_pal,amiga2600_secam,amiga7800_mess,amiga7800,amstrad_cpc,apple,atari,cga,cga00,cga01,cga10,cga11,cga20,cga21,c64_pepto,c64_colodore,com_vic_20,colecovision,jmp,mac2,mac_8_bit,msx,nes,pico,risc,sam_coupe,mo5,trs80,virtualboy,vga,win95,zx,gnome,electronic_crayon,chip16,deluxe_paint,flat_ui,makecode_arcade,oekaki,ms_legacy_paint,ms_xp,vista,piet,japanese_woodblock,human_faces,hsv,christmas,ladybug_reds
+u bw,rgb,b_rgb,bw_rgb,cmy,cmyk,w_cmyk,rgbcmy,1bitrgb,aurora,zenit,gbg,duel,hocuspocus,playpal,srb2,uzebox,kens16,kens32,kens54,aap12,aap16,aap64,aap96,aap128,aap_dga16,cheerful,db8,db16,db32,db_iso22,dim17,dim23,edg4,edg8,edg16,edg32,edg36,edg64,famicube,juicy32,juicy56,xaiue,15pdx,20pdx,24pdx,cabana,fantasy16,fantasy24,tranquil_fantasy_23,tfp39,faraway,fleja,koni,linearbasic,legowiki,lego2021,vinelinear,arcade,arq,atom,blk36,blkneo,broken_facility,bubblegum,cpcboy,cade,calder,cdbac,cgarne,dinoknight,llll,fzt_ethereal,indecision,island,journey,shallowmarsh,lago_nenufar,juicy,chocolate,brightwinter1,brightwinter2,kawaii,0xdb,gzxp,chromatic,piet_code,matrix,material,rainbow-thehamster,rainbow-boltbait,scrj-xxxvi,pxls,lospec,moderna,oak,nature,rbypgo,new_worlds,nauris,dynamite,interstate,downgraded,pear36,pineapple,peachy,resurrect,rosy,slso,softy,spec12,the_roarin_80s,starmancer,superfuture,sunshine,sweetie,calm,optimism,taffy,todayland,trirampo,reddit_place_2022,tropical,vivid,shido,intacto,itatsi,enos,grixel,superb,undertones,tango,cheese,equpix15,zughy,voodo,franzston,night,star29,star34,still_life,jpc16,acid,battery,clumpy,cthul,crimso11,copper_tech,drz15a,eggy,europa,greyt_bit,jewel,polar,sheltzy,wyrm,yume_nikki,rube_goldberg,boomboom,generic-8,crayola,funky,golden_wall,matriax8c,nt1h,jerrypie,90s,on70,anb,retrocal,punolit,luap,autum_villan,autum,autum_yellow,galaxy,cretaceous,antiquity,mushroom,aerugo,hotel_paintings,nopal,brightness_gpy,blessing,fairy_dust,milkshake,fuzzy,fairy,naji16,easter,pastel_and_darks,pastel_irena,nostalgia,ocaso,pastel_starlitsunset,pollen,kule,hydrangea,fluffy,st8,neon,cyclope,sy17,syz15,tui15,cave,psygnosia,marshmellow,lost_century,finlal,industrial,murder_mystery,fate_and_destiny,vinik,ykb,halloween,graveyard,steamlords,frostical,deuterospill,cool_bone,muted_ally,ephemera,ink,violet_dreams,tiny,old_gold,rosemoss-8,aap_radiant_xv,aap_majesty_xvii,dead_weight,mojave,petite,petite_afterdark,xaiue_radiant,daruda,firestorm,borkfest,spicy,rust,apricot,supernova,pastry,sandy,illumination,nyx,dream_haze,oil,regal,soft_demon,sgm,midnight_ablaze,black_cherry,sunset_red,inkpink,brash_pink,pink_neon_sign,enchanted_purple,arch,spacey_easter,fornax_void_1,fornax_void_2,pixelwave,s1-6,berry_nebula,abyss,moonlight,moon,h2o,magic_waters,bluemold,moss,deep_maze,toxic_slime,lush_green,tsunami,cryptic_ocean,marsh_madness,oxyd,pink_green,woodwalk,paper,sahara,sunflower,arthoe,sky,ocean,royal,eulbink,winter_wonderland,moon_squid,stratus,arctic_dust,clouds_sunset,lilac_skies,sea_of_fire,autochrome3,autochrome5,gb_default_1,gb_default_2,gb_andrade,gb_blue,gb_blackzone,gb_suburb,gb_crimson,gb_didi,gb_dirty,gb_arne,gb_easy,gb_forest,gb_harsh_green,gb_light_green,gb_nostalgia,gb_platinum,gb_kirokaze,gb_cyber,gb_wish,gb_grapefruit,gb_ice_cream,gb_red_blue,gb_gold,gb_choco,gb_gray,gb_space,gb_purple_dawn,moon_crystal,arne,autumn_chill,cherrymelon,hal4,hollow,lavender,maw,voltage_warning,tritanopia,rabbit,amiga2600_ntsc,amiga2600_pal,amiga2600_secam,amiga7800_mess,amiga7800,amstrad_cpc,apple,atari,cga,cga00,cga01,cga10,cga11,cga20,cga21,c64_pepto,c64_colodore,com_vic_20,colecovision,jmp,mac2,mac_8-bit,msx,nes,pico,risc,sam_coupe,mo5,trs80,virtualboy,vga,win95,zx,gnome,electronic_crayon,chip,deluxe_paint,flat_ui,makecode_arcade,oekaki,ms_legacy_paint,ms_xp,vista,piet,japanese_woodblock,human_faces,hsv,christmas,ladybug_reds
+_pal_id_2_int:
+rep_altbase_num2posdec 65,{"
+	const _0=_'0';
+	const _a=_'a';
+	const _z=_'z';
+	const _A=_'A';
+	const _Z=_'Z';
+	v=('$1');
+	repeat(size(v),p,
+		char=v[p];
+		char==_'-'?(
+			v[p]=0;
+		):
+		char==_'_'?(
+			v[p]=1;
+		):
+		char==_'|'?(
+			v[p]=2;
+		):
+		isint(char,_'0',_'9')?(
+			v[p]=char-_0+3;
+		):
+		isint(char,_a,_z)?(
+			v[p]=char-_a+13;
+		):
+		isint(char,_A,_Z)?(
+			v[p]=char-_A+39;
+		):(
+			run('error inv_char_det');
+		);
+	);
+	v;"}
+__pal_rename_file:
+if !isfile('{/$path}/$2.gmz') # No way to simply rename?
+	{/$path}/$1.gmz
+	o. {/$path}/$2.gmz
+	delete {/$path}/$1.gmz
+	rm.
+fi
 #@cli rep_transfer_color_reduced: [palette],0<=_dither<=1,_pixel_ratio_w>=0,_pixel_ratio_h>=0,_windows_width>=0,_window_height>=0,_color_restriction_per_window>=0,_color_restriction_per_whole>=0,_number_of_alpha>=0,_alpha_dithering>=0,_alpha_mode={ 0=index | 1=window-index | 2=ordered },_alpha_restrict>=0 : { bit_depth | bit_a:...:bit_z | :[palette] },0<=_dither<=1,_pixel_ratio_w>=0,_pixel_ratio_h>=0,_color_restriction_per_whole>=0,_number_of_alpha>=0,_alpha_dithering>=0,_alpha_mode={ 0=index | 1=ordered }
 #@cli : Change images to look as if it was reduced. Can be used to emulate old hardware.
 rep_transfer_color_reduced:
@@ -33911,7 +34502,7 @@ foreach {
 			);
 			current_scientific_notation=convert_to_scientific_notation(i);
 			accumulate();
-			i;
+			_0;
 			end(
 				merge(accumulative_coeff,*);
 				merge(accumulative_exponent,+);
