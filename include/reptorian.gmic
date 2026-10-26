@@ -51,7 +51,7 @@
 #
 #-------------------------------
 
-#@cli rep_str2bin_struct:'string',vector_size
+#@cli rep_str2bin_struct:'string',vector_size,seed
 #@cli : Create a binary tree image from a control string as interpreted by BinArbor coding language
 #@cli :
 #@cli : (Also made by Reptorian.).
@@ -61,6 +61,8 @@
 #@cli :   < = Create left child if needed, then move to it.
 #@cli :   \> = Create right child if needed, then move to it.
 #@cli :   : = Create missing left/right children without moving.
+#@cli :   \. = Move to a random branch of current node. If the node has no children, create
+#@cli :       one on a random side first, before moving into a branch. If it has only one branch, then move to that branch.
 #@cli :   ~ = Move to sibling branch. Creates sibling if missing.
 #@cli :   \* = Move to current subtree root.*
 #@cli :   \+ = Move upward along same branch direction.
@@ -69,6 +71,9 @@
 #@cli :       every level). If the current node has exactly one child, that
 #@cli :       child's branch is mirrored onto the empty side of the current
 #@cli :       node.
+#@cli :   \& = Clone a branch onto the empty side of the current node
+#@cli :       (same as %, but without swapping left/right). Does nothing
+#@cli :       unless the node has exactly one child.
 #@cli :
 #@cli :   *A subtree root is the node where the current local branch context began.
 #@cli :
@@ -91,17 +96,26 @@
 #@cli :   N...` = Repeat next section until '`'.
 #@cli :
 #@cli : Expression Functions:
-#@cli :   dir()  = Return current branch direction.
-#@cli :            Error at subtree root.
+#@cli :   dir()    = Return current branch direction.
+#@cli :              Error at subtree root.
 #@cli :
-#@cli :   root() = Return value of current subtree root.
-#@cli :            Error at subtree root.
+#@cli :   root()   = Return value of current subtree root.
+#@cli :              Error at subtree root.
 #@cli :
-#@cli :   L()    = Return value of left child.
-#@cli :            Error if no left child exists.
+#@cli :   L()      = Return value of left child.
+#@cli :              Error if no left child exists.
 #@cli :
-#@cli :   R()    = Return value of right child.
-#@cli :            Error if no right child exists.
+#@cli :   R()      = Return value of right child.
+#@cli :              Error if no right child exists.
+#@cli :
+#@cli :   sibling() = Return value of the sibling node.
+#@cli :              Error at subtree root or if no sibling exists.
+#@cli :
+#@cli :   depth()  = Return depth of the current node relative to the
+#@cli :              current subtree root (0 at the root).
+#@cli :
+#@cli :   isleaf() = Return 1 if the current node has no children,
+#@cli :              otherwise 0. Only reflects the tree built so far.
 #@cli :
 #@cli :   For this implementation, all G'MIC JIT expressions are supported.
 #@cli :
@@ -132,6 +146,7 @@
 #@cli :
 #@cli : Author: Reptorian.
 +rep_str2bin_struct:
+skip "${3=}"
 check isint(${2=0},0)
 $0_start_of_image_list,$0_v_size,$0_access_mode,$0_char_limit,$0_dict_size:=$!,$2,bool($2),247,256
 
@@ -141,6 +156,7 @@ _rep_str2bin_struct_exam_delimit # Validate bracket balance
 1,1,1,2             # repeat bucket position stack
 1,2,1,1,0,1x2       # childfree_stack -> no left child, no right child
 
+$0_tree={l} # rep_str2bin_struct_tree
 1,1,1,{7+${$0_access_mode}},nan,0,0,0,nan,0,0,1,1 # parent,left,right,depth,direction,left_child_stack_pos,right_child_stack_pos,access
 
 if $2
@@ -154,11 +170,13 @@ a[-2,-1] y
 0x${$0_dict_size}
 
 eval "
+	if(narg($3),srand($3););
 	const access_mode=$rep_str2bin_struct_access_mode;
 	const move_up_tree=_'^';
 	const left_child=_'<';
 	const right_child=_'>';
 	const two_child=_':';
+	const random_child=_'.';
 	const sibling=_'~';
 	const expr_0=_'{';
 	const expr_1=_'}';
@@ -173,6 +191,7 @@ eval "
 	const random_leaf=_'|';
 	const secondary_repeat_end=_'`';
 	const mirror_node=_'%';
+	const clone_node=_'&';
 	const _A=_'A';
 	const _Z=_'Z';
 	const _a=_'a';
@@ -219,7 +238,15 @@ eval "
 		isin(current_char,skip_char_0,skip_char_1,skip_char_2)?(
 			++cursor;
 		):
-		((child_mode=find([left_child,right_child,two_child],current_char,0,1))!=-1)?(
+		((child_mode=find([left_child,right_child,two_child,random_child],current_char,0,1))!=-1)?(
+			if(child_mode==3,
+				# '=' : pick left (0) or right (1)
+				# Exactly one child exists -> take that one. Zero or two children -> random.
+				rc_has_l=i(#binary_tree_img,0,current_branch,0,left_child_pos)>0;
+				rc_has_r=i(#binary_tree_img,0,current_branch,0,right_child_pos)>0;
+				child_mode=rc_has_l!=rc_has_r?rc_has_r:v;
+			);
+
 			child_mode==0||child_mode==2?(
 				if(!i(#binary_tree_img,0,current_branch,0,left_child_pos),
 					current_bin_tree_size=da_size(#binary_tree_img);
@@ -285,7 +312,6 @@ eval "
 			);
 
 			++cursor;
-
 		):
 		((random_leaf_mode=find([random_left_leaf,random_right_leaf,random_leaf],current_char,0,1))!=-1)?(
 			if(random_leaf_mode==2,
@@ -371,7 +397,9 @@ eval "
 			current_branch=i[#square_bracket_stack,square_bracket_level];
 			++cursor;
 		):
-		current_char==mirror_node?(
+		(current_char==mirror_node||current_char==clone_node)?(
+			clone_mode=current_char==clone_node;
+
 			mirror_has_l=i(#binary_tree_img,0,current_branch,0,left_child_pos)>0;
 			mirror_has_r=i(#binary_tree_img,0,current_branch,0,right_child_pos)>0;
 
@@ -386,8 +414,9 @@ eval "
 						mirror_child_s=i(#binary_tree_img,0,mirror_s,0,1+mirror_try);
 
 						mirror_child_s?(
-							# Mirror side is always empty here, so create without checking
-							alternate_direction=!mirror_try;
+							# Mirror: always the opposite side.
+							# Clone: the same side as the source, except at the first level (the empty side of the root).
+							alternate_direction=(clone_mode&&mirror_s!=mirror_root)?mirror_try:!mirror_try;
 							alternate_pos=1+alternate_direction;
 
 							current_bin_tree_size=da_size(#binary_tree_img);
@@ -465,6 +494,7 @@ eval "
 				set('rep_str2bin_struct_expr_start',start_of_expr);
 				set('rep_str2bin_struct_expr_length',end_of_expr-start_of_expr);
 				set('rep_str2bin_struct_direction',i(#binary_tree_img,0,current_branch,0,direction_pos));
+				set('rep_str2bin_struct_subroot',i[#square_bracket_stack,square_bracket_level]);
 
 				vector_res=run('__rep_str2bin_struct_expr');
 
@@ -571,13 +601,22 @@ eval "
 			repeat_pos=find(#repeat_bucket,cursor,w(#repeat_bucket)-1,-1);
 
 			ws=w(#repeat_index_stack);
-			if((repeat_level++)==ws,resize(#repeat_index_stack,++ws,1,1,2,0););
+			if(++repeat_level==ws,resize(#repeat_index_stack,ws+1,1,1,2,0););
 
 			repeat_pos!=-1?(
-				c=i(#repeat_bucket,repeat_pos,0,0,3);
-				i(#repeat_bucket,repeat_pos,0,0,4)=c;
-				I[#repeat_index_stack,repeat_level]=[repeat_bucket,repeat_pos];
-				cursor=i(#repeat_bucket,repeat_pos,0,0,2);
+				C=i(#repeat_bucket,repeat_pos,0,0,3);
+
+				C?(
+					i(#repeat_bucket,repeat_pos,0,0,4)=C;
+					I[#repeat_index_stack,repeat_level]=[repeat_bucket,repeat_pos];
+					cursor=i(#repeat_bucket,repeat_pos,0,0,2);
+				):(
+					# Zero count: skip the block and undo the level bump
+					cursor=i(#repeat_bucket,repeat_pos,0,0,2);
+					--repeat_level;
+					repeat_bucket=i(#repeat_index_stack,repeat_level,0,0,0);
+					repeat_pos=i(#repeat_index_stack,repeat_level,0,0,1);
+				);
 			):(
 				repeat_count=current_char-_'0';
 				repeat_pos=w(#repeat_bucket);
@@ -603,6 +642,9 @@ eval "
 						resize(#repeat_bucket,w(#repeat_bucket)+1,1,1,5,0);
 						copy(i[#repeat_bucket,repeat_pos],[cursor,stop_mode,q,repeat_count,repeat_count],5,w(#repeat_bucket),1);
 						cursor=q;
+						--repeat_level;
+						repeat_bucket=i(#repeat_index_stack,repeat_level,0,0,0);
+						repeat_pos=i(#repeat_index_stack,repeat_level,0,0,1);
 						continue();
 					);
 				):(
@@ -613,8 +655,10 @@ eval "
 						resize(#repeat_bucket,w(#repeat_bucket)+1,1,1,5,0);
 						copy(i[#repeat_bucket,repeat_pos],[cursor,stop_mode,q,repeat_count,repeat_count],5,w(#repeat_bucket),1);
 						cursor=q;
+						--repeat_level;
+						repeat_bucket=i(#repeat_index_stack,repeat_level,0,0,0);
+						repeat_pos=i(#repeat_index_stack,repeat_level,0,0,1);
 						continue();
-
 					);
 				);
 
@@ -660,6 +704,124 @@ else
 fi
 
 name[-1] BinArbor_Struct
+__rep_str2bin_struct_expr:
+	res_str=dir()=$rep_str2bin_struct_direction;
+	res_str.=depth()={i(#$rep_str2bin_struct_tree,0,$rep_str2bin_struct_current_branch,0,3)};
+	res_str.=isleaf()={!(i(#$rep_str2bin_struct_tree,0,$rep_str2bin_struct_current_branch,0,1)||i(#$rep_str2bin_struct_tree,0,$rep_str2bin_struct_current_branch,0,2))};
+
+	if $rep_str2bin_struct_current_branch!=$rep_str2bin_struct_subroot
+		rep_str2bin_struct_sibling_idx={i(#-1,0,i(#$rep_str2bin_struct_tree,0,$rep_str2bin_struct_current_branch,0,0),0,2-$rep_str2bin_struct_direction)}
+		if $rep_str2bin_struct_sibling_idx
+			res_str.=sibling()=crop(#$rep_str2bin_struct_tree,0,$rep_str2bin_struct_sibling_idx,0,8,1,1,1,$rep_str2bin_struct_v_size);
+		fi
+	fi
+
+	if !isnan(i(#$rep_str2bin_struct_tree,0,$rep_str2bin_struct_current_branch,0,0))
+		res_str.=root()=crop(#$rep_str2bin_struct_tree,0,i(#-1,0,$rep_str2bin_struct_current_branch,0,0),0,8,1,1,1,$rep_str2bin_struct_v_size);
+	fi
+
+	if i(#-1,0,$rep_str2bin_struct_current_branch,0,1)
+		res_str.=L()=crop(#$rep_str2bin_struct_tree,0,i(#-1,0,$rep_str2bin_struct_current_branch,0,1),0,8,1,1,1,$rep_str2bin_struct_v_size);
+	fi
+
+	if i(#-1,0,$rep_str2bin_struct_current_branch,0,2)
+		res_str.=R()=crop(#$rep_str2bin_struct_tree,0,i(#-1,0,$rep_str2bin_struct_current_branch,0,2),0,8,1,1,1,$rep_str2bin_struct_v_size);
+	fi
+
+	res={$res_str;[{`crop(#$rep_str2bin_struct_start_of_image_list,$rep_str2bin_struct_expr_start,$rep_str2bin_struct_expr_length)`}]}
+
+	if narg(${rep_str2bin_struct_var_$rep_str2bin_struct_current_branch})
+		${rep_str2bin_struct_var_$rep_str2bin_struct_current_branch}=$res
+	fi
+
+	rep_str2bin_struct_expr_$rep_str2bin_struct_current_branch=$res
+
+	u {vector(#$rep_str2bin_struct_v_size,$res)}
+_rep_str2bin_struct_exam_delimit:
+1
+
+eval "
+	const str_len=whd#-2;
+	const B0P0=_'[';
+	const B0P1=_']';
+	const B1P0=_'{';
+	const B1P1=_'}';
+	const B2P1=_'`';
+	const _a=_'a';
+	const _z=_'z';
+	const _A=_'A';
+	const _Z=_'Z';
+	const __=_'_';
+	p=-1;
+	ignore_var=ignore_expr=ignore_num=0;
+
+	is_alp(char)=isint(char,_a,_z)||isint(char,_A,_Z);
+	is_num(char)=isint(char,_'0',_'9');
+	is_valid_var_char(char)=is_alp(char)||is_num(char)||char==__;
+
+	while(++p<str_len,
+		c=i[#-2,p];
+
+		if(ignore_var&&is_valid_var_char(c)
+		,continue();
+		,ignore_var=0;
+		);
+
+		is_alp(c)?(
+			ignore_var=1;
+		):
+		c==B1P1?(
+			i[#-1,da_size(#-1)-1]!=B1P0?(
+				run('error mismatched_bracket_det');
+			);
+			if(--i[#-1,h(#-1)-1]==-1,
+				run('error mismatched_bracket_det');
+			);
+			ignore_expr=ignore_num=0;
+		):
+		!(ignore_expr||(ignore_num?isint(c,_'0',_'9')))?(
+			c==B1P0?(
+				if(ignore_num
+				,ignore_num=0;
+				,ignore_expr=1;
+				);
+				da_push(#-1,B1P0);
+			):
+			c==B0P0?(
+				da_push(#-1,B0P0);
+			):
+			c==B0P1?(
+				i[#-1,da_size(#-1)-1]!=B0P0?(
+					run('error mismatched_bracket_det');
+				);
+				if(--i[#-1,h(#-1)-1]==-1,
+					run('error missing_bracket_det');
+				);
+			):
+			c==B2P1?(
+				i[#-1,da_size(#-1)-1]!=_'0'?(
+					run('error mismatched_rules');
+				);
+				if(--i[#-1,h(#-1)-1]==-1,
+					run('error missing_bracket_det');
+				);
+			):
+			isint(c,_'0',_'9')?(
+				ignore_num=1;
+			):
+			ignore_num?(
+				da_push(#-1,_'0');
+				ignore_num=0;
+			);
+		);
+	);
+
+	if(da_size(#-1),
+		run('error missing_brackets');
+	);
+	"
+
+rm.
 #@cli rep_str2bin_struct_fill_gradient:
 #@cli : Apply 2D gradient into BinArbor generated image. This means 2D gradient according to binary tree structure.
 rep_str2bin_struct_fill_gradient:
@@ -1814,22 +1976,23 @@ eval "
 	sorted_list_of_volumes=["$sortset_volumes"];
 	list_of_starts=vector(#size(sorted_list_of_volumes)+1);
 
+	const voi=$vol_of_images;
 	const size_l=size(sorted_list_of_volumes);
 
 	if($2,subsplit_size=vector(#size_l););
 
-	repeat($vol_of_images,p,
+	repeat(voi,p,
 		v=whd#p;
 		repeat(size_l,q,
 			if(v<sorted_list_of_volumes[q],break(););
-			da_push(#$vol_of_images+q,p);
+			da_push(#voi+q,p);
 		);
 	);
 
 	rp=v=0;
-	repeat($vol_of_images,p,
+	repeat(min(voi,size_l),p,
 		list_of_starts[p]=v;
-		ref=$vol_of_images+p;
+		ref=voi+p;
 		v+=(sorted_list_of_volumes[p]-rp)*i[#ref,h(#ref)-1];
 		rp=sorted_list_of_volumes[p];
 	);
@@ -1837,7 +2000,7 @@ eval "
 	list_of_starts[p]=v;
 
 	repeat(size_l,p,
-		q=$vol_of_images+p;
+		q=voi+p;
 		da_freeze(#q);
 		if($2,subsplit_size[p]=h(#q););
 	);
