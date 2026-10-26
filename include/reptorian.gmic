@@ -96,6 +96,14 @@
 #@cli :   N{...} = Repeat enclosed block N times.
 #@cli :   N...` = Repeat next section until '`'.
 #@cli :
+#@cli : Control flow (the bodies run in the CURRENT node context, like N{...}):
+#@cli :   ??{cond}[...]        = While loop. Runs the body while cond is true (non-zero, not nan).
+#@cli :   ?{cond}[...];        = If. Runs the body only if cond is true.
+#@cli :   ?{cond}[...][...];   = If/else. First body if cond is true, second otherwise.
+#@cli :   #{n}[...]           = Run the body n times (n is an expression, evaluated once).
+#@cli :   Here {...} is an expression returning a scalar, not a store-in-node expression.
+#@cli :   The ';' that ends an if statement is required. Nesting is allowed everywhere.
+#@cli :
 #@cli : Expression Functions:
 #@cli :   dir()    = Return current branch direction.
 #@cli :              Error at subtree root.
@@ -112,11 +120,25 @@
 #@cli :   sibling() = Return value of the sibling node.
 #@cli :              Error at subtree root or if no sibling exists.
 #@cli :
+#@cli :   self()   = Return value of the current node.
+#@cli :
 #@cli :   depth()  = Return depth of the current node relative to the
 #@cli :              current subtree root (0 at the root).
 #@cli :
 #@cli :   isleaf() = Return 1 if the current node has no children,
 #@cli :              otherwise 0. Only reflects the tree built so far.
+#@cli :
+#@cli :   hasleft() = Return 1 if the current node has a left child,
+#@cli :              otherwise 0. Only reflects the tree built so far.
+#@cli :
+#@cli :   hasright() = Return 1 if the current node has a right child,
+#@cli :              otherwise 0. Only reflects the tree built so far.
+#@cli :
+#@cli :   hasparent() = Return 1 if the current node has a parent inside the
+#@cli :              current subtree root context, 0 at the subtree root.
+#@cli :
+#@cli :   hassibling() = Return 1 if the current node has a sibling, otherwise 0.
+#@cli :              Always 0 at the subtree root.
 #@cli :
 #@cli :   For this implementation, all G'MIC JIT expressions are supported.
 #@cli :
@@ -149,15 +171,15 @@
 +rep_str2bin_struct:
 skip "${3=}"
 check isint(${2=0},0)
-$0_start_of_image_list,$0_v_size,$0_access_mode,$0_char_limit,$0_dict_size:=$!,$2,bool($2),247,256
+$0_start_of_image_list,$0_v_size,$0_expr_enable_mode,$0_char_limit,$0_dict_size:=$!,$2,bool($2),247,256
 
 ('"$1"')                         # str
-_rep_str2bin_struct_exam_delimit # Validate bracket balance
+_rep_str2bin_struct_prepass      # Validate brackets, build the control-flow jump table (str+1) and frame stack (str+2)
 1,1,1,4             # root, root left child idx,root right child idx, root both child idx
 1,1,1,2             # repeat bucket position stack
 1,2,1,1,0,1x3       # childfree_stack -> no left child, no right child, no both child
 
-1,1,1,{8+${$0_access_mode}},nan,0,0,0,nan,0,0,0,1,1 # parent,left,right,depth,direction,lstack,rstack,bstack,access
+1,1,1,8,nan,0,0,0,nan,0,0,0 # parent,left,right,depth,direction,lstack,rstack,bstack
 
 if $2
 	1,1,1,$2,nan
@@ -171,7 +193,7 @@ a[-2,-1] y
 
 eval "
 	if(narg($3),srand($3););
-	const access_mode=$rep_str2bin_struct_access_mode;
+	const expr_enable_mode=$rep_str2bin_struct_expr_enable_mode;
 	const move_up_tree=_'^';
 	const left_child=_'<';
 	const right_child=_'>';
@@ -193,6 +215,8 @@ eval "
 	const secondary_repeat_end=_'`';
 	const mirror_node=_'%';
 	const clone_node=_'&';
+	const ctl_char_cond=63; # question mark
+	const ctl_char_count=35; # hash sign
 	const _A=_'A';
 	const _Z=_'Z';
 	const _a=_'a';
@@ -202,13 +226,15 @@ eval "
 	const skip_char_1=_' ';
 	const skip_char_2=_'\n';
 	const str_img=$rep_str2bin_struct_start_of_image_list;
-	const square_bracket_stack=str_img+1;
-	const repeat_index_stack=str_img+2;
-	const no_left_child_stack=str_img+3;
-	const no_right_child_stack=str_img+4;
-	const no_both_child_stack=str_img+5;
-	const binary_tree_img=str_img+6;
-	const repeat_dict_table=str_img+7;
+	const jump_table=str_img+1;
+	const ctl_stack=str_img+2;
+	const square_bracket_stack=str_img+3;
+	const repeat_index_stack=str_img+4;
+	const no_left_child_stack=str_img+5;
+	const no_right_child_stack=str_img+6;
+	const no_both_child_stack=str_img+7;
+	const binary_tree_img=str_img+8;
+	const repeat_dict_table=str_img+9;
 	const str_len=whd#str_img;
 	const char_limit=$rep_str2bin_struct_char_limit;
 	const parent_pos=0;
@@ -219,20 +245,31 @@ eval "
 	const left_child_stack_pos=5;
 	const right_child_stack_pos=6;
 	const both_child_stack_pos=7;
-	const access_pos=8;
 
 	is_alp(char)=isint(char,_a,_z)||isint(char,_A,_Z);
 	is_num(char)=isint(char,_'0',_'9');
 	is_valid_var_char(char)=is_alp(char)||is_num(char)||char==__;
 
-	if(access_mode,
-		const expr_pos=access_pos+1;
+	# Evaluate a scalar expression (control flow condition or count) at a given node
+	ctl_eval(br,dr,sr,st,ln)=(
+		set('rep_str2bin_struct_current_branch',br);
+		set('rep_str2bin_struct_expr_start',st);
+		set('rep_str2bin_struct_expr_length',ln);
+		set('rep_str2bin_struct_direction',dr);
+		set('rep_str2bin_struct_subroot',sr);
+		set('rep_str2bin_struct_scalar_mode',1);
+		run('__rep_str2bin_struct_expr')
+	);
+
+	if(expr_enable_mode,
+		const expr_pos=both_child_stack_pos+1;
 		vector_nan=vector(#$2,nan);
 		vector_res=vector_nan;
 	);
 
 	repeat_bucket=repeat_pos=repeat_level=-1;
 	cursor=current_branch=square_bracket_level=0;
+	ctl_sp=0;
 	max_depth=0;
 
 	do(
@@ -282,8 +319,8 @@ eval "
 					da_push(#no_right_child_stack,current_bin_tree_size);
 					da_push(#no_both_child_stack,current_bin_tree_size);
 
-					access_mode?(
-						da_push(#binary_tree_img,[current_branch,0,0,child_depth,0,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1,1,vector_nan]);
+					expr_enable_mode?(
+						da_push(#binary_tree_img,[current_branch,0,0,child_depth,0,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1,vector_nan]);
 						_1;
 					):(
 						da_push(#binary_tree_img,[current_branch,0,0,child_depth,0,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1]);
@@ -324,8 +361,8 @@ eval "
 					da_push(#no_right_child_stack,current_bin_tree_size);
 					da_push(#no_both_child_stack,current_bin_tree_size);
 
-					access_mode?(
-						da_push(#binary_tree_img,[current_branch,0,0,child_depth,1,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1,1,vector_nan]);
+					expr_enable_mode?(
+						da_push(#binary_tree_img,[current_branch,0,0,child_depth,1,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1,vector_nan]);
 						_1;
 					):(
 						da_push(#binary_tree_img,[current_branch,0,0,child_depth,1,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1]);
@@ -390,8 +427,8 @@ eval "
 					da_push(#no_right_child_stack,current_bin_tree_size);
 					da_push(#no_both_child_stack,current_bin_tree_size);
 
-					access_mode?(
-						da_push(#binary_tree_img,[current_branch,0,0,child_depth,alternate_direction,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1,1,vector_nan]);
+					expr_enable_mode?(
+						da_push(#binary_tree_img,[current_branch,0,0,child_depth,alternate_direction,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1,vector_nan]);
 						_1;
 					):(
 						da_push(#binary_tree_img,[current_branch,0,0,child_depth,alternate_direction,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1]);
@@ -484,8 +521,8 @@ eval "
 							da_push(#no_right_child_stack,current_bin_tree_size);
 							da_push(#no_both_child_stack,current_bin_tree_size);
 
-							access_mode?(
-								da_push(#binary_tree_img,[mirror_m,0,0,child_depth,alternate_direction,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1,1,vector_nan]);
+							expr_enable_mode?(
+								da_push(#binary_tree_img,[mirror_m,0,0,child_depth,alternate_direction,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1,vector_nan]);
 								_1;
 							):(
 								da_push(#binary_tree_img,[mirror_m,0,0,child_depth,alternate_direction,da_size(#no_left_child_stack)-1,da_size(#no_right_child_stack)-1,da_size(#no_both_child_stack)-1]);
@@ -497,12 +534,9 @@ eval "
 							mirror_try=0;
 
 							# Copy stored values onto the new mirrored node (always unset)
-							access_mode?(
-								if(!i(#binary_tree_img,0,mirror_s,0,access_pos),
-									tH=h(#binary_tree_img);
-									copy(i(#binary_tree_img,0,mirror_m,0,expr_pos),i(#binary_tree_img,0,mirror_s,0,expr_pos),$2,tH,tH);
-									i(#binary_tree_img,0,mirror_m,0,access_pos)=0;
-								);
+							expr_enable_mode?(
+								tH=h(#binary_tree_img);
+								copy(i(#binary_tree_img,0,mirror_m,0,expr_pos),i(#binary_tree_img,0,mirror_s,0,expr_pos),$2,tH,tH);
 							);
 						):(
 							++mirror_try;
@@ -524,21 +558,16 @@ eval "
 			++cursor;
 		):
 		current_char==expr_0?(
-			if(access_mode,
-				if(!i(#binary_tree_img,0,current_branch,0,access_pos),
-					run('error immut_state_det');
-				);
-
+			if(expr_enable_mode,
 				start_of_expr=cursor+1;
 				end_of_expr=find(#str_img,expr_1,cursor+2,1);
-
-				i(#binary_tree_img,0,current_branch,0,access_pos)=0;
 
 				set('rep_str2bin_struct_current_branch',current_branch);
 				set('rep_str2bin_struct_expr_start',start_of_expr);
 				set('rep_str2bin_struct_expr_length',end_of_expr-start_of_expr);
 				set('rep_str2bin_struct_direction',i(#binary_tree_img,0,current_branch,0,direction_pos));
 				set('rep_str2bin_struct_subroot',i[#square_bracket_stack,square_bracket_level]);
+				set('rep_str2bin_struct_scalar_mode',0);
 
 				vector_res=run('__rep_str2bin_struct_expr');
 
@@ -613,6 +642,58 @@ eval "
 
 			cursor=p;
 		):
+		current_char==ctl_char_cond?(
+			# ??{c}[body] is a while loop. ?{c}[then]; and ?{c}[then][else]; are if statements.
+			ctl_stmt=cursor;
+			ctl_is_while=i[#str_img,cursor+1]==ctl_char_cond;
+			ctl_val=ctl_eval(
+				current_branch,
+				i(#binary_tree_img,0,current_branch,0,direction_pos),
+				i[#square_bracket_stack,square_bracket_level],
+				i(#jump_table,ctl_stmt,0,0,0),
+				i(#jump_table,ctl_stmt,0,0,1)-i(#jump_table,ctl_stmt,0,0,0)
+			);
+			ctl_true=!isnan(ctl_val)&&ctl_val!=0;
+
+			ctl_true?(
+				ctl_new_kind=ctl_is_while?1:3;
+				ctl_body=i(#jump_table,ctl_stmt,0,0,2);
+			):(
+				# Else block opening (0 if there is none, also always 0 for while loops)
+				ctl_new_kind=4;
+				ctl_body=i(#jump_table,ctl_stmt,0,0,4);
+			);
+
+			ctl_enter=ctl_true||ctl_body;
+
+			ctl_enter?(
+				I(#ctl_stack,ctl_sp)=[ctl_new_kind,ctl_stmt,0];
+				++ctl_sp;
+				cursor=ctl_body+1;
+			):(
+				cursor=i(#jump_table,ctl_stmt,0,0,6);
+			);
+		):
+		current_char==ctl_char_count?(
+			# #{n}[body] runs the body n times
+			ctl_stmt=cursor;
+			ctl_val=ctl_eval(
+				current_branch,
+				i(#binary_tree_img,0,current_branch,0,direction_pos),
+				i[#square_bracket_stack,square_bracket_level],
+				i(#jump_table,ctl_stmt,0,0,0),
+				i(#jump_table,ctl_stmt,0,0,1)-i(#jump_table,ctl_stmt,0,0,0)
+			);
+			ctl_n=isnan(ctl_val)?0:floor(ctl_val);
+
+			ctl_n>0?(
+				I(#ctl_stack,ctl_sp)=[2,ctl_stmt,ctl_n];
+				++ctl_sp;
+				cursor=i(#jump_table,ctl_stmt,0,0,2)+1;
+			):(
+				cursor=i(#jump_table,ctl_stmt,0,0,6);
+			);
+		):
 		current_char==local_0?(
 			if(i(#binary_tree_img,0,current_branch,0,left_child_pos)||i(#binary_tree_img,0,current_branch,0,right_child_pos),
 				run('error inval_sub_node_idx');
@@ -637,11 +718,52 @@ eval "
 				i(#binary_tree_img,0,current_branch,0,right_child_stack_pos),
 				i(#binary_tree_img,0,current_branch,0,both_child_stack_pos)];
 
+			# Local context frame (kind 0)
+			I(#ctl_stack,ctl_sp)=[0,0,0];
+			++ctl_sp;
+
 			++cursor;
 		):
 		current_char==local_1?(
-			--square_bracket_level;
-			++cursor;
+			# Every ']' closes the innermost frame: a local context or a control flow body
+			--ctl_sp;
+			frame_kind=i(#ctl_stack,ctl_sp,0,0,0);
+			frame_stmt=i(#ctl_stack,ctl_sp,0,0,1);
+
+			frame_kind==0?(
+				--square_bracket_level;
+				++cursor;
+			):
+			frame_kind==1?(
+				# While loop: test the condition again
+				ctl_val=ctl_eval(
+					current_branch,
+					i(#binary_tree_img,0,current_branch,0,direction_pos),
+					i[#square_bracket_stack,square_bracket_level],
+					i(#jump_table,frame_stmt,0,0,0),
+					i(#jump_table,frame_stmt,0,0,1)-i(#jump_table,frame_stmt,0,0,0)
+				);
+				(!isnan(ctl_val)&&ctl_val!=0)?(
+					++ctl_sp; # Frame data is still in place, so just reopen it
+					cursor=i(#jump_table,frame_stmt,0,0,2)+1;
+				):(
+					cursor=i(#jump_table,frame_stmt,0,0,6);
+				);
+			):
+			frame_kind==2?(
+				# Count loop: one more pass done
+				frame_left=i(#ctl_stack,ctl_sp,0,0,2)-1;
+				frame_left>0?(
+					i(#ctl_stack,ctl_sp,0,0,2)=frame_left;
+					++ctl_sp;
+					cursor=i(#jump_table,frame_stmt,0,0,2)+1;
+				):(
+					cursor=i(#jump_table,frame_stmt,0,0,6);
+				);
+			):(
+				# End of a then/else body: jump past the whole if statement
+				cursor=i(#jump_table,frame_stmt,0,0,6);
+			);
 		):
 		is_num(current_char)?(
 			repeat_bucket=(cursor&0xff)+repeat_dict_table;
@@ -740,7 +862,7 @@ eval "
 	i[#binary_tree_img,0]=max_depth+1; # Set the very first unused pixel to the maximum depth found during creation to enable O(1) retrieval
 	"
 
-rm[-263--258,-256--1]
+rm[-265--258,-256--1]
 
 if $2
 	split c,-4,2
@@ -753,125 +875,64 @@ fi
 name[-1] BinArbor_Struct
 __rep_str2bin_struct_expr:
 res_str=dir()=$rep_str2bin_struct_direction;
-res_str.=depth()={i(#-257,0,$rep_str2bin_struct_current_branch,0,3)};
+res_str.=depth()={i(#-257,0,$rep_str2bin_struct_current_branch,0,3)-i(#-257,0,$rep_str2bin_struct_subroot,0,3)};
 res_str.=isleaf()={!(i(#-257,0,$rep_str2bin_struct_current_branch,0,1)||i(#-257,0,$rep_str2bin_struct_current_branch,0,2))};
+res_str.=hasleft()={i(#-257,0,$rep_str2bin_struct_current_branch,0,1)>0};
+res_str.=hasright()={i(#-257,0,$rep_str2bin_struct_current_branch,0,2)>0};
+res_str.=hasparent()={$rep_str2bin_struct_current_branch!=$rep_str2bin_struct_subroot};
 
+# Sibling index (0 if there is none, or at the subtree root)
+rep_str2bin_struct_sibling_idx=0
 if $rep_str2bin_struct_current_branch!=$rep_str2bin_struct_subroot
 	rep_str2bin_struct_sibling_idx={i(#-257,0,i(#-257,0,$rep_str2bin_struct_current_branch,0,0),0,2-$rep_str2bin_struct_direction)}
+fi
+res_str.=hassibling()={$rep_str2bin_struct_sibling_idx>0};
+
+# Functions reading stored values only exist when vector_size > 0
+if $rep_str2bin_struct_v_size
+	res_str.=self()=crop(#-257,0,$rep_str2bin_struct_current_branch,0,8,1,1,1,$rep_str2bin_struct_v_size);
+
 	if $rep_str2bin_struct_sibling_idx
-		res_str.=sibling()=crop(#-257,0,$rep_str2bin_struct_sibling_idx,0,9,1,1,1,$rep_str2bin_struct_v_size);
+		res_str.=sibling()=crop(#-257,0,$rep_str2bin_struct_sibling_idx,0,8,1,1,1,$rep_str2bin_struct_v_size);
 	fi
-fi
 
-if !isnan(i(#-257,0,$rep_str2bin_struct_current_branch,0,0))
-	res_str.=root()=crop(#-257,0,i(#-257,0,$rep_str2bin_struct_current_branch,0,0),0,9,1,1,1,$rep_str2bin_struct_v_size);
-fi
+	if !isnan(i(#-257,0,$rep_str2bin_struct_current_branch,0,0))
+		res_str.=root()=crop(#-257,0,i(#-257,0,$rep_str2bin_struct_current_branch,0,0),0,8,1,1,1,$rep_str2bin_struct_v_size);
+	fi
 
-if i(#-257,0,$rep_str2bin_struct_current_branch,0,1)
-	res_str.=L()=crop(#-257,0,i(#-257,0,$rep_str2bin_struct_current_branch,0,1),0,9,1,1,1,$rep_str2bin_struct_v_size);
-fi
+	if i(#-257,0,$rep_str2bin_struct_current_branch,0,1)
+		res_str.=L()=crop(#-257,0,i(#-257,0,$rep_str2bin_struct_current_branch,0,1),0,8,1,1,1,$rep_str2bin_struct_v_size);
+	fi
 
-if i(#-257,0,$rep_str2bin_struct_current_branch,0,2)
-	res_str.=R()=crop(#-257,0,i(#-257,0,$rep_str2bin_struct_current_branch,0,2),0,9,1,1,1,$rep_str2bin_struct_v_size);
+	if i(#-257,0,$rep_str2bin_struct_current_branch,0,2)
+		res_str.=R()=crop(#-257,0,i(#-257,0,$rep_str2bin_struct_current_branch,0,2),0,8,1,1,1,$rep_str2bin_struct_v_size);
+	fi
 fi
 
 res={$res_str;[{`crop(#$rep_str2bin_struct_start_of_image_list,$rep_str2bin_struct_expr_start,$rep_str2bin_struct_expr_length)`}]}
 
-if narg(${rep_str2bin_struct_var_$rep_str2bin_struct_current_branch})
-	${rep_str2bin_struct_var_$rep_str2bin_struct_current_branch}=$res
+if $rep_str2bin_struct_scalar_mode
+	# Control flow condition or count: return the scalar result only, store nothing in the tree
+	u $res
+else
+	if narg(${rep_str2bin_struct_var_$rep_str2bin_struct_current_branch})
+		${rep_str2bin_struct_var_$rep_str2bin_struct_current_branch}=$res
+	fi
+
+	rep_str2bin_struct_expr_$rep_str2bin_struct_current_branch=$res
+
+	u {vector(#$rep_str2bin_struct_v_size,$res)}
 fi
-
-rep_str2bin_struct_expr_$rep_str2bin_struct_current_branch=$res
-
-u {vector(#$rep_str2bin_struct_v_size,$res)}
-_rep_str2bin_struct_exam_delimit:
-1
-
-eval "
-	const str_len=whd#-2;
-	const B0P0=_'[';
-	const B0P1=_']';
-	const B1P0=_'{';
-	const B1P1=_'}';
-	const B2P1=_'`';
-	const _a=_'a';
-	const _z=_'z';
-	const _A=_'A';
-	const _Z=_'Z';
-	const __=_'_';
-	p=-1;
-	ignore_var=ignore_expr=ignore_num=0;
-
-	is_alp(char)=isint(char,_a,_z)||isint(char,_A,_Z);
-	is_num(char)=isint(char,_'0',_'9');
-	is_valid_var_char(char)=is_alp(char)||is_num(char)||char==__;
-
-	while(++p<str_len,
-		c=i[#-2,p];
-
-		if(ignore_var&&is_valid_var_char(c)
-		,continue();
-		,ignore_var=0;
-		);
-
-		is_alp(c)?(
-			ignore_var=1;
-		):
-		c==B1P1?(
-			i[#-1,da_size(#-1)-1]!=B1P0?(
-				run('error mismatched_bracket_det');
-			);
-			if(--i[#-1,h(#-1)-1]==-1,
-				run('error mismatched_bracket_det');
-			);
-			ignore_expr=ignore_num=0;
-		):
-		!(ignore_expr||(ignore_num?isint(c,_'0',_'9')))?(
-			c==B1P0?(
-				if(ignore_num
-				,ignore_num=0;
-				,ignore_expr=1;
-				);
-				da_push(#-1,B1P0);
-			):
-			c==B0P0?(
-				da_push(#-1,B0P0);
-			):
-			c==B0P1?(
-				i[#-1,da_size(#-1)-1]!=B0P0?(
-					run('error mismatched_bracket_det');
-				);
-				if(--i[#-1,h(#-1)-1]==-1,
-					run('error missing_bracket_det');
-				);
-			):
-			c==B2P1?(
-				i[#-1,da_size(#-1)-1]!=_'0'?(
-					run('error mismatched_rules');
-				);
-				if(--i[#-1,h(#-1)-1]==-1,
-					run('error missing_bracket_det');
-				);
-			):
-			isint(c,_'0',_'9')?(
-				ignore_num=1;
-			):
-			ignore_num?(
-				da_push(#-1,_'0');
-				ignore_num=0;
-			);
-		);
-	);
-
-	if(da_size(#-1),
-		run('error missing_brackets');
-	);
-	"
-
-rm.
-#@cli rep_str2bin_struct_fill_gradient: mode={ 0=exponential | 1=incremental }
-#@cli : Apply 2D gradient into BinArbor generated image, which is a 2D image representing a binary tree generated by the BinArbor interpretative language. This means 2D gradient according to binary tree structure.
+_rep_str2bin_struct_prepass:
+{w#-1},1,1,2,0 # Work stack: (kind,statement position) per open bracket
+{w#-2},1,1,7,0 # Jump table, one column per string position (see channel list below)
+#@cli rep_str2bin_struct_fill_gradient: mode={ 0=exponential | 1=incremental } | 0<=mode<=1
+#@cli : Apply 2D gradient into BinArbor generated image, which is a 2D image representing a binary tree generated by the BinArbor interpretative language.
+#@cli : This means 2D gradient according to binary tree structure.
+#@cli : Note : The two mode can be blended by using a value between 0-1
 rep_str2bin_struct_fill_gradient:
+check inrange($2,0,1,1,1)
+
 foreach {
 	check same('{-1,n}','BinArbor_Struct')
 
@@ -882,13 +943,11 @@ foreach {
 
 	eval "
 		const M=max(1,$max_depth_idx);
+		const L=$1;
 
 		da_push(#-1,[.5,.5,0]);
 
-		if($1
-		,Y()=i(#-3,0,V,0,3)/M;
-		,Y()=1-Y;
-		);
+		Y()=lerp(1-Y,i(#-3,0,V,0,3)/M,L);
 
 		while(da_size(#-1),
 			D=da_pop(#-1);
@@ -907,6 +966,7 @@ foreach {
 		);
 		"
 	rm.
+
 	a[-2,-1] c
 }
 #@cli rep_ls: start_num,end_num,_size_of_array,_repeat
